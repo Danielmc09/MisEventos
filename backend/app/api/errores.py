@@ -108,6 +108,7 @@ async def _dominio(request: Request, exc: DomainError) -> JSONResponse:
         tipo=exc.tipo,
         titulo=exc.titulo,
         detalle=exc.detalle,
+        errores=[ErrorDeCampo(field=c, message=m) for c, m in (exc.errores or {}).items()] or None,
         headers=exc.headers,
     )
 

@@ -1,11 +1,17 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Response, status
+from fastapi import APIRouter, Depends, status
 from fastapi.security import OAuth2PasswordRequestForm
 
 from app.api.dependencias import ConfigApp, RepoUsuarios, UsuarioActual
 from app.api.errores import respuestas_de_error
-from app.schemas.auth import Mensaje, RegistroEntrada, TokenAcceso, UsuarioSalida
+from app.schemas.auth import (
+    CambioContrasenaEntrada,
+    Mensaje,
+    RegistroEntrada,
+    TokenAcceso,
+    UsuarioSalida,
+)
 from app.services import autenticacion
 
 router = APIRouter(prefix="/auth", tags=["autenticación"])
@@ -64,6 +70,20 @@ def me(usuario: UsuarioActual) -> UsuarioSalida:
     return UsuarioSalida.model_validate(usuario, from_attributes=True)
 
 
-@router.patch("/me/password")
-def cambiar_contrasena() -> Response:
-    return Response(status_code=status.HTTP_501_NOT_IMPLEMENTED)
+@router.patch(
+    "/me/password",
+    summary="Cambiar la contraseña",
+    description="Pide la contraseña actual. Devuelve un access token nuevo, como el login.",
+    responses=respuestas_de_error(401, 422),
+)
+def cambiar_contrasena(
+    datos: CambioContrasenaEntrada, usuario: UsuarioActual, settings: ConfigApp
+) -> TokenAcceso:
+    token = autenticacion.cambiar_contrasena(
+        usuario,
+        datos.current_password,
+        datos.new_password,
+        settings.jwt_secret,
+        settings.access_token_minutes,
+    )
+    return TokenAcceso(access_token=token, expires_in=settings.access_token_minutes * 60)
