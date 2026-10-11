@@ -6,7 +6,9 @@ from app.models.evento import Event
 
 
 def escapar_like(texto: str) -> str:
-    return texto
+    """Para ILIKE con ESCAPE '\\': `%`, `_` y la barra se buscan literalmente. La barra primero,
+    si no se escaparían las barras que agrega el propio escape."""
+    return texto.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
 
 
 class RepositorioEventos:
