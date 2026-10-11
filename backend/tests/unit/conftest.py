@@ -2,8 +2,10 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+from app.api.dependencias import repositorio_usuarios
 from app.core.config import Settings
 from app.main import create_app
+from tests.unit.dobles import RepositorioUsuariosFalso
 
 ORIGEN_PERMITIDO = "http://localhost:5173"
 
@@ -29,3 +31,14 @@ def app(settings) -> FastAPI:
 @pytest.fixture
 def cliente(app) -> TestClient:
     return TestClient(app, raise_server_exceptions=False)
+
+
+@pytest.fixture
+def con_repo(app):
+    """Reemplaza el repositorio de usuarios de la app por un doble en memoria."""
+
+    def usar(repo: RepositorioUsuariosFalso) -> RepositorioUsuariosFalso:
+        app.dependency_overrides[repositorio_usuarios] = lambda: repo
+        return repo
+
+    return usar

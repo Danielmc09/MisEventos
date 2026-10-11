@@ -6,6 +6,8 @@ class DomainError(Exception):
     status: int = 400
     tipo: str = "bad-request"
     titulo: str = "La solicitud no es válida"
+    headers: dict[str, str] | None = None
+    errores: dict[str, str] | None = None  # campo → mensaje, para errores de un campo puntual
 
     def __init__(
         self, detalle: str | None = None, *, tipo: str | None = None, titulo: str | None = None
@@ -18,10 +20,23 @@ class DomainError(Exception):
             self.titulo = titulo
 
 
+class DatosInvalidos(DomainError):
+    """Un dato con el formato correcto que la regla de negocio rechaza, atado a su campo."""
+
+    status = 422
+    tipo = "validation-error"
+    titulo = "Los datos enviados no son válidos"
+
+    def __init__(self, campo: str, mensaje: str) -> None:
+        super().__init__()
+        self.errores = {campo: mensaje}
+
+
 class Unauthorized(DomainError):
     status = 401
     tipo = "unauthorized"
     titulo = "Necesitás iniciar sesión"
+    headers = {"WWW-Authenticate": "Bearer"}
 
 
 class Forbidden(DomainError):
