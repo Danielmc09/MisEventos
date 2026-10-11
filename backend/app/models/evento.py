@@ -2,7 +2,7 @@ from datetime import datetime
 from enum import StrEnum
 from uuid import UUID, uuid4
 
-from sqlalchemy import Column, DateTime, Enum, String, func, text
+from sqlalchemy import CheckConstraint, Column, DateTime, Enum, String, func, text
 from sqlmodel import Field, SQLModel
 
 
@@ -14,6 +14,12 @@ class EstadoEvento(StrEnum):
 
 class Event(SQLModel, table=True):
     __tablename__ = "events"
+    # Las reglas también viven en la base: valen aunque alguien escriba sin pasar por la API.
+    __table_args__ = (
+        CheckConstraint("end_at > start_at", name="fechas_ordenadas"),
+        CheckConstraint("capacity BETWEEN 1 AND 100000", name="capacidad"),
+        CheckConstraint("char_length(name) BETWEEN 3 AND 150", name="largo_nombre"),
+    )
 
     id: UUID = Field(
         default_factory=uuid4,

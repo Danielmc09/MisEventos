@@ -38,6 +38,11 @@ def upgrade() -> None:
         sa.Column(
             "updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False
         ),
+        sa.CheckConstraint("end_at > start_at", name=op.f("ck_events_fechas_ordenadas")),
+        sa.CheckConstraint("capacity BETWEEN 1 AND 100000", name=op.f("ck_events_capacidad")),
+        sa.CheckConstraint(
+            "char_length(name) BETWEEN 3 AND 150", name=op.f("ck_events_largo_nombre")
+        ),
         sa.ForeignKeyConstraint(
             ["organizer_id"], ["users.id"], name=op.f("fk_events_organizer_id_users")
         ),
@@ -51,4 +56,6 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    # El trigger, el índice y los CHECK caen con la tabla; el tipo enum no, se borra aparte.
     op.drop_table("events")
+    estado.drop(op.get_bind())
