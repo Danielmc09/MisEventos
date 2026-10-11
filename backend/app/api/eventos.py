@@ -31,3 +31,36 @@ def crear(datos: EventoEntrada, usuario: UsuarioActual, repo: RepoEventos) -> Ev
 def ver(id_evento: UUID, usuario: UsuarioOpcional, repo: RepoEventos) -> EventoSalida:
     evento = eventos.obtener(repo, usuario, id_evento)
     return EventoSalida.model_validate(evento, from_attributes=True)
+
+
+@router.post(
+    "/{id_evento}/publish",
+    summary="Publicar un evento",
+    description="`DRAFT → PUBLISHED`, solo si todavía no empezó. Su dueño o el admin.",
+    responses=respuestas_de_error(401, 403, 404, 409, 422),
+)
+def publicar(id_evento: UUID, usuario: UsuarioActual, repo: RepoEventos) -> EventoSalida:
+    evento = eventos.publicar(repo, usuario, id_evento)
+    return EventoSalida.model_validate(evento, from_attributes=True)
+
+
+@router.post(
+    "/{id_evento}/unpublish",
+    summary="Despublicar un evento",
+    description="`PUBLISHED → DRAFT`. Su dueño o el admin.",
+    responses=respuestas_de_error(401, 403, 404, 409, 422),
+)
+def despublicar(id_evento: UUID, usuario: UsuarioActual, repo: RepoEventos) -> EventoSalida:
+    evento = eventos.despublicar(repo, usuario, id_evento)
+    return EventoSalida.model_validate(evento, from_attributes=True)
+
+
+@router.post(
+    "/{id_evento}/cancel",
+    summary="Cancelar un evento",
+    description="`DRAFT | PUBLISHED → CANCELLED`, si no terminó. Es definitivo.",
+    responses=respuestas_de_error(401, 403, 404, 409, 422),
+)
+def cancelar(id_evento: UUID, usuario: UsuarioActual, repo: RepoEventos) -> EventoSalida:
+    evento = eventos.cancelar(repo, usuario, id_evento)
+    return EventoSalida.model_validate(evento, from_attributes=True)
