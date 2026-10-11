@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api import health
 from app.api.errores import registrar_manejadores
-from app.api.middleware import HEADER_TRACE, trazabilidad
+from app.api.middleware import HEADER_TRACE, errores_no_esperados, trazabilidad
 from app.core.config import Settings
 from app.core.db import crear_fabrica_de_sesiones
 from app.core.logs import configurar_logs
@@ -21,6 +21,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.sesiones = crear_fabrica_de_sesiones(settings.database_url)
     registrar_manejadores(app)
     app.include_router(health.router)
+    # El último en registrarse es el más externo. Orden de afuera hacia adentro: trazabilidad
+    # (trace_id y log de todo request, incluso el preflight), CORS, y la captura del 500, que
+    # queda por dentro de CORS para que el 500 también lleve Access-Control-Allow-Origin.
+    app.middleware("http")(errores_no_esperados)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origins,
@@ -29,6 +33,5 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         allow_headers=["*"],
         expose_headers=[HEADER_TRACE],
     )
-    # El último en registrarse es el más externo: el trace_id cubre también CORS y los 500.
     app.middleware("http")(trazabilidad)
     return app
