@@ -12,7 +12,15 @@ from dataclasses import dataclass
 from sqlmodel import Session
 
 from app.core.config import Settings
+from app.core.contrasenas import hashear
 from app.core.db import crear_fabrica_de_sesiones, sesion_transaccional
+from app.core.permisos import Rol
+from app.models.usuario import User
+from app.repositories.usuarios import RepositorioUsuarios
+from app.services.autenticacion import Usuarios
+
+ORGANIZADOR_DEMO = "organizador@miseventos.local"
+ASISTENTE_DEMO = "asistente@miseventos.local"
 
 
 @dataclass(frozen=True)
@@ -38,17 +46,33 @@ def credenciales_demo(settings: Settings) -> CredencialesDemo:
     )
 
 
-def sembrar_usuarios(repo, credenciales: CredencialesDemo) -> None:
-    pass
+def sembrar_usuarios(repo: Usuarios, credenciales: CredencialesDemo) -> None:
+    """Crea el admin y los usuarios demo que falten. Al que ya existe no lo toca: ni su
+    contraseña ni ningún otro dato. Entran directo, sin cambio obligatorio de contraseña."""
+    demo = [
+        (credenciales.admin_email, credenciales.admin_password, Rol.ADMIN),
+        (ORGANIZADOR_DEMO, credenciales.demo_password, Rol.ORGANIZER),
+        (ASISTENTE_DEMO, credenciales.demo_password, Rol.ATTENDEE),
+    ]
+    for email, password, rol in demo:
+        if repo.por_email(email) is None:
+            repo.crear(
+                User(
+                    email=email,
+                    password_hash=hashear(password),
+                    role=rol,
+                    is_active=True,
+                    must_change_password=False,
+                )
+            )
 
 
 def sembrar(session: Session, credenciales: CredencialesDemo) -> None:
     """Crea lo que falte de los datos de demostración, en la transacción recibida.
 
-    Todavía no hay tablas de dominio. Acá se suman, cada uno idempotente:
-    el admin y los usuarios demo (organizador y asistente, sin cambio obligatorio de
-    contraseña) y los eventos demo con fechas relativas al momento del seed.
+    Cada parte es idempotente. Los eventos demo se suman acá cuando existan.
     """
+    sembrar_usuarios(RepositorioUsuarios(session), credenciales)
 
 
 def main(argv: Sequence[str] | None = None) -> None:
