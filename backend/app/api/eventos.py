@@ -80,3 +80,14 @@ def editar(
 ) -> EventoSalida:
     evento = eventos.editar(repo, usuario, id_evento, datos)
     return EventoSalida.model_validate(evento, from_attributes=True)
+
+
+@router.delete(
+    "/{id_evento}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Eliminar un evento",
+    description="Lo borra de forma definitiva. Su dueño o el admin.",
+    responses=respuestas_de_error(401, 403, 404, 409, 422),
+)
+def eliminar(id_evento: UUID, usuario: UsuarioActual, repo: RepoEventos) -> None:
+    eventos.eliminar(repo, usuario, id_evento)

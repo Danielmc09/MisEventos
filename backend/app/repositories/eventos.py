@@ -23,6 +23,10 @@ class RepositorioEventos:
         self.session.refresh(evento)  # updated_at lo pone el trigger
         return evento
 
+    def eliminar(self, evento: Event) -> None:
+        self.session.delete(evento)
+        self.session.flush()
+
     def crear(self, evento: Event) -> Event:
         self.session.add(evento)
         self.session.flush()

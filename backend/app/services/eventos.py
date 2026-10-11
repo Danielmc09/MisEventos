@@ -24,6 +24,7 @@ class Eventos(Protocol):
     def crear(self, evento: Event) -> Event: ...
     def por_id_para_escribir(self, id_evento: UUID) -> Event | None: ...
     def guardar(self, evento: Event) -> Event: ...
+    def eliminar(self, evento: Event) -> None: ...
 
 
 def puede_ver(usuario: User | None, evento: Event) -> bool:
@@ -111,3 +112,7 @@ def editar(repo: Eventos, usuario: User, id_evento: UUID, datos: EventoEdicion) 
     for campo, valor in cambios.items():
         setattr(evento, campo, valor)
     return repo.guardar(evento)
+
+
+def eliminar(repo: Eventos, usuario: User, id_evento: UUID) -> None:
+    repo.eliminar(_para_escribir(repo, usuario, id_evento))

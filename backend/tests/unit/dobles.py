@@ -44,6 +44,9 @@ class RepositorioEventosFalso:
         self.eventos[evento.id] = evento
         return evento
 
+    def eliminar(self, evento: Event) -> None:
+        del self.eventos[evento.id]
+
     def crear(self, evento: Event) -> Event:
         # Lo que en la base pone el server_default.
         evento.created_at = evento.updated_at = datetime.now(UTC)
