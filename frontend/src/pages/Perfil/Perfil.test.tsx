@@ -9,7 +9,7 @@ import Perfil from "./Perfil";
 
 const server = setupServer();
 beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
-beforeEach(() => useSession.getState().iniciarSesion(usuario, "token-abc"));
+beforeEach(() => useSession.getState().iniciarSesion(usuario, "token-abc", 3600));
 afterEach(() => {
   server.resetHandlers();
   useSession.getState().cerrarSesion();

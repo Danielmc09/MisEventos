@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { useEffect } from "react";
 import { persist } from "zustand/middleware";
 import type { components } from "../api/schema";
 
@@ -7,8 +8,13 @@ export type Usuario = components["schemas"]["UsuarioSalida"];
 interface SessionState {
   user: Usuario | null;
   accessToken: string | null;
-  iniciarSesion: (user: Usuario, accessToken: string) => void;
+  /** Instante (ms epoch) en que vence el token; null en una sesión de formato viejo. */
+  expiresAt: number | null;
+  iniciarSesion: (user: Usuario, accessToken: string, expiresIn: number) => void;
+  /** true tras un logout voluntario: la ruta protegida no debe recordar adónde volver. */
+  saliendo: boolean;
   cerrarSesion: () => void;
+  salir: () => void;
 }
 
 export const useSession = create<SessionState>()(
@@ -16,12 +22,26 @@ export const useSession = create<SessionState>()(
     (set) => ({
       user: null,
       accessToken: null,
-      iniciarSesion: (user, accessToken) => set({ user, accessToken }),
-      cerrarSesion: () => set({ user: null, accessToken: null }),
+      expiresAt: null,
+      saliendo: false,
+      iniciarSesion: (user, accessToken, expiresIn) =>
+        set({ user, accessToken, expiresAt: Date.now() + expiresIn * 1000, saliendo: false }),
+      cerrarSesion: () => set({ user: null, accessToken: null, expiresAt: null, saliendo: false }),
+      salir: () => set({ user: null, accessToken: null, expiresAt: null, saliendo: true }),
     }),
     {
       name: "sesion",
-      partialize: ({ user, accessToken }) => ({ user, accessToken }),
+      partialize: ({ user, accessToken, expiresAt }) => ({ user, accessToken, expiresAt }),
     },
   ),
 );
+
+/** Hay sesión si hay token y no venció. Si venció, la vacía. */
+export function useSesionVigente() {
+  const vigente = useSession((s) => s.accessToken !== null && (s.expiresAt ?? 0) > Date.now());
+  const hayToken = useSession((s) => s.accessToken !== null);
+  useEffect(() => {
+    if (hayToken && !vigente) useSession.getState().cerrarSesion();
+  }, [hayToken, vigente]);
+  return vigente;
+}

@@ -14,21 +14,31 @@ const usuario: components["schemas"]["UsuarioSalida"] = {
 const guardado = () => JSON.parse(localStorage.getItem("sesion") ?? "null")?.state;
 
 afterEach(() => {
+  vi.useRealTimers();
   useSession.getState().cerrarSesion();
 });
 
-test("iniciar la sesión guarda el usuario y el token en el store y en localStorage", () => {
-  useSession.getState().iniciarSesion(usuario, "token-abc");
+beforeEach(() => vi.useFakeTimers({ toFake: ["Date"] }));
 
-  expect(useSession.getState()).toMatchObject({ user: usuario, accessToken: "token-abc" });
-  expect(guardado()).toEqual({ user: usuario, accessToken: "token-abc" });
+test("iniciar la sesión guarda el usuario y el token en el store y en localStorage", () => {
+  vi.setSystemTime(new Date("2026-10-11T12:00:00Z"));
+  const vence = Date.now() + 3600 * 1000;
+
+  useSession.getState().iniciarSesion(usuario, "token-abc", 3600);
+
+  expect(useSession.getState()).toMatchObject({
+    user: usuario,
+    accessToken: "token-abc",
+    expiresAt: vence,
+  });
+  expect(guardado()).toEqual({ user: usuario, accessToken: "token-abc", expiresAt: vence });
 });
 
 test("cerrar la sesión vacía el store y localStorage", () => {
-  useSession.getState().iniciarSesion(usuario, "token-abc");
+  useSession.getState().iniciarSesion(usuario, "token-abc", 3600);
 
   useSession.getState().cerrarSesion();
 
-  expect(useSession.getState()).toMatchObject({ user: null, accessToken: null });
-  expect(guardado()).toEqual({ user: null, accessToken: null });
+  expect(useSession.getState()).toMatchObject({ user: null, accessToken: null, expiresAt: null });
+  expect(guardado()).toEqual({ user: null, accessToken: null, expiresAt: null });
 });
