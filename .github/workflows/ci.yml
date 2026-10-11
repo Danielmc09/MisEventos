@@ -1,0 +1,133 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: miseventos
+          POSTGRES_PASSWORD: ci-solo-para-pruebas
+          POSTGRES_DB: miseventos_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U miseventos -d miseventos_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    # Valores de CI, no secretos: la base es efímera y solo existe durante el job.
+    env:
+      ENV: development
+      DATABASE_URL: postgresql+psycopg://miseventos:ci-solo-para-pruebas@localhost:5432/miseventos_test
+      TEST_DATABASE_URL: postgresql+psycopg://miseventos:ci-solo-para-pruebas@localhost:5432/miseventos_test
+      JWT_SECRET: ci-jwt-secret-solo-para-pruebas-000000000
+      CORS_ORIGINS: http://localhost:5173
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.14"
+
+      - name: Instalar Poetry
+        run: pip install "poetry==2.5.1" "poetry-plugin-export>=1.10,<2" "pip-audit>=2.10,<3"
+
+      - name: Instalar dependencias
+        run: poetry install --no-interaction
+
+      - name: Ruff
+        run: |
+          poetry run ruff check .
+          poetry run ruff format --check .
+
+      - name: Tests (unitarios e integración) con cobertura
+        run: poetry run pytest
+
+      - name: Subir cobertura
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: cobertura-backend
+          path: backend/htmlcov/
+
+      - name: pip-audit sobre las dependencias de producción
+        run: |
+          poetry export --only main -f requirements.txt -o "$RUNNER_TEMP/requirements.txt"
+          pip-audit --disable-pip -r "$RUNNER_TEMP/requirements.txt"
+
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: frontend/.nvmrc
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - run: npm ci
+
+      - name: ESLint
+        run: npm run lint
+
+      - name: Tipos
+        run: npx tsc -b
+
+      - name: Vitest con cobertura
+        run: npm run test:cov
+
+      - name: Subir cobertura
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: cobertura-frontend
+          path: frontend/coverage/
+
+      - name: Build
+        run: npx vite build
+
+      - name: npm audit
+        run: npm audit --audit-level=high
+
+  imagenes:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Construir imágenes
+        run: |
+          docker build -t miseventos-backend:ci backend
+          docker build --build-arg VITE_API_URL=http://localhost:8000 -t miseventos-frontend:ci frontend
+
+      # trivy-action no publica una etiqueta de versión mayor: se fija al commit de v0.36.0.
+      - name: Trivy backend
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: miseventos-backend:ci
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
+
+      - name: Trivy frontend
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: miseventos-frontend:ci
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
