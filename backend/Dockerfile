@@ -6,6 +6,7 @@ FROM python:3.14-slim AS builder
 ENV PIP_NO_CACHE_DIR=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1 \
     POETRY_VIRTUALENVS_IN_PROJECT=true \
+    POETRY_VIRTUALENVS_OPTIONS_NO_PIP=true \
     POETRY_NO_INTERACTION=1
 
 RUN pip install "poetry==2.5.1"
@@ -21,6 +22,9 @@ FROM python:3.14-slim AS runtime
 ENV PATH="/app/.venv/bin:$PATH" \
     PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
+
+# Sin pip en runtime (el venv nace sin pip y el del sistema se quita): trae dependencias vendorizadas con CVE y la app no lo usa.
+RUN python -m pip uninstall --yes pip
 
 RUN groupadd --system app && useradd --system --gid app --no-create-home app
 
