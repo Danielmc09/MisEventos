@@ -40,7 +40,7 @@ export default function Inicio() {
 
   return (
     <main className="mx-auto max-w-6xl p-6">
-      <h1 className="text-2xl font-bold">Eventos</h1>
+      <h1 className="text-2xl font-bold">Mis Eventos</h1>
       <div className="mt-6">
         {!actual && (
           <div className="flex justify-center p-10">
