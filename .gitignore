@@ -1,0 +1,67 @@
+# ── Entorno y secretos ──────────────────────────────
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# ── Python ──────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.so
+.venv/
+venv/
+env/
+*.egg-info/
+.eggs/
+build/
+dist/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.pyright/
+.hypothesis/
+.tox/
+.nox/
+
+# ── Cobertura ───────────────────────────────────────
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+coverage/
+*.lcov
+
+# ── Node / frontend ────────────────────────────────
+node_modules/
+frontend/dist/
+.vite/
+*.tsbuildinfo
+.eslintcache
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# ── Docker y datos locales ─────────────────────────
+pgdata/
+*.sqlite
+*.db
+docker-compose.override.yml
+
+# ── Logs ────────────────────────────────────────────
+logs/
+*.log
+
+# ── Editores ────────────────────────────────────────
+.vscode/*
+!.vscode/extensions.json
+.idea/
+*.swp
+*.swo
+*~
+
+# ── Sistema operativo ──────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini

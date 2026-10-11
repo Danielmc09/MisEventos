@@ -1,0 +1,63 @@
+# Instalar una vez por clon:
+#   pre-commit install --hook-type pre-commit --hook-type pre-push
+default_install_hook_types: [pre-commit, pre-push]
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-added-large-files
+      - id: check-merge-conflict
+      - id: detect-private-key
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.17.0
+    hooks:
+      - id: ruff-check
+        args: [--fix]
+        files: ^backend/
+      - id: ruff-format
+        files: ^backend/
+
+  - repo: local
+    hooks:
+      # Contraseñas con Argon2id. hashlib solo para el hash de refresh tokens (alta entropía).
+      - id: sin-hashlib
+        name: hashlib solo en app/core/tokens.py
+        language: pygrep
+        entry: '\bhashlib\b'
+        files: ^backend/app/
+        exclude: ^backend/app/core/tokens\.py$
+
+      - id: eslint
+        name: eslint
+        language: system
+        entry: bash -c 'cd frontend && npx eslint --max-warnings=0 .'
+        files: ^frontend/src/
+        pass_filenames: false
+
+      - id: prettier
+        name: prettier
+        language: system
+        entry: bash -c 'cd frontend && npx prettier --check src'
+        files: ^frontend/src/
+        pass_filenames: false
+
+      - id: tests-backend
+        name: tests unitarios backend
+        language: system
+        entry: bash -c 'cd backend && poetry run pytest -m "not integration" -q'
+        files: ^backend/
+        pass_filenames: false
+        stages: [pre-push]
+
+      - id: tests-frontend
+        name: tests unitarios frontend
+        language: system
+        entry: bash -c 'cd frontend && npm test -- --run'
+        files: ^frontend/
+        pass_filenames: false
+        stages: [pre-push]
