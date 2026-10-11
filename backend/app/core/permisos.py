@@ -21,8 +21,13 @@ class ConRol(Protocol):
     role: Rol
 
 
-PERMISOS_POR_ROL: dict[Rol, frozenset[Permiso]] = {rol: frozenset() for rol in Rol}
+# Los roles están anidados: cada uno puede todo lo del anterior. Un rol nuevo es una fila más.
+PERMISOS_POR_ROL: dict[Rol, frozenset[Permiso]] = {
+    Rol.ATTENDEE: frozenset(),
+    Rol.ORGANIZER: frozenset({Permiso.EVENTO_CREAR}),
+    Rol.ADMIN: frozenset(Permiso),
+}
 
 
 def tiene_permiso(usuario: ConRol, permiso: Permiso) -> bool:
-    return False
+    return permiso in PERMISOS_POR_ROL[usuario.role]
