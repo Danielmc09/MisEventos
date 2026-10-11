@@ -4,6 +4,7 @@ from fastapi import APIRouter, status
 
 from app.api.dependencias import RepoEventos, UsuarioActual, UsuarioOpcional
 from app.api.errores import respuestas_de_error
+from app.schemas.comunes import Pagina
 from app.schemas.eventos import EventoEdicion, EventoEntrada, EventoSalida
 from app.services import eventos
 
@@ -20,6 +21,11 @@ router = APIRouter(prefix="/events", tags=["eventos"])
 def crear(datos: EventoEntrada, usuario: UsuarioActual, repo: RepoEventos) -> EventoSalida:
     evento = eventos.crear(repo, usuario, datos)
     return EventoSalida.model_validate(evento, from_attributes=True)
+
+
+@router.get("", summary="Listar eventos")
+def listar() -> Pagina[EventoSalida]:
+    return Pagina[EventoSalida].crear([], total=0, page=1, page_size=12)
 
 
 @router.get(
