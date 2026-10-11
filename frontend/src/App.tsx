@@ -1,5 +1,6 @@
 import { lazy, Suspense } from "react";
 import { Route, Routes } from "react-router-dom";
+import { RutaProtegida } from "./components/RutaProtegida";
 import { Spinner } from "./components/ui/Spinner";
 
 const Inicio = lazy(() => import("./pages/Inicio/Inicio"));
@@ -20,7 +21,9 @@ export default function App() {
         <Route path="/" element={<Inicio />} />
         <Route path="/login" element={<Login />} />
         <Route path="/registro" element={<Registro />} />
-        <Route path="/perfil" element={<Perfil />} />
+        <Route element={<RutaProtegida />}>
+          <Route path="/perfil" element={<Perfil />} />
+        </Route>
       </Routes>
     </Suspense>
   );
