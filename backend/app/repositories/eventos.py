@@ -68,6 +68,10 @@ class RepositorioEventos:
     def por_id(self, id_evento: UUID) -> Event | None:
         return self.session.get(Event, id_evento)
 
+    def por_nombre_y_organizador(self, nombre: str, organizer_id: UUID) -> Event | None:
+        consulta = select(Event).where(Event.name == nombre, Event.organizer_id == organizer_id)
+        return self.session.exec(consulta).first()
+
     def por_id_para_escribir(self, id_evento: UUID) -> Event | None:
         """Bloquea la fila hasta el fin de la transacción: dos cambios a la vez no se pisan."""
         consulta = select(Event).where(Event.id == id_evento).with_for_update()
