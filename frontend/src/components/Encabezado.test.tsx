@@ -8,7 +8,11 @@ import { useSession } from "../stores/session";
 import { API, usuario } from "../test/helpers";
 import { responder } from "../test/msw";
 
-const server = setupServer();
+const server = setupServer(
+  http.get(`${API}/events`, () =>
+    responder("/events", "get", 200, { items: [], total: 0, page: 1, page_size: 12, pages: 0 }),
+  ),
+);
 beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
 afterEach(() => {
   server.resetHandlers();
@@ -97,4 +101,34 @@ test("con sesión, /cambiar-contrasena muestra el formulario", async () => {
   montar("/cambiar-contrasena");
 
   expect(await screen.findByLabelText("Contraseña actual")).toBeInTheDocument();
+});
+
+test("con sesión ofrece Crear evento hacia /eventos/nuevo; sin sesión no", () => {
+  const { unmount } = montar("/");
+  expect(
+    within(encabezado()).queryByRole("link", { name: "Crear evento" }),
+  ).not.toBeInTheDocument();
+  unmount();
+
+  useSession.getState().iniciarSesion(usuario, "token-abc", 3600);
+  montar("/");
+
+  expect(within(encabezado()).getByRole("link", { name: "Crear evento" })).toHaveAttribute(
+    "href",
+    "/eventos/nuevo",
+  );
+});
+
+test("/eventos/nuevo es una ruta protegida", async () => {
+  montar("/eventos/nuevo");
+
+  expect(await screen.findByRole("heading", { name: "Iniciar sesión" })).toBeInTheDocument();
+  expect(screen.getByLabelText("ubicación")).toHaveTextContent("/login?next=%2Feventos%2Fnuevo");
+});
+
+test("con sesión, /eventos/nuevo muestra la pantalla de nuevo evento", async () => {
+  useSession.getState().iniciarSesion(usuario, "token-abc", 3600);
+  montar("/eventos/nuevo");
+
+  expect(await screen.findByRole("heading", { name: "Nuevo evento" })).toBeInTheDocument();
 });
