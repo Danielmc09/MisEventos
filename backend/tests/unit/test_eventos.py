@@ -231,3 +231,100 @@ def test_un_token_invalido_en_el_detalle_se_trata_como_anonimo(cliente, eventos,
 
     assert ver(cliente, publicado.id, "esto.no.es-un-jwt").status_code == 200
     assert ver(cliente, borrador.id, vencido).status_code == 404
+
+
+# --- Transiciones --------------------------------------------------------------------------
+
+
+def accion(cliente, id_evento, nombre: str, token: str | None = None):
+    headers = {"Authorization": f"Bearer {token}"} if token else {}
+    return cliente.post(f"/events/{id_evento}/{nombre}", headers=headers)
+
+
+@pytest.mark.parametrize(
+    ("estado", "nombre", "queda"),
+    [
+        (BORRADOR, "publish", "PUBLISHED"),
+        (PUBLICADO, "unpublish", "DRAFT"),
+        (BORRADOR, "cancel", "CANCELLED"),
+        (PUBLICADO, "cancel", "CANCELLED"),
+    ],
+    ids=["publicar", "despublicar", "cancelar-borrador", "cancelar-publicado"],
+)
+def test_el_dueno_cambia_el_estado_con_una_transicion_valida(
+    cliente, eventos, token, estado, nombre, queda
+):
+    existente = eventos.crear(evento(estado))
+
+    respuesta = accion(cliente, existente.id, nombre, token(ORGANIZADOR))
+
+    assert respuesta.status_code == 200
+    assert respuesta.json()["status"] == queda
+    assert eventos.eventos[existente.id].status == queda
+
+
+@pytest.mark.parametrize(
+    ("estado", "nombre"),
+    [
+        (CANCELADO, "publish"),
+        (CANCELADO, "cancel"),
+        (BORRADOR, "unpublish"),
+        (PUBLICADO, "publish"),
+        (CANCELADO, "unpublish"),
+    ],
+    ids=[
+        "publicar-cancelado",
+        "cancelar-cancelado",
+        "despublicar-borrador",
+        "publicar-publicado",
+        "despublicar-cancelado",
+    ],
+)
+def test_una_transicion_que_no_existe_responde_409_invalid_transition(
+    cliente, eventos, token, estado, nombre
+):
+    existente = eventos.crear(evento(estado))
+
+    respuesta = accion(cliente, existente.id, nombre, token(ORGANIZADOR))
+
+    assert respuesta.status_code == 409
+    assert respuesta.headers["content-type"] == "application/problem+json"
+    assert respuesta.json()["type"] == "invalid-transition"
+    assert eventos.eventos[existente.id].status == estado
+
+
+def en_el_pasado(nuevo: Event, *, termino: bool) -> Event:
+    """Corre el evento: empezó hace una hora y, si `termino`, ya terminó."""
+    nuevo.start_at = datetime.now(UTC) - timedelta(hours=2)
+    nuevo.end_at = nuevo.start_at + timedelta(hours=1 if termino else 8)
+    return nuevo
+
+
+def test_no_se_publica_un_evento_que_ya_empezo(cliente, eventos, token):
+    empezado = eventos.crear(en_el_pasado(evento(BORRADOR), termino=False))
+
+    respuesta = accion(cliente, empezado.id, "publish", token(ORGANIZADOR))
+
+    assert respuesta.status_code == 409
+    assert respuesta.json()["type"] == "invalid-transition"
+    assert eventos.eventos[empezado.id].status == BORRADOR
+
+
+def test_no_se_cancela_un_evento_finalizado(cliente, eventos, token):
+    finalizado = eventos.crear(en_el_pasado(evento(PUBLICADO), termino=True))
+
+    respuesta = accion(cliente, finalizado.id, "cancel", token(ORGANIZADOR))
+
+    assert respuesta.status_code == 409
+    assert respuesta.json()["type"] == "invalid-transition"
+    assert eventos.eventos[finalizado.id].status == PUBLICADO
+
+
+@pytest.mark.parametrize("nombre", ["publish", "unpublish", "cancel"])
+def test_sin_token_no_se_cambia_el_estado(cliente, eventos, nombre):
+    existente = eventos.crear(evento(PUBLICADO))
+
+    respuesta = accion(cliente, existente.id, nombre)
+
+    assert respuesta.status_code == 401
+    assert eventos.eventos[existente.id].status == PUBLICADO

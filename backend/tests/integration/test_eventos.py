@@ -94,3 +94,19 @@ def test_un_anonimo_ve_un_evento_publicado(cliente_db, conexion):
 
     assert respuesta.status_code == 200
     assert respuesta.json()["status"] == "PUBLISHED"
+
+
+def test_borrador_publicado_despublicado_y_cancelado_en_orden(cliente_db, conexion):
+    dueno = usuario_con_rol(cliente_db, conexion, "orga@mail.com", "ORGANIZER")
+    creado = cliente_db.post("/events", json=cuerpo_valido(), headers=auth(dueno))
+    assert creado.status_code == 201
+    url = f"/events/{creado.json()['id']}"
+
+    pasos = [("publish", "PUBLISHED"), ("unpublish", "DRAFT"), ("cancel", "CANCELLED")]
+    for nombre, queda in pasos:
+        respuesta = cliente_db.post(f"{url}/{nombre}", headers=auth(dueno))
+        assert respuesta.status_code == 200, nombre
+        assert respuesta.json()["status"] == queda
+        visto = cliente_db.get(url, headers=auth(dueno))
+        assert visto.status_code == 200
+        assert visto.json()["status"] == queda
