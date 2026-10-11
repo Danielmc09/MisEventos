@@ -47,3 +47,21 @@ def usuario_actual(
 
 
 UsuarioActual = Annotated[User, Depends(usuario_actual)]
+
+
+def usuario_opcional(
+    request: Request,
+    repo: RepoUsuarios,
+    settings: ConfigApp,
+    token: Annotated[str | None, Depends(esquema_bearer)],
+) -> User | None:
+    """Para endpoints públicos: sin token, o con uno inválido, el request es anónimo (sin 401)."""
+    if token is None:
+        return None
+    try:
+        return usuario_actual(request, repo, settings, token)
+    except Unauthorized:
+        return None
+
+
+UsuarioOpcional = Annotated[User | None, Depends(usuario_opcional)]
