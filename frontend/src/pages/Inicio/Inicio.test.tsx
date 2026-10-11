@@ -139,3 +139,23 @@ describe("paginación", () => {
     expect(screen.queryByRole("button", { name: "Siguiente" })).not.toBeInTheDocument();
   });
 });
+
+describe("filtro de estado", () => {
+  test("elegir un estado lo pone en la URL, pide status y vuelve a la página 1", async () => {
+    const pedidos: string[] = [];
+    server.use(
+      http.get(`${API}/events`, ({ request }) => {
+        pedidos.push(new URL(request.url).search);
+        return responder("/events", "get", 200, pagina());
+      }),
+    );
+    const user = userEvent.setup();
+    abrir("/?page=2");
+    await screen.findByRole("link", { name: "PyCon Bogotá" });
+
+    await user.selectOptions(screen.getByRole("combobox", { name: "Estado" }), "Cancelado");
+
+    await waitFor(() => expect(pedidos).toEqual(["?page=2", "?status=CANCELLED"]));
+    expect(screen.getByLabelText("ubicación")).toHaveTextContent(/^\/\?status=CANCELLED$/);
+  });
+});
