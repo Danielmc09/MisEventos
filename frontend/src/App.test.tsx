@@ -58,7 +58,7 @@ test("sin sesión, /perfil lleva a /login?next=%2Fperfil", async () => {
 });
 
 test("con sesión, /perfil muestra el perfil", async () => {
-  useSession.getState().iniciarSesion(usuario, "token-abc");
+  useSession.getState().iniciarSesion(usuario, "token-abc", 3600);
 
   render(
     <MemoryRouter initialEntries={["/perfil"]}>

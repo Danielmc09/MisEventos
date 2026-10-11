@@ -23,7 +23,7 @@ export default function CambiarContrasena() {
     setEnviando(true);
     setError(null);
     try {
-      const { access_token } = await api<components["schemas"]["TokenAcceso"]>(
+      const { access_token, expires_in } = await api<components["schemas"]["TokenAcceso"]>(
         "/auth/me/password",
         {
           method: "PATCH",
@@ -34,7 +34,7 @@ export default function CambiarContrasena() {
         },
       );
       const { user } = useSession.getState();
-      if (user) useSession.getState().iniciarSesion(user, access_token);
+      if (user) useSession.getState().iniciarSesion(user, access_token, expires_in);
       navigate("/perfil", { state: { aviso: "Tu contraseña se cambió" } });
     } catch (err) {
       setError(errorDeFormulario(err));

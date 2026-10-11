@@ -191,7 +191,7 @@ test("con la sesión de otro usuario en el store, el login deja el usuario y el 
       ),
     ),
   );
-  useSession.getState().iniciarSesion(usuario, "token-asistente");
+  useSession.getState().iniciarSesion(usuario, "token-asistente", 3600);
   const user = userEvent.setup();
   montar("/login", rutas);
 
@@ -222,7 +222,7 @@ test("con un token vencido en el store, el login con credenciales correctas func
           }),
     ),
   );
-  useSession.getState().iniciarSesion(usuario, "token-vencido");
+  useSession.getState().iniciarSesion(usuario, "token-vencido", 3600);
   const user = userEvent.setup();
   montar("/login", rutas);
 

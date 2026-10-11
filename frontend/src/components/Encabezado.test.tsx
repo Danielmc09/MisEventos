@@ -41,7 +41,7 @@ test("sin sesión ofrece Iniciar sesión y Registrarse", async () => {
 });
 
 test("con sesión muestra el email como enlace a /perfil y Cerrar sesión", async () => {
-  useSession.getState().iniciarSesion(usuario, "token-abc");
+  useSession.getState().iniciarSesion(usuario, "token-abc", 3600);
   montar("/");
 
   const nav = within(encabezado());
@@ -71,7 +71,7 @@ describe.each([
         manejador(),
         http.get(`${API}/auth/me`, () => responder("/auth/me", "get", 200, usuario)),
       );
-      useSession.getState().iniciarSesion(usuario, "token-abc");
+      useSession.getState().iniciarSesion(usuario, "token-abc", 3600);
       const user = userEvent.setup();
       montar("/perfil");
       await screen.findByRole("heading", { name: "Perfil" });
@@ -93,7 +93,7 @@ test("/cambiar-contrasena es una ruta protegida", async () => {
 });
 
 test("con sesión, /cambiar-contrasena muestra el formulario", async () => {
-  useSession.getState().iniciarSesion(usuario, "token-abc");
+  useSession.getState().iniciarSesion(usuario, "token-abc", 3600);
   montar("/cambiar-contrasena");
 
   expect(await screen.findByLabelText("Contraseña actual")).toBeInTheDocument();

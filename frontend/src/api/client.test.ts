@@ -55,7 +55,7 @@ test("convierte un 409 problem+json en un ApiError con su title y su traceId", a
 });
 
 test("ante un 401 vacía la sesión", async () => {
-  useSession.getState().iniciarSesion(usuario, "token-vencido");
+  useSession.getState().iniciarSesion(usuario, "token-vencido", 3600);
   server.use(
     http.get(`${API}/auth/me`, () =>
       responder("/auth/me", "get", 401, {
@@ -84,7 +84,7 @@ test("ante un error de red devuelve el título «No se pudo conectar con el serv
 });
 
 test("agrega el token de la sesión en el header Authorization", async () => {
-  useSession.getState().iniciarSesion(usuario, "abc123");
+  useSession.getState().iniciarSesion(usuario, "abc123", 3600);
   let authorization: string | null = null;
   server.use(
     http.get(`${API}/auth/me`, ({ request }) => {
