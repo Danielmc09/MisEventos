@@ -38,6 +38,10 @@ def credenciales_demo(settings: Settings) -> CredencialesDemo:
     )
 
 
+def sembrar_usuarios(repo, credenciales: CredencialesDemo) -> None:
+    pass
+
+
 def sembrar(session: Session, credenciales: CredencialesDemo) -> None:
     """Crea lo que falte de los datos de demostración, en la transacción recibida.
 
