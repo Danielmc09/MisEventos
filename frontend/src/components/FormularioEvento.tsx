@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../api/client";
+import { errorDeFormulario } from "../lib/errores";
 import { aISOBogota } from "../lib/fechas";
 import { useEventos, type Evento } from "../stores/eventos";
 import { Button } from "./ui/Button";
@@ -32,6 +33,7 @@ export function FormularioEvento() {
   const invalidar = useEventos((s) => s.invalidar);
   const [valores, setValores] = useState<Valores>(VACIO);
   const [errores, setErrores] = useState<Record<string, string>>({});
+  const [general, setGeneral] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
 
   const campo = (name: keyof Valores) => ({
@@ -47,6 +49,7 @@ export function FormularioEvento() {
     const invalidos = validar(valores);
     setErrores(invalidos);
     if (Object.keys(invalidos).length) return;
+    setGeneral(null);
     setEnviando(true);
     try {
       const creado = await api<Evento>("/events", {
@@ -62,6 +65,10 @@ export function FormularioEvento() {
       });
       invalidar();
       navigate(`/eventos/${creado.id}`);
+    } catch (e) {
+      const { campos, general } = errorDeFormulario(e);
+      setErrores(campos);
+      setGeneral(general);
     } finally {
       setEnviando(false);
     }
@@ -85,6 +92,11 @@ export function FormularioEvento() {
       <Input label="Inicio" type="datetime-local" {...campo("start_at")} />
       <Input label="Fin" type="datetime-local" {...campo("end_at")} />
       <Input label="Capacidad" type="number" {...campo("capacity")} />
+      {general && (
+        <p role="alert" className="text-red-700">
+          {general}
+        </p>
+      )}
       <Button type="submit" loading={enviando} className="self-start">
         Crear evento
       </Button>
