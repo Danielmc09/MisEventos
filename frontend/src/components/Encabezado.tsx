@@ -20,7 +20,7 @@ export function Encabezado() {
         {user && vigente ? (
           <>
             <Link to="/perfil" className={`${enlace} max-w-full truncate`}>
-              {user.email}
+              {user.full_name || user.email}
             </Link>
             <button type="button" onClick={cerrarSesion} className={enlace}>
               Cerrar sesión

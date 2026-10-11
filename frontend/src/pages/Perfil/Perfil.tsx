@@ -1,8 +1,9 @@
-import { Link, useLocation } from "react-router-dom";
+import { Link } from "react-router-dom";
 import type { Usuario } from "../../stores/session";
 import { useSession } from "../../stores/session";
 import { Button } from "../../components/ui/Button";
 import { Toast } from "../../components/ui/Toast";
+import { useAvisoUnico } from "../../lib/useAvisoUnico";
 import { useCerrarSesion } from "../../lib/useCerrarSesion";
 
 const ROLES: Record<Usuario["role"], string> = {
@@ -14,7 +15,7 @@ const ROLES: Record<Usuario["role"], string> = {
 export default function Perfil() {
   const user = useSession((s) => s.user);
   const cerrarSesion = useCerrarSesion();
-  const aviso = (useLocation().state as { aviso?: string } | null)?.aviso;
+  const [aviso] = useAvisoUnico();
   if (!user) return null;
   return (
     <main className="mx-auto max-w-md p-6">
