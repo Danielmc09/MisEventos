@@ -32,6 +32,10 @@ max-complexity = 10
 testpaths = ["tests"]
 markers = ["integration: requiere PostgreSQL real"]
 addopts = "--cov=app --cov-report=term-missing --cov-report=html --cov-fail-under=80"
+filterwarnings = [
+    # Starlette recomienda httpx2 para su TestClient; el proyecto sigue con httpx.
+    'ignore:Using `httpx` with `starlette\.testclient` is deprecated; install `httpx2` instead\.:starlette.exceptions.StarletteDeprecationWarning',
+]
 
 [dependency-groups]
 dev = [
