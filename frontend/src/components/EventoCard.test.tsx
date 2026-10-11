@@ -14,7 +14,7 @@ test("muestra la fecha en hora de Bogotá, no en UTC", () => {
   montar({ ...evento, start_at: "2026-10-11T01:30:00Z" });
 
   const fecha = screen.getByText(/oct/i);
-  expect(fecha).toHaveTextContent(/10 oct/i);
+  expect(fecha).toHaveTextContent(/10 de oct de 2026/i);
   expect(fecha).toHaveTextContent(/8:30/);
   expect(fecha).toHaveAttribute("datetime", "2026-10-11T01:30:00Z");
 });
