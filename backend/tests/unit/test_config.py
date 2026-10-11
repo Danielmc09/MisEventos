@@ -70,6 +70,12 @@ def test_produccion_con_valores_propios_arranca(entorno):
     assert config.env == "production"
 
 
+def test_access_token_minutes_por_defecto_es_60(entorno):
+    valores = {k: v for k, v in DESARROLLO.items() if k != "ACCESS_TOKEN_MINUTES"}
+
+    assert entorno(valores).access_token_minutes == 60
+
+
 def test_cors_origins_se_separa_por_comas(entorno):
     config = entorno({**DESARROLLO, "CORS_ORIGINS": "http://a.test, http://b.test"})
 
