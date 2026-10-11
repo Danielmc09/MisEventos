@@ -6,10 +6,12 @@ from app.core.permisos import PERMISOS_POR_ROL, Permiso, Rol, tiene_permiso
 
 ESPERADO = {
     Rol.ATTENDEE: set(),
-    Rol.ORGANIZER: {Permiso.EVENTO_CREAR},
+    Rol.ORGANIZER: {Permiso.EVENTO_CREAR, Permiso.PONENTE_GESTIONAR},
     Rol.ADMIN: {
         Permiso.EVENTO_CREAR,
         Permiso.EVENTO_GESTIONAR_TODOS,
+        Permiso.PONENTE_GESTIONAR,
+        Permiso.PONENTE_GESTIONAR_TODOS,
         Permiso.USUARIOS_GESTIONAR,
         Permiso.AUDITORIA_VER,
     },
@@ -20,6 +22,8 @@ def test_los_permisos_tienen_los_identificadores_de_la_tabla():
     assert {p.value for p in Permiso} == {
         "evento:crear",
         "evento:gestionar_todos",
+        "ponente:gestionar",
+        "ponente:gestionar_todos",
         "usuarios:gestionar",
         "auditoria:ver",
     }

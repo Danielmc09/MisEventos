@@ -6,7 +6,12 @@ from sqlalchemy import Connection, text
 pytestmark = pytest.mark.integration
 
 # Tablas que no son de dominio o que la regla exceptúa a propósito.
-EXCEPCIONES = {"alembic_version"}
+EXCEPCIONES = {
+    "alembic_version",
+    # Un vínculo sesión-ponente no se edita: se crea o se borra. Tiene created_at, pero ni
+    # updated_at ni trigger, porque no hay nada que actualizar.
+    "session_speakers",
+}
 
 
 def tablas(conexion: Connection) -> set[str]:

@@ -4,6 +4,7 @@ from datetime import UTC, datetime
 from uuid import UUID
 
 from app.models.evento import Event
+from app.models.ponente import Speaker
 from app.models.usuario import User
 
 
@@ -79,3 +80,35 @@ class RepositorioEventosFalso:
         evento.created_at = evento.updated_at = datetime.now(UTC)
         self.eventos[evento.id] = evento
         return evento
+
+
+class RepositorioPonentesFalso:
+    def __init__(self, *ponentes: Speaker, con_sesiones: tuple[Speaker, ...] = ()) -> None:
+        self.ponentes = {p.id: p for p in ponentes}
+        self.con_sesiones = {p.id for p in con_sesiones}
+        self.busquedas: list[dict] = []
+
+    def buscar(self, q: str | None, offset: int, limite: int) -> tuple[list[Speaker], int]:
+        """Registra con qué se buscó; el ILIKE lo hace la base y se prueba en integración."""
+        self.busquedas.append({"q": q, "offset": offset, "limite": limite})
+        todos = list(self.ponentes.values())
+        return todos[offset : offset + limite], len(todos)
+
+    def por_id_para_escribir(self, id_: UUID) -> Speaker | None:
+        return self.ponentes.get(id_)
+
+    def tiene_sesiones(self, id_: UUID) -> bool:
+        return id_ in self.con_sesiones
+
+    def crear(self, ponente: Speaker) -> Speaker:
+        ponente.created_at = ponente.updated_at = datetime.now(UTC)
+        self.ponentes[ponente.id] = ponente
+        return ponente
+
+    def guardar(self, ponente: Speaker) -> Speaker:
+        ponente.updated_at = datetime.now(UTC)
+        self.ponentes[ponente.id] = ponente
+        return ponente
+
+    def eliminar(self, ponente: Speaker) -> None:
+        del self.ponentes[ponente.id]
