@@ -1,6 +1,5 @@
 import pytest
 
-from app.api.dependencias import repositorio_usuarios
 from app.core.permisos import Rol
 from app.models.usuario import User
 from app.services import autenticacion
@@ -10,15 +9,6 @@ MENSAJE = {"message": "Registro recibido. Iniciá sesión con tu correo y contra
 # El email más largo que se acepta: 254 caracteres, con etiquetas de dominio válidas.
 EMAIL_254 = "a" * 64 + "@" + "b" * 63 + "." + "c" * 63 + "." + "d" * 57 + ".com"
 VALIDO = {"email": "ana@mail.com", "password": "ocho-car", "full_name": "Ana"}
-
-
-@pytest.fixture
-def con_repo(app):
-    def usar(repo: RepositorioUsuariosFalso) -> RepositorioUsuariosFalso:
-        app.dependency_overrides[repositorio_usuarios] = lambda: repo
-        return repo
-
-    return usar
 
 
 @pytest.fixture

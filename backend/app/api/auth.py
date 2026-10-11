@@ -1,4 +1,7 @@
-from fastapi import APIRouter, status
+from typing import Annotated
+
+from fastapi import APIRouter, Depends, status
+from fastapi.security import OAuth2PasswordRequestForm
 
 from app.api.dependencias import RepoUsuarios
 from app.api.errores import respuestas_de_error
@@ -21,3 +24,16 @@ MENSAJE_REGISTRO = "Registro recibido. Iniciá sesión con tu correo y contrase�
 def registrar(datos: RegistroEntrada, repo: RepoUsuarios) -> Mensaje:
     autenticacion.registrar(repo, datos.email, datos.password, datos.full_name)
     return Mensaje(message=MENSAJE_REGISTRO)
+
+
+@router.post("/login")
+def login(
+    form: Annotated[OAuth2PasswordRequestForm, Depends()], repo: RepoUsuarios
+) -> dict[str, str]:
+    autenticacion.autenticar(repo, form.username, form.password)
+    return {}
+
+
+@router.get("/me")
+def me() -> dict[str, str]:
+    return {}

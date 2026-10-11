@@ -2,7 +2,8 @@
 
 from typing import Protocol
 
-from app.core.contrasenas import hashear
+from app.core.contrasenas import hashear, verificar  # noqa: F401
+from app.core.excepciones import Unauthorized
 from app.core.permisos import Rol
 from app.models.usuario import User
 
@@ -20,3 +21,7 @@ def registrar(repo: Usuarios, email: str, password: str, full_name: str | None) 
         email=email, password_hash=hashear(password), full_name=full_name, role=Rol.ATTENDEE
     )
     repo.crear(usuario)  # si chocó con otro registro del mismo email, la respuesta es la misma
+
+
+def autenticar(repo: Usuarios, email: str, password: str) -> User:
+    raise Unauthorized()
