@@ -5,6 +5,10 @@ from sqlmodel import Session, select
 from app.models.evento import Event
 
 
+def escapar_like(texto: str) -> str:
+    return texto
+
+
 class RepositorioEventos:
     def __init__(self, session: Session) -> None:
         self.session = session
