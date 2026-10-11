@@ -67,6 +67,10 @@ def sembrar_usuarios(repo: Usuarios, credenciales: CredencialesDemo) -> None:
             )
 
 
+def sembrar_eventos(usuarios: Usuarios, eventos: object) -> None:
+    pass
+
+
 def sembrar(session: Session, credenciales: CredencialesDemo) -> None:
     """Crea lo que falte de los datos de demostración, en la transacción recibida.
 

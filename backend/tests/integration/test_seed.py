@@ -82,3 +82,37 @@ def test_el_seed_no_restaura_la_contrasena_que_un_usuario_demo_cambio(cliente_db
     assert login(cliente_db, email, nueva).status_code == 200
     assert login(cliente_db, email, vieja).status_code == 401
     assert len(usuarios_demo(conexion)) == 3
+
+
+def eventos_demo(conexion) -> list[tuple[str, str]]:
+    return conexion.execute(
+        text(
+            "SELECT e.id, e.name FROM events e JOIN users u ON u.id = e.organizer_id"
+            " WHERE lower(u.email) = 'organizador@miseventos.local'"
+        )
+    ).all()
+
+
+def test_correr_el_seed_dos_veces_deja_los_mismos_seis_eventos_demo(conexion):
+    correr_seed(conexion)
+    primera = sorted(eventos_demo(conexion))
+
+    correr_seed(conexion)
+
+    assert len(primera) == 6
+    assert sorted(eventos_demo(conexion)) == primera
+    assert len(usuarios_demo(conexion)) == 3
+
+
+def test_los_eventos_demo_se_buscan_y_un_anonimo_no_ve_el_borrador(cliente_db, conexion):
+    correr_seed(conexion)
+
+    python = cliente_db.get("/events", params={"q": "python", "page_size": 100})
+    borradores = cliente_db.get("/events", params={"status": "DRAFT", "page_size": 100})
+    pasados = cliente_db.get("/events", params={"when": "past", "page_size": 100})
+
+    assert python.status_code == borradores.status_code == pasados.status_code == 200
+    demo = {nombre for _, nombre in eventos_demo(conexion)}
+    assert len([e for e in python.json()["items"] if e["name"] in demo]) >= 2
+    assert borradores.json()["total"] == 0
+    assert len([e for e in pasados.json()["items"] if e["name"] in demo]) == 1
