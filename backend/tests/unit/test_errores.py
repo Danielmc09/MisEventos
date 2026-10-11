@@ -8,6 +8,7 @@ from pydantic_core import PydanticCustomError
 from app.api.errores import respuestas_de_error
 from app.core.excepciones import Conflict, NotFound
 from app.schemas.comunes import FechaUTC
+from tests.unit.conftest import ORIGEN_PERMITIDO
 
 PROBLEM_JSON = "application/problem+json"
 SECRETO = "SELECT password_hash FROM users -- detalle interno"
@@ -101,6 +102,21 @@ def test_un_error_no_esperado_responde_500_sin_filtrar_detalles(rutas, cliente, 
     assert len(errores) == 1
     assert errores[0].campos["trace_id"] == cuerpo["trace_id"]
     assert SECRETO in str(errores[0].exc_info[1])
+
+
+def test_el_500_lleva_cors_para_que_el_navegador_pueda_leerlo(rutas, cliente):
+    respuesta = cliente.get("/explota", headers={"Origin": ORIGEN_PERMITIDO})
+
+    cuerpo = problema(respuesta, 500)
+    assert respuesta.headers.get("access-control-allow-origin") == ORIGEN_PERMITIDO
+    assert respuesta.headers.get("X-Request-ID") == cuerpo["trace_id"]
+
+
+def test_un_404_de_dominio_tambien_lleva_cors(rutas, cliente):
+    respuesta = cliente.get("/no-existe", headers={"Origin": ORIGEN_PERMITIDO})
+
+    problema(respuesta, 404)
+    assert respuesta.headers.get("access-control-allow-origin") == ORIGEN_PERMITIDO
 
 
 def test_respuestas_de_error_declara_problem_json_en_el_openapi(rutas, cliente):
