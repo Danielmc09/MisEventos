@@ -1,6 +1,6 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Response, status
 from fastapi.security import OAuth2PasswordRequestForm
 
 from app.api.dependencias import ConfigApp, RepoUsuarios, UsuarioActual
@@ -62,3 +62,8 @@ def logout() -> None:
 )
 def me(usuario: UsuarioActual) -> UsuarioSalida:
     return UsuarioSalida.model_validate(usuario, from_attributes=True)
+
+
+@router.patch("/me/password")
+def cambiar_contrasena() -> Response:
+    return Response(status_code=status.HTTP_501_NOT_IMPLEMENTED)
