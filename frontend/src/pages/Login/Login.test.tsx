@@ -232,3 +232,49 @@ test("con un token vencido en el store, el login con credenciales correctas func
   expect(useSession.getState().accessToken).toBe("token-nuevo");
   expect(screen.queryByRole("alert")).not.toBeInTheDocument();
 });
+
+test.each(["//evil.com", "https://evil.com", "javascript:alert(1)"])(
+  "el enlace a registrarse no lleva un next hostil (%s)",
+  (next) => {
+    montar(`/login?next=${encodeURIComponent(next)}`, rutas);
+
+    expect(screen.getByRole("link", { name: "¿No tenés cuenta? Registrate" })).toHaveAttribute(
+      "href",
+      "/registro",
+    );
+  },
+);
+
+const conAviso = {
+  pathname: "/login",
+  search: "?next=%2Feventos%2Fabc",
+  state: { aviso: "Registro recibido" },
+};
+
+test("el aviso de registro se muestra una vez: se limpia el state y el next sigue en la URL", async () => {
+  montar(conAviso, rutas);
+
+  expect(screen.getByText("Registro recibido")).toBeInTheDocument();
+  await waitFor(() => expect(screen.getByLabelText("estado")).toHaveTextContent("null"));
+  expect(screen.getByLabelText("ubicación")).toHaveTextContent("/login?next=%2Feventos%2Fabc");
+});
+
+test("tras un login fallido ya no está el aviso de registro y sí el error", async () => {
+  server.use(
+    http.post(`${API}/auth/login`, () =>
+      responder("/auth/login", "post", 401, {
+        type: "invalid-credentials",
+        title: "El correo o la contraseña no son correctos",
+        status: 401,
+        trace_id: "t-1",
+      }),
+    ),
+  );
+  const user = userEvent.setup();
+  montar(conAviso, rutas);
+
+  await ingresar(user);
+
+  expect(await screen.findByRole("alert")).toHaveTextContent("no son correctos");
+  expect(screen.queryByText("Registro recibido")).not.toBeInTheDocument();
+});

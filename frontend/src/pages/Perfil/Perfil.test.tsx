@@ -1,4 +1,4 @@
-import { screen } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { setupServer } from "msw/node";
@@ -62,4 +62,13 @@ test("si el logout falla por red, igual vacía la sesión", async () => {
 
   expect(await screen.findByRole("heading", { name: "Iniciar sesión" })).toBeInTheDocument();
   expect(useSession.getState().accessToken).toBeNull();
+});
+
+test("el aviso de contraseña cambiada se muestra una vez: se limpia el state", async () => {
+  montar({ pathname: "/perfil", state: { aviso: "Tu contraseña se cambió" } }, [
+    ["/perfil", <Perfil />],
+  ]);
+
+  expect(screen.getByText("Tu contraseña se cambió")).toBeInTheDocument();
+  await waitFor(() => expect(screen.getByLabelText("estado")).toHaveTextContent("null"));
 });

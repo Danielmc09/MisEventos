@@ -124,3 +124,31 @@ test("el enlace a iniciar sesión conserva next", () => {
     "/login?next=%2Feventos%2Fabc",
   );
 });
+
+test.each(["//evil.com", "https://evil.com", "javascript:alert(1)"])(
+  "el enlace a iniciar sesión no lleva un next hostil (%s)",
+  (next) => {
+    montarRegistro(`/registro?next=${encodeURIComponent(next)}`);
+
+    expect(screen.getByRole("link", { name: "¿Ya tenés cuenta? Iniciá sesión" })).toHaveAttribute(
+      "href",
+      "/login",
+    );
+  },
+);
+
+test("al registrarse con un next hostil, va a /login sin next", async () => {
+  server.use(
+    http.post(`${API}/auth/register`, () =>
+      responder("/auth/register", "post", 201, { message: "Listo" }),
+    ),
+  );
+  const user = userEvent.setup();
+  montarRegistro(`/registro?next=${encodeURIComponent("//evil.com")}`);
+
+  await completar(user);
+  await user.click(screen.getByRole("button", { name: /crear cuenta/i }));
+
+  await screen.findByRole("heading", { name: "Iniciar sesión" });
+  expect(screen.getByLabelText("ubicación")).toHaveTextContent(/^\/login$/);
+});
