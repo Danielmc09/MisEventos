@@ -50,21 +50,39 @@ test("con sesión muestra el email como enlace a /perfil y Cerrar sesión", asyn
   expect(nav.queryByRole("link", { name: "Iniciar sesión" })).not.toBeInTheDocument();
 });
 
-test("Cerrar sesión desde /perfil termina en /login", async () => {
-  server.use(
-    http.post(`${API}/auth/logout`, () => new Response(null, { status: 204 })),
-    http.get(`${API}/auth/me`, () => responder("/auth/me", "get", 200, usuario)),
-  );
-  useSession.getState().iniciarSesion(usuario, "token-abc");
-  const user = userEvent.setup();
-  montar("/perfil");
-  await screen.findByRole("heading", { name: "Perfil" });
+const logout = {
+  ok: () => http.post(`${API}/auth/logout`, () => new Response(null, { status: 204 })),
+  red: () => http.post(`${API}/auth/logout`, () => Response.error()),
+};
 
-  await user.click(within(encabezado()).getByRole("button", { name: "Cerrar sesión" }));
+describe.each([
+  ["con el logout correcto", logout.ok],
+  ["con el logout fallando por red", logout.red],
+])("Cerrar sesión desde /perfil %s", (_caso, manejador) => {
+  describe.each([
+    ["en el encabezado", () => within(encabezado()).getByRole("button", { name: "Cerrar sesión" })],
+    [
+      "en el perfil",
+      () => within(screen.getByRole("main")).getByRole("button", { name: "Cerrar sesión" }),
+    ],
+  ])("%s", (_donde, boton) => {
+    test("termina en /login limpio y con la sesión vacía", async () => {
+      server.use(
+        manejador(),
+        http.get(`${API}/auth/me`, () => responder("/auth/me", "get", 200, usuario)),
+      );
+      useSession.getState().iniciarSesion(usuario, "token-abc");
+      const user = userEvent.setup();
+      montar("/perfil");
+      await screen.findByRole("heading", { name: "Perfil" });
 
-  expect(await screen.findByRole("heading", { name: "Iniciar sesión" })).toBeInTheDocument();
-  expect(screen.getByLabelText("ubicación")).toHaveTextContent(/^\/login(\?|$)/);
-  expect(useSession.getState().accessToken).toBeNull();
+      await user.click(boton());
+
+      expect(await screen.findByRole("heading", { name: "Iniciar sesión" })).toBeInTheDocument();
+      expect(screen.getByLabelText("ubicación")).toHaveTextContent(/^\/login$/);
+      expect(useSession.getState().accessToken).toBeNull();
+    });
+  });
 });
 
 test("/cambiar-contrasena es una ruta protegida", async () => {
