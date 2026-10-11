@@ -98,3 +98,44 @@ describe("buscador", () => {
     await waitFor(() => expect(pedidos).toEqual(["", "?q=pyth"]));
   });
 });
+
+describe("paginación", () => {
+  test("Siguiente cambia page en la URL y pide esa página", async () => {
+    const pedidos: string[] = [];
+    server.use(
+      http.get(`${API}/events`, ({ request }) => {
+        const url = new URL(request.url);
+        pedidos.push(url.search);
+        return responder("/events", "get", 200, {
+          ...pagina(),
+          total: 30,
+          pages: 3,
+          page: Number(url.searchParams.get("page") ?? 1),
+        });
+      }),
+    );
+    const user = userEvent.setup();
+    abrir();
+    expect(await screen.findByText("Página 1 de 3")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Anterior" })).toBeDisabled();
+
+    await user.click(screen.getByRole("button", { name: "Siguiente" }));
+
+    expect(await screen.findByText("Página 2 de 3")).toBeInTheDocument();
+    expect(screen.getByLabelText("ubicación")).toHaveTextContent(/^\/\?page=2$/);
+    expect(pedidos).toEqual(["", "?page=2"]);
+
+    await user.click(screen.getByRole("button", { name: "Anterior" }));
+
+    expect(await screen.findByText("Página 1 de 3")).toBeInTheDocument();
+    expect(screen.getByLabelText("ubicación")).toHaveTextContent(/^\/$/);
+  });
+
+  test("con una sola página no muestra la paginación", async () => {
+    server.use(http.get(`${API}/events`, () => responder("/events", "get", 200, pagina())));
+    abrir();
+
+    await screen.findByRole("link", { name: "PyCon Bogotá" });
+    expect(screen.queryByRole("button", { name: "Siguiente" })).not.toBeInTheDocument();
+  });
+});
