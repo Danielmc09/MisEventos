@@ -36,6 +36,30 @@ class EventoEntrada(BaseModel):
         return end_at
 
 
+class EventoEdicion(BaseModel):
+    """Solo lo que cambia. Las fechas se comparan con lo guardado en el servicio."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    name: (
+        Annotated[str, StringConstraints(strip_whitespace=True, min_length=3, max_length=150)]
+        | None
+    ) = None
+    description: str | None = Field(default=None, max_length=5000)
+    location: str | None = Field(default=None, max_length=200)
+    start_at: FechaUTC | None = None
+    end_at: FechaUTC | None = None
+    capacity: int | None = Field(default=None, ge=1, le=100_000)
+
+    @field_validator("name", "start_at", "end_at", "capacity")
+    @classmethod
+    def no_nulo(cls, valor: object) -> object:
+        # Ausente sí (no cambia); null no: estos campos son obligatorios en el evento.
+        if valor is None:
+            raise ValueError("No puede ser nulo")
+        return valor
+
+
 class EventoSalida(BaseModel):
     id: UUID
     name: str

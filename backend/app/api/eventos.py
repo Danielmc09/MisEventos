@@ -4,7 +4,7 @@ from fastapi import APIRouter, status
 
 from app.api.dependencias import RepoEventos, UsuarioActual, UsuarioOpcional
 from app.api.errores import respuestas_de_error
-from app.schemas.eventos import EventoEntrada, EventoSalida
+from app.schemas.eventos import EventoEdicion, EventoEntrada, EventoSalida
 from app.services import eventos
 
 router = APIRouter(prefix="/events", tags=["eventos"])
@@ -63,4 +63,20 @@ def despublicar(id_evento: UUID, usuario: UsuarioActual, repo: RepoEventos) -> E
 )
 def cancelar(id_evento: UUID, usuario: UsuarioActual, repo: RepoEventos) -> EventoSalida:
     evento = eventos.cancelar(repo, usuario, id_evento)
+    return EventoSalida.model_validate(evento, from_attributes=True)
+
+
+@router.patch(
+    "/{id_evento}",
+    summary="Editar un evento",
+    description=(
+        "Se manda solo lo que cambia. `status` y `organizer_id` no se aceptan. "
+        "Un evento cancelado o finalizado no se edita (409). Su dueño o el admin."
+    ),
+    responses=respuestas_de_error(401, 403, 404, 409, 422),
+)
+def editar(
+    id_evento: UUID, datos: EventoEdicion, usuario: UsuarioActual, repo: RepoEventos
+) -> EventoSalida:
+    evento = eventos.editar(repo, usuario, id_evento, datos)
     return EventoSalida.model_validate(evento, from_attributes=True)

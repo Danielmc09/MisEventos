@@ -6,11 +6,17 @@ from datetime import UTC, datetime
 from typing import Protocol
 from uuid import UUID
 
-from app.core.excepciones import DatosInvalidos, Forbidden, NotFound, TransicionInvalida
+from app.core.excepciones import (
+    Conflict,
+    DatosInvalidos,
+    Forbidden,
+    NotFound,
+    TransicionInvalida,
+)
 from app.core.permisos import Permiso, tiene_permiso
 from app.models.evento import EstadoEvento, Event
 from app.models.usuario import User
-from app.schemas.eventos import EventoEntrada
+from app.schemas.eventos import EventoEdicion, EventoEntrada
 
 
 class Eventos(Protocol):
@@ -91,3 +97,17 @@ def cancelar(repo: Eventos, usuario: User, id_evento: UUID) -> Event:
         raise TransicionInvalida("No se cancela un evento que ya terminó")
     desde = {EstadoEvento.DRAFT, EstadoEvento.PUBLISHED}
     return _cambiar_estado(repo, evento, desde, EstadoEvento.CANCELLED)
+
+
+def editar(repo: Eventos, usuario: User, id_evento: UUID, datos: EventoEdicion) -> Event:
+    evento = _para_escribir(repo, usuario, id_evento)
+    if evento.status == EstadoEvento.CANCELLED or _finalizado(evento):
+        raise Conflict(titulo="Un evento cancelado o finalizado no se edita")
+    cambios = datos.model_dump(exclude_unset=True)
+    if "start_at" in cambios and cambios["start_at"] <= datetime.now(UTC):
+        raise DatosInvalidos("start_at", "Tiene que estar en el futuro")
+    if cambios.get("end_at", evento.end_at) <= cambios.get("start_at", evento.start_at):
+        raise DatosInvalidos("end_at", "Tiene que ser posterior al inicio")
+    for campo, valor in cambios.items():
+        setattr(evento, campo, valor)
+    return repo.guardar(evento)
