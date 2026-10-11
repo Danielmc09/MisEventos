@@ -43,6 +43,17 @@ def login(
     return TokenAcceso(access_token=token, expires_in=settings.access_token_minutes * 60)
 
 
+@router.post(
+    "/logout",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Cerrar sesión",
+    description="Sin estado en el servidor: el cliente descarta su access token. Responde 204 "
+    "siempre, con token o sin él.",
+)
+def logout() -> None:
+    return None
+
+
 @router.get(
     "/me",
     summary="Usuario actual",
