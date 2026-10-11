@@ -1,0 +1,18 @@
+# Reglas por defecto de gitleaks, más una sola excepción: los valores de demostración de
+# .env.example. Son públicos a propósito (solo sirven en local, y con ENV=production la API se
+# niega a arrancar con ellos), así que aparecen también en la configuración y en los tests.
+# La excepción es por valor exacto, no por archivo: cualquier otro secreto en esos mismos
+# archivos se sigue detectando.
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Valores de demostración de .env.example"
+regexTarget = "secret"
+regexes = [
+  '''^demo_local_db$''',
+  '''^demo-local-jwt-secret-solo-para-desarrollo-0001$''',
+  '''^Admin-Demo-2026$''',
+  '''^Demo-Local-2026$''',
+]
