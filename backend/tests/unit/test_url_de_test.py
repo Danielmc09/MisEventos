@@ -1,6 +1,6 @@
 import pytest
 
-from tests.integration.base_de_test import url_de_test
+from tests.integration.infraestructura import url_de_test
 
 DESARROLLO = "postgresql+psycopg://miseventos:clave@db:5432/miseventos"
 
