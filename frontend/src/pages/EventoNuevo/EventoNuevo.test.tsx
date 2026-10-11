@@ -111,3 +111,56 @@ describe("crear", () => {
     expect(screen.getByLabelText("ubicación")).toHaveTextContent(`/eventos/${evento.id}`);
   });
 });
+
+describe("errores del backend", () => {
+  test("un 422 muestra cada mensaje en su campo", async () => {
+    server.use(
+      http.post(`${API}/events`, () =>
+        responder("/events", "post", 422, {
+          type: "validation-error",
+          title: "Los datos enviados no son válidos",
+          status: 422,
+          trace_id: "t-1",
+          errors: [
+            { field: "start_at", message: "La fecha de inicio tiene que estar en el futuro" },
+            { field: "capacity", message: "La capacidad es demasiado grande" },
+          ],
+        }),
+      ),
+    );
+    const user = userEvent.setup();
+    abrir();
+
+    await completar(user);
+    await crear(user);
+
+    await screen.findByText("La capacidad es demasiado grande");
+    expect(screen.getByLabelText("Inicio")).toHaveAccessibleDescription(
+      "La fecha de inicio tiene que estar en el futuro",
+    );
+    expect(screen.getByLabelText("Capacidad")).toHaveAccessibleDescription(
+      "La capacidad es demasiado grande",
+    );
+    expect(screen.queryByText("Detalle del evento")).not.toBeInTheDocument();
+  });
+
+  test("otro error muestra su title", async () => {
+    server.use(
+      http.post(`${API}/events`, () =>
+        responder("/events", "post", 403, {
+          type: "forbidden",
+          title: "No tenés permiso para hacer esto",
+          status: 403,
+          trace_id: "t-2",
+        }),
+      ),
+    );
+    const user = userEvent.setup();
+    abrir();
+
+    await completar(user);
+    await crear(user);
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("No tenés permiso para hacer esto");
+  });
+});
