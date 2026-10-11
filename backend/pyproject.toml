@@ -25,6 +25,8 @@ max-complexity = 10
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["S101", "S105", "S106"]
+# Las excepciones de dominio se llaman como el error que nombran: NotFound, Conflict, Forbidden.
+"app/core/excepciones.py" = ["N818"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
