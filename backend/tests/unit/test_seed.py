@@ -1,12 +1,20 @@
+from datetime import UTC, datetime, timedelta
+
 import pytest
 
 from app.core.config import Settings
 from app.core.contrasenas import hashear, verificar
 from app.core.permisos import Rol
+from app.models.evento import EstadoEvento, Event
 from app.models.usuario import User
 from app.scripts import seed
-from app.scripts.seed import CredencialesDemo, credenciales_demo, sembrar_usuarios
-from tests.unit.dobles import RepositorioUsuariosFalso
+from app.scripts.seed import (
+    CredencialesDemo,
+    credenciales_demo,
+    sembrar_eventos,
+    sembrar_usuarios,
+)
+from tests.unit.dobles import RepositorioEventosFalso, RepositorioUsuariosFalso
 
 CREDENCIALES = {
     "ADMIN_EMAIL": "admin@miseventos.local",
@@ -188,3 +196,100 @@ def test_correrlo_dos_veces_no_crea_nada_la_segunda():
     sembrar_usuarios(repo, DEMO)
 
     assert len(repo.creados) == 3
+
+
+# --- Eventos demo --------------------------------------------------------------------------
+
+ORGANIZADOR_DEMO = User(
+    email="organizador@miseventos.local", password_hash="$argon2id$x", role=Rol.ORGANIZER
+)
+ORGANIZADOR_AJENO = User(email="otro@mail.com", password_hash="$argon2id$x", role=Rol.ORGANIZER)
+
+
+def test_crea_los_seis_eventos_demo_a_nombre_del_organizador():
+    eventos = RepositorioEventosFalso()
+    ahora = datetime.now(UTC)
+
+    sembrar_eventos(RepositorioUsuariosFalso(ORGANIZADOR_DEMO), eventos)
+
+    demo = list(eventos.eventos.values())
+    assert len(demo) == 6
+    assert len({e.name for e in demo}) == 6
+    assert all(e.organizer_id == ORGANIZADOR_DEMO.id for e in demo)
+    assert all(e.end_at > e.start_at for e in demo)
+    terminados = [e for e in demo if e.end_at < ahora]
+    vigentes = [e for e in demo if e.end_at >= ahora]
+    assert len(terminados) == 1
+    assert all(e.start_at > ahora for e in vigentes)
+    estados = sorted(e.status for e in vigentes)
+    assert estados == sorted(
+        [EstadoEvento.PUBLISHED] * 3 + [EstadoEvento.DRAFT, EstadoEvento.CANCELLED]
+    )
+    casi_lleno = [e for e in vigentes if e.status == EstadoEvento.PUBLISHED and e.capacity == 10]
+    assert len(casi_lleno) == 1
+
+
+def test_al_menos_dos_eventos_demo_dicen_python_con_distintas_mayusculas():
+    eventos = RepositorioEventosFalso()
+
+    sembrar_eventos(RepositorioUsuariosFalso(ORGANIZADOR_DEMO), eventos)
+
+    con_python = [e.name for e in eventos.eventos.values() if "python" in e.name.lower()]
+    assert len(con_python) >= 2
+    escrituras = {n[n.lower().index("python") :][:6] for n in con_python}
+    assert len(escrituras) >= 2
+
+
+def test_no_toca_un_evento_demo_que_ya_existe_y_crea_los_que_faltan():
+    eventos = RepositorioEventosFalso()
+    sembrar_eventos(RepositorioUsuariosFalso(ORGANIZADOR_DEMO), eventos)
+    assert len(eventos.eventos) == 6
+    editado = next(iter(eventos.eventos.values()))
+    editado.capacity = 999
+    borrado = list(eventos.eventos.values())[-1]
+    eventos.eliminar(borrado)
+
+    sembrar_eventos(RepositorioUsuariosFalso(ORGANIZADOR_DEMO), eventos)
+
+    assert len(eventos.eventos) == 6
+    assert eventos.eventos[editado.id].capacity == 999
+    assert borrado.name in {e.name for e in eventos.eventos.values()}
+
+
+def test_correrlo_dos_veces_deja_los_mismos_seis_eventos():
+    eventos = RepositorioEventosFalso()
+    usuarios = RepositorioUsuariosFalso(ORGANIZADOR_DEMO)
+    sembrar_eventos(usuarios, eventos)
+    ids = set(eventos.eventos)
+
+    sembrar_eventos(usuarios, eventos)
+
+    assert len(ids) == 6
+    assert set(eventos.eventos) == ids
+
+
+def test_un_evento_de_otro_organizador_con_el_mismo_nombre_no_cuenta_como_demo():
+    eventos = RepositorioEventosFalso()
+    sembrar_eventos(RepositorioUsuariosFalso(ORGANIZADOR_DEMO), eventos)
+    nombres = [e.name for e in eventos.eventos.values()]
+    otro = RepositorioEventosFalso()
+    inicio = datetime.now(UTC) + timedelta(days=5)
+    for nombre in nombres:
+        otro.crear(
+            Event(
+                name=nombre,
+                start_at=inicio,
+                end_at=inicio + timedelta(hours=1),
+                capacity=5,
+                organizer_id=ORGANIZADOR_AJENO.id,
+            )
+        )
+
+    sembrar_eventos(RepositorioUsuariosFalso(ORGANIZADOR_DEMO), otro)
+
+    assert len(otro.eventos) == 12
+
+
+def test_sin_el_organizador_demo_falla_nombrandolo():
+    with pytest.raises(RuntimeError, match="organizador@miseventos.local"):
+        sembrar_eventos(RepositorioUsuariosFalso(), RepositorioEventosFalso())

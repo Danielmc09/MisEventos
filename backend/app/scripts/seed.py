@@ -8,6 +8,9 @@ import argparse
 from collections.abc import Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass
+from datetime import UTC, datetime, timedelta
+from typing import Protocol
+from uuid import UUID
 
 from sqlmodel import Session
 
@@ -15,7 +18,9 @@ from app.core.config import Settings
 from app.core.contrasenas import hashear
 from app.core.db import crear_fabrica_de_sesiones, sesion_transaccional
 from app.core.permisos import Rol
+from app.models.evento import EstadoEvento, Event
 from app.models.usuario import User
+from app.repositories.eventos import RepositorioEventos
 from app.repositories.usuarios import RepositorioUsuarios
 from app.services.autenticacion import Usuarios
 
@@ -67,12 +72,117 @@ def sembrar_usuarios(repo: Usuarios, credenciales: CredencialesDemo) -> None:
             )
 
 
+class EventosDemo(Protocol):
+    def por_nombre_y_organizador(self, nombre: str, organizer_id: UUID) -> Event | None: ...
+    def crear(self, evento: Event) -> Event: ...
+
+
+@dataclass(frozen=True)
+class EventoDemo:
+    nombre: str
+    descripcion: str
+    lugar: str
+    empieza_en_dias: int
+    horas: int
+    capacidad: int
+    estado: EstadoEvento
+
+
+# Uno de cada caso que la demo necesita mostrar. Dos dicen "Python" con distintas mayúsculas, para
+# probar la búsqueda. Las inscripciones del casi lleno y las sesiones paralelas se agregan aparte.
+EVENTOS_DEMO = [
+    EventoDemo(
+        "PyCon Bogotá",
+        "La conferencia de la comunidad Python en Colombia.",
+        "Ágora Bogotá",
+        30,
+        9,
+        300,
+        EstadoEvento.PUBLISHED,
+    ),
+    EventoDemo(
+        "Taller de python para principiantes",
+        "Cupo reducido: quedan pocos lugares.",
+        "Universidad Nacional, Bogotá",
+        10,
+        4,
+        10,
+        EstadoEvento.PUBLISHED,
+    ),
+    EventoDemo(
+        "Meetup de ciencia de datos",
+        "Todavía en preparación.",
+        "Medellín",
+        45,
+        3,
+        80,
+        EstadoEvento.DRAFT,
+    ),
+    EventoDemo(
+        "Jornada de seguridad web",
+        "Se canceló por fuerza mayor.",
+        "Cali",
+        20,
+        6,
+        120,
+        EstadoEvento.CANCELLED,
+    ),
+    EventoDemo(
+        "Encuentro DevOps Colombia",
+        "Ya se realizó.",
+        "Barranquilla",
+        -30,
+        8,
+        150,
+        EstadoEvento.PUBLISHED,
+    ),
+    EventoDemo(
+        "Python Day Medellín",
+        "Charlas en salas paralelas durante todo el día.",
+        "Plaza Mayor, Medellín",
+        21,
+        9,
+        250,
+        EstadoEvento.PUBLISHED,
+    ),
+]
+
+
+def sembrar_eventos(usuarios: Usuarios, eventos: EventosDemo) -> None:
+    """Crea los eventos demo que falten, a nombre del organizador demo. Uno que ya existe (mismo
+    nombre y organizador) no se toca. Las fechas son relativas a hoy: la demo nunca queda vieja.
+    Se crean por el repositorio, sin las reglas del servicio: uno de ellos ya terminó."""
+    organizador = usuarios.por_email(ORGANIZADOR_DEMO)
+    if organizador is None:
+        raise RuntimeError(f"Falta el usuario {ORGANIZADOR_DEMO}, dueño de los eventos demo")
+    # 14:00 UTC son las 9:00 en Bogotá.
+    hoy = datetime.now(UTC).replace(hour=14, minute=0, second=0, microsecond=0)
+    for demo in EVENTOS_DEMO:
+        if eventos.por_nombre_y_organizador(demo.nombre, organizador.id) is not None:
+            continue
+        inicio = hoy + timedelta(days=demo.empieza_en_dias)
+        eventos.crear(
+            Event(
+                name=demo.nombre,
+                description=demo.descripcion,
+                location=demo.lugar,
+                start_at=inicio,
+                end_at=inicio + timedelta(hours=demo.horas),
+                capacity=demo.capacidad,
+                status=demo.estado,
+                organizer_id=organizador.id,
+            )
+        )
+
+
 def sembrar(session: Session, credenciales: CredencialesDemo) -> None:
     """Crea lo que falte de los datos de demostración, en la transacción recibida.
 
-    Cada parte es idempotente. Los eventos demo se suman acá cuando existan.
+    Cada parte es idempotente. Primero los usuarios: el organizador demo es dueño de los eventos.
     """
-    sembrar_usuarios(RepositorioUsuarios(session), credenciales)
+    usuarios = RepositorioUsuarios(session)
+    sembrar_usuarios(usuarios, credenciales)
+    sembrar_eventos(usuarios, RepositorioEventos(session))
 
 
 def main(argv: Sequence[str] | None = None) -> None:

@@ -16,7 +16,7 @@ from app.core.excepciones import (
 from app.core.permisos import Permiso, tiene_permiso
 from app.models.evento import EstadoEvento, Event
 from app.models.usuario import User
-from app.schemas.eventos import EventoEdicion, EventoEntrada
+from app.schemas.eventos import EventoEdicion, EventoEntrada, FiltrosEventos
 
 
 class Eventos(Protocol):
@@ -25,6 +25,15 @@ class Eventos(Protocol):
     def por_id_para_escribir(self, id_evento: UUID) -> Event | None: ...
     def guardar(self, evento: Event) -> Event: ...
     def eliminar(self, evento: Event) -> None: ...
+    def buscar(
+        self,
+        filtros: FiltrosEventos,
+        *,
+        ver_todo: bool,
+        borradores_de: UUID | None,
+        offset: int,
+        limite: int,
+    ) -> tuple[list[Event], int]: ...
 
 
 def puede_ver(usuario: User | None, evento: Event) -> bool:
@@ -36,6 +45,20 @@ def puede_ver(usuario: User | None, evento: Event) -> bool:
     if tiene_permiso(usuario, Permiso.EVENTO_GESTIONAR_TODOS):
         return True
     return tiene_permiso(usuario, Permiso.EVENTO_CREAR) and evento.organizer_id == usuario.id
+
+
+def listar(
+    repo: Eventos, usuario: User | None, filtros: FiltrosEventos, offset: int, limite: int
+) -> tuple[list[Event], int]:
+    """Una página de lo que el usuario puede ver, con el total. Es la misma regla de `puede_ver`,
+    pero la aplica la base: pedir `status=DRAFT` no muestra borradores que no le tocan."""
+    ver_todo = usuario is not None and tiene_permiso(usuario, Permiso.EVENTO_GESTIONAR_TODOS)
+    borradores_de = None
+    if usuario is not None and not ver_todo and tiene_permiso(usuario, Permiso.EVENTO_CREAR):
+        borradores_de = usuario.id
+    return repo.buscar(
+        filtros, ver_todo=ver_todo, borradores_de=borradores_de, offset=offset, limite=limite
+    )
 
 
 def obtener(repo: Eventos, usuario: User | None, id_evento: UUID) -> Event:
