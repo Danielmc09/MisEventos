@@ -110,3 +110,19 @@ def test_borrador_publicado_despublicado_y_cancelado_en_orden(cliente_db, conexi
         visto = cliente_db.get(url, headers=auth(dueno))
         assert visto.status_code == 200
         assert visto.json()["status"] == queda
+
+
+def test_el_dueno_elimina_su_evento_y_despues_no_se_encuentra(cliente_db, conexion):
+    dueno = usuario_con_rol(cliente_db, conexion, "orga@mail.com", "ORGANIZER")
+    creado = cliente_db.post("/events", json=cuerpo_valido(), headers=auth(dueno))
+    assert creado.status_code == 201
+    url = f"/events/{creado.json()['id']}"
+
+    respuesta = cliente_db.delete(url, headers=auth(dueno))
+
+    assert respuesta.status_code == 204
+    assert cliente_db.get(url, headers=auth(dueno)).status_code == 404
+    quedan = conexion.execute(
+        text("SELECT count(*) FROM events WHERE id = :id"), {"id": creado.json()["id"]}
+    ).scalar_one()
+    assert quedan == 0

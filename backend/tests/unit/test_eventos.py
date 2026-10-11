@@ -441,3 +441,32 @@ def test_sin_token_no_se_edita(cliente, eventos):
 
     assert editar(cliente, existente.id, {"name": "Otro nombre"}).status_code == 401
     assert eventos.eventos[existente.id].name == "PyCon Bogotá"
+
+
+# --- Eliminar ------------------------------------------------------------------------------
+
+
+def eliminar(cliente, id_evento, token: str | None = None):
+    headers = {"Authorization": f"Bearer {token}"} if token else {}
+    return cliente.delete(f"/events/{id_evento}", headers=headers)
+
+
+def test_el_dueno_elimina_su_evento(cliente, eventos, token):
+    existente = eventos.crear(evento(PUBLICADO))
+
+    respuesta = eliminar(cliente, existente.id, token(ORGANIZADOR))
+
+    assert respuesta.status_code == 204
+    assert respuesta.content == b""
+    assert eventos.eventos == {}
+
+
+def test_sin_token_no_se_elimina(cliente, eventos):
+    existente = eventos.crear(evento(PUBLICADO))
+
+    assert eliminar(cliente, existente.id).status_code == 401
+    assert existente.id in eventos.eventos
+
+
+def test_eliminar_un_evento_que_no_existe_responde_404(cliente, eventos, token):
+    assert eliminar(cliente, uuid4(), token(ORGANIZADOR)).status_code == 404
