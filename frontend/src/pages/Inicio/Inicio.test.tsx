@@ -65,7 +65,12 @@ describe("estados del listado", () => {
 });
 
 describe("buscador", () => {
-  afterEach(() => vi.useRealTimers());
+  // Testing Library solo avanza los timers falsos si ve un `jest` global.
+  beforeEach(() => vi.stubGlobal("jest", { advanceTimersByTime: vi.advanceTimersByTime }));
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+  });
 
   test("actualiza la URL y pide q a la API recién 300 ms después de la última tecla", async () => {
     const pedidos: string[] = [];
