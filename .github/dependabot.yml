@@ -21,6 +21,9 @@ updates:
       # MSW 3 cambia la API de los handlers
       - dependency-name: msw
         update-types: ["version-update:semver-major"]
+      # Node se queda en la LTS; el salto de major se decide a mano
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: docker
     directories:
@@ -28,6 +31,10 @@ updates:
       - /frontend
     schedule:
       interval: weekly
+    ignore:
+      # Node se queda en la LTS; el salto de major se decide a mano
+      - dependency-name: node
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: github-actions
     directory: /
