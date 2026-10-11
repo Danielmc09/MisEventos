@@ -27,6 +27,10 @@ def repositorio_eventos(session: SesionDB) -> RepositorioEventos:
     return RepositorioEventos(session)
 
 
+def repositorio_ponentes(session: SesionDB) -> None:
+    return None
+
+
 ConfigApp = Annotated[Settings, Depends(get_settings)]
 RepoUsuarios = Annotated[RepositorioUsuarios, Depends(repositorio_usuarios)]
 RepoEventos = Annotated[RepositorioEventos, Depends(repositorio_eventos)]
