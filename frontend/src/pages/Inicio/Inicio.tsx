@@ -29,20 +29,20 @@ export default function Inicio() {
   }
   useEffect(() => () => clearTimeout(temporizador.current), []);
 
+  /** Cambia un filtro en la URL; al cambiar un filtro se vuelve a la página 1. */
+  const filtrar = (clave: string, valor: string) =>
+    setParams((previos) => {
+      const nuevos = new URLSearchParams(previos);
+      if (valor) nuevos.set(clave, valor);
+      else nuevos.delete(clave);
+      nuevos.delete("page");
+      return nuevos;
+    });
+
   const buscar = (valor: string) => {
     setTexto(valor);
     clearTimeout(temporizador.current);
-    temporizador.current = setTimeout(
-      () =>
-        setParams((previos) => {
-          const nuevos = new URLSearchParams(previos);
-          if (valor) nuevos.set("q", valor);
-          else nuevos.delete("q");
-          nuevos.delete("page");
-          return nuevos;
-        }),
-      300,
-    );
+    temporizador.current = setTimeout(() => filtrar("q", valor), 300);
   };
 
   const irAPagina = (pagina: number) =>
@@ -78,15 +78,33 @@ export default function Inicio() {
   return (
     <main className="mx-auto max-w-6xl p-6">
       <h1 className="text-2xl font-bold">Mis Eventos</h1>
-      <div className="mt-4 max-w-md">
-        <Input
-          type="search"
-          label="Buscar eventos"
-          value={texto}
-          maxLength={100}
-          placeholder="Nombre o parte del nombre"
-          onChange={(e) => buscar(e.target.value)}
-        />
+      <div className="mt-4 flex flex-wrap items-end gap-4">
+        <div className="w-full max-w-md">
+          <Input
+            type="search"
+            label="Buscar eventos"
+            value={texto}
+            maxLength={100}
+            placeholder="Nombre o parte del nombre"
+            onChange={(e) => buscar(e.target.value)}
+          />
+        </div>
+        <div className="flex flex-col gap-1">
+          <label htmlFor="estado" className="text-sm font-medium text-gray-700">
+            Estado
+          </label>
+          <select
+            id="estado"
+            value={params.get("status") ?? ""}
+            onChange={(e) => filtrar("status", e.target.value)}
+            className="rounded-md border border-gray-300 px-3 py-2"
+          >
+            <option value="">Todos</option>
+            <option value="PUBLISHED">Publicado</option>
+            <option value="DRAFT">Borrador</option>
+            <option value="CANCELLED">Cancelado</option>
+          </select>
+        </div>
       </div>
       <div className="mt-6">
         {!actual && (
