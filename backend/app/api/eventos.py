@@ -1,11 +1,21 @@
+from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, status
+from fastapi import APIRouter, Depends, Query, status
 
 from app.api.dependencias import RepoEventos, UsuarioActual, UsuarioOpcional
 from app.api.errores import respuestas_de_error
-from app.schemas.comunes import Pagina
-from app.schemas.eventos import EventoEdicion, EventoEntrada, EventoSalida
+from app.api.paginacion import ParametrosPagina, parametros_pagina
+from app.models.evento import EstadoEvento
+from app.schemas.comunes import FechaUTC, Pagina
+from app.schemas.eventos import (
+    Cuando,
+    EventoEdicion,
+    EventoEntrada,
+    EventoSalida,
+    FiltrosEventos,
+    OrdenEventos,
+)
 from app.services import eventos
 
 router = APIRouter(prefix="/events", tags=["eventos"])
@@ -23,9 +33,44 @@ def crear(datos: EventoEntrada, usuario: UsuarioActual, repo: RepoEventos) -> Ev
     return EventoSalida.model_validate(evento, from_attributes=True)
 
 
-@router.get("", summary="Listar eventos")
-def listar() -> Pagina[EventoSalida]:
-    return Pagina[EventoSalida].crear([], total=0, page=1, page_size=12)
+@router.get(
+    "",
+    summary="Listar y buscar eventos",
+    description=(
+        "Público. Solo trae lo que quien pregunta puede ver: un borrador, solo su dueño y el "
+        "admin. Por defecto, los que no terminaron, ordenados por fecha de inicio."
+    ),
+    responses=respuestas_de_error(422),
+)
+def listar(
+    usuario: UsuarioOpcional,
+    repo: RepoEventos,
+    pagina: Annotated[ParametrosPagina, Depends(parametros_pagina)],
+    q: Annotated[str | None, Query(max_length=100, description="Nombre o parte del nombre")] = None,
+    estados: Annotated[
+        list[EstadoEvento] | None, Query(alias="status", description="Uno o varios estados")
+    ] = None,
+    desde: Annotated[
+        FechaUTC | None, Query(alias="from", description="Empieza desde, con zona")
+    ] = None,
+    hasta: Annotated[
+        FechaUTC | None, Query(alias="to", description="Empieza hasta, con zona")
+    ] = None,
+    when: Annotated[Cuando, Query(description="`upcoming` o `past`")] = Cuando.UPCOMING,
+    order_by: Annotated[
+        OrdenEventos, Query(description="`start_at`, `-start_at` o `name`")
+    ] = OrdenEventos.START_AT,
+) -> Pagina[EventoSalida]:
+    filtros = FiltrosEventos(
+        q=q, estados=estados, desde=desde, hasta=hasta, cuando=when, orden=order_by
+    )
+    items, total = eventos.listar(repo, usuario, filtros, pagina.offset, pagina.page_size)
+    return Pagina[EventoSalida].crear(
+        [EventoSalida.model_validate(e, from_attributes=True) for e in items],
+        total=total,
+        page=pagina.page,
+        page_size=pagina.page_size,
+    )
 
 
 @router.get(

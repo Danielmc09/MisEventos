@@ -1,4 +1,6 @@
+from dataclasses import dataclass
 from datetime import UTC, datetime
+from enum import StrEnum
 from typing import Annotated
 from uuid import UUID
 
@@ -85,3 +87,26 @@ class EventoSalida(BaseModel):
     def is_finished(self) -> bool:
         # "Finalizado" no se guarda: se calcula en cada respuesta.
         return self.end_at < datetime.now(UTC)
+
+
+class Cuando(StrEnum):
+    UPCOMING = "upcoming"  # los que no terminaron: end_at >= ahora
+    PAST = "past"
+
+
+class OrdenEventos(StrEnum):
+    START_AT = "start_at"
+    START_AT_DESC = "-start_at"
+    NAME = "name"
+
+
+@dataclass(frozen=True)
+class FiltrosEventos:
+    """Lo que se pide al listar. La visibilidad no va acá: la decide el servicio."""
+
+    q: str | None = None
+    estados: list[EstadoEvento] | None = None
+    desde: datetime | None = None
+    hasta: datetime | None = None
+    cuando: Cuando = Cuando.UPCOMING
+    orden: OrdenEventos = OrdenEventos.START_AT
