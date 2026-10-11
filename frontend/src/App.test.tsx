@@ -12,3 +12,16 @@ test("la ruta de inicio carga de forma diferida y muestra el título", async () 
   expect(screen.getByRole("status", { name: "Cargando" })).toBeInTheDocument();
   expect(await screen.findByRole("heading", { name: "Mis Eventos" })).toBeInTheDocument();
 });
+
+test.each([
+  ["/login", "Iniciar sesión"],
+  ["/registro", "Crear cuenta"],
+])("la ruta %s carga de forma diferida y muestra su título", async (ruta, titulo) => {
+  render(
+    <MemoryRouter initialEntries={[ruta]}>
+      <App />
+    </MemoryRouter>,
+  );
+
+  expect(await screen.findByRole("heading", { name: titulo })).toBeInTheDocument();
+});
