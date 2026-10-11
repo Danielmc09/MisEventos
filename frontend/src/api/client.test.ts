@@ -12,7 +12,7 @@ const server = setupServer();
 beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
 afterEach(() => {
   server.resetHandlers();
-  useSession.getState().clear();
+  useSession.getState().cerrarSesion();
 });
 afterAll(() => server.close());
 
@@ -55,7 +55,7 @@ test("convierte un 409 problem+json en un ApiError con su title y su traceId", a
 });
 
 test("ante un 401 vacía la sesión", async () => {
-  useSession.getState().setToken("token-vencido");
+  useSession.getState().iniciarSesion(usuario, "token-vencido");
   server.use(
     http.get(`${API}/auth/me`, () =>
       responder("/auth/me", "get", 401, {
@@ -84,7 +84,7 @@ test("ante un error de red devuelve el título «No se pudo conectar con el serv
 });
 
 test("agrega el token de la sesión en el header Authorization", async () => {
-  useSession.getState().setToken("abc123");
+  useSession.getState().iniciarSesion(usuario, "abc123");
   let authorization: string | null = null;
   server.use(
     http.get(`${API}/auth/me`, ({ request }) => {
