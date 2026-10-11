@@ -1,18 +1,21 @@
+import { lazy, Suspense } from "react";
 import { Route, Routes } from "react-router-dom";
+import { Spinner } from "./components/ui/Spinner";
 
-function Inicio() {
-  return (
-    <main className="mx-auto max-w-3xl p-6">
-      <h1 className="text-2xl font-bold">Mis Eventos</h1>
-      <p className="mt-2 text-gray-600">Gestión de eventos, sesiones, ponentes e inscripciones.</p>
-    </main>
-  );
-}
+const Inicio = lazy(() => import("./pages/Inicio/Inicio"));
 
 export default function App() {
   return (
-    <Routes>
-      <Route path="/" element={<Inicio />} />
-    </Routes>
+    <Suspense
+      fallback={
+        <div className="flex justify-center p-10">
+          <Spinner />
+        </div>
+      }
+    >
+      <Routes>
+        <Route path="/" element={<Inicio />} />
+      </Routes>
+    </Suspense>
   );
 }
