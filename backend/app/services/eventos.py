@@ -16,6 +16,10 @@ class Eventos(Protocol):
     def crear(self, evento: Event) -> Event: ...
 
 
+def puede_ver(usuario: User | None, evento: Event) -> bool:
+    return True
+
+
 def crear(repo: Eventos, usuario: User, datos: EventoEntrada) -> Event:
     """Un borrador a nombre de quien lo crea."""
     if not tiene_permiso(usuario, Permiso.EVENTO_CREAR):

@@ -56,3 +56,41 @@ def test_un_organizador_crea_un_evento_en_borrador_a_su_nombre(cliente_db, conex
     ).one()
     assert fila.status == "DRAFT"
     assert str(fila.organizer_id) == cuerpo["organizer_id"]
+
+
+def test_un_borrador_solo_lo_ven_su_dueno_y_el_admin(cliente_db, conexion):
+    dueno = usuario_con_rol(cliente_db, conexion, "orga@mail.com", "ORGANIZER")
+    otro = usuario_con_rol(cliente_db, conexion, "otro@mail.com", "ORGANIZER")
+    admin = usuario_con_rol(cliente_db, conexion, "admin@mail.com", "ADMIN")
+    creado = cliente_db.post("/events", json=cuerpo_valido(), headers=auth(dueno))
+    assert creado.status_code == 201
+    url = f"/events/{creado.json()['id']}"
+
+    respuestas = {
+        "anonimo": cliente_db.get(url),
+        "otro-organizador": cliente_db.get(url, headers=auth(otro)),
+        "dueno": cliente_db.get(url, headers=auth(dueno)),
+        "admin": cliente_db.get(url, headers=auth(admin)),
+    }
+
+    assert {quien: r.status_code for quien, r in respuestas.items()} == {
+        "anonimo": 404,
+        "otro-organizador": 404,
+        "dueno": 200,
+        "admin": 200,
+    }
+    assert respuestas["dueno"].json()["status"] == "DRAFT"
+
+
+def test_un_anonimo_ve_un_evento_publicado(cliente_db, conexion):
+    dueno = usuario_con_rol(cliente_db, conexion, "orga@mail.com", "ORGANIZER")
+    creado = cliente_db.post("/events", json=cuerpo_valido(), headers=auth(dueno))
+    assert creado.status_code == 201
+    conexion.execute(
+        text("UPDATE events SET status = 'PUBLISHED' WHERE id = :id"), {"id": creado.json()["id"]}
+    )
+
+    respuesta = cliente_db.get(f"/events/{creado.json()['id']}")
+
+    assert respuesta.status_code == 200
+    assert respuesta.json()["status"] == "PUBLISHED"

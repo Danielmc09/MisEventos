@@ -1,3 +1,5 @@
+from uuid import UUID
+
 from fastapi import APIRouter, status
 
 from app.api.dependencias import RepoEventos, UsuarioActual
@@ -18,3 +20,8 @@ router = APIRouter(prefix="/events", tags=["eventos"])
 def crear(datos: EventoEntrada, usuario: UsuarioActual, repo: RepoEventos) -> EventoSalida:
     evento = eventos.crear(repo, usuario, datos)
     return EventoSalida.model_validate(evento, from_attributes=True)
+
+
+@router.get("/{id_evento}")
+def ver(id_evento: UUID) -> None:
+    raise NotImplementedError

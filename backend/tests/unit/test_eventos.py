@@ -1,11 +1,14 @@
 from datetime import UTC, datetime, timedelta
+from uuid import uuid4
 
 import pytest
 
 from app.api.dependencias import repositorio_eventos, repositorio_usuarios
 from app.core.permisos import Rol
 from app.core.tokens import crear_access_token
+from app.models.evento import EstadoEvento, Event
 from app.models.usuario import User
+from app.services import eventos as servicio_eventos
 from tests.unit.dobles import RepositorioEventosFalso, RepositorioUsuariosFalso
 
 ASISTENTE = User(email="asistente@mail.com", password_hash="$argon2id$x", role=Rol.ATTENDEE)
@@ -141,3 +144,90 @@ def test_el_nombre_se_guarda_sin_espacios_al_inicio_ni_al_final(cliente, eventos
 
     assert respuesta.status_code == 201
     assert respuesta.json()["name"] == "PyCon"
+
+
+# --- Ver: visibilidad ----------------------------------------------------------------------
+
+
+def evento(estado: EstadoEvento, organizador: User = ORGANIZADOR) -> Event:
+    inicio = datetime.now(UTC) + timedelta(days=30)
+    nuevo = Event(
+        name="PyCon Bogotá",
+        start_at=inicio,
+        end_at=inicio + timedelta(hours=8),
+        capacity=100,
+        status=estado,
+        organizer_id=organizador.id,
+    )
+    nuevo.created_at = nuevo.updated_at = datetime.now(UTC)
+    return nuevo
+
+
+PUBLICADO, CANCELADO, BORRADOR = (
+    EstadoEvento.PUBLISHED,
+    EstadoEvento.CANCELLED,
+    EstadoEvento.DRAFT,
+)
+
+# (quién consulta, estado, dueño del evento, ¿lo ve?): una fila por caso de la tabla de visibilidad.
+VISIBILIDAD = {
+    "anonimo-publicado": (None, PUBLICADO, ORGANIZADOR, True),
+    "anonimo-cancelado": (None, CANCELADO, ORGANIZADOR, True),
+    "anonimo-borrador": (None, BORRADOR, ORGANIZADOR, False),
+    "asistente-publicado": (ASISTENTE, PUBLICADO, ORGANIZADOR, True),
+    "asistente-cancelado": (ASISTENTE, CANCELADO, ORGANIZADOR, True),
+    "asistente-borrador": (ASISTENTE, BORRADOR, ORGANIZADOR, False),
+    # Un asistente que fue organizador: sus borradores viejos tampoco los ve.
+    "asistente-borrador-propio": (ASISTENTE, BORRADOR, ASISTENTE, False),
+    "organizador-publicado-ajeno": (OTRO_ORGANIZADOR, PUBLICADO, ORGANIZADOR, True),
+    "organizador-cancelado-ajeno": (OTRO_ORGANIZADOR, CANCELADO, ORGANIZADOR, True),
+    "organizador-borrador-propio": (ORGANIZADOR, BORRADOR, ORGANIZADOR, True),
+    "organizador-borrador-ajeno": (OTRO_ORGANIZADOR, BORRADOR, ORGANIZADOR, False),
+    "admin-publicado": (ADMIN, PUBLICADO, ORGANIZADOR, True),
+    "admin-cancelado": (ADMIN, CANCELADO, ORGANIZADOR, True),
+    "admin-borrador-ajeno": (ADMIN, BORRADOR, ORGANIZADOR, True),
+}
+
+
+@pytest.mark.parametrize("caso", VISIBILIDAD)
+def test_quien_ve_cada_evento(caso):
+    usuario, estado, dueno, lo_ve = VISIBILIDAD[caso]
+
+    assert servicio_eventos.puede_ver(usuario, evento(estado, dueno)) is lo_ve
+
+
+def ver(cliente, id_evento, token: str | None = None):
+    headers = {"Authorization": f"Bearer {token}"} if token else {}
+    return cliente.get(f"/events/{id_evento}", headers=headers)
+
+
+def test_un_anonimo_ve_un_evento_publicado(cliente, eventos):
+    publicado = eventos.crear(evento(PUBLICADO))
+
+    respuesta = ver(cliente, publicado.id)
+
+    assert respuesta.status_code == 200
+    assert respuesta.json()["id"] == str(publicado.id)
+    assert respuesta.json()["status"] == "PUBLISHED"
+
+
+def test_un_borrador_que_no_puede_ver_responde_404_y_no_403(cliente, eventos, token):
+    borrador = eventos.crear(evento(BORRADOR))
+
+    for respuesta in (ver(cliente, borrador.id), ver(cliente, borrador.id, token(ASISTENTE))):
+        assert respuesta.status_code == 404
+        assert respuesta.headers["content-type"] == "application/problem+json"
+    assert ver(cliente, borrador.id, token(ORGANIZADOR)).status_code == 200
+
+
+def test_un_evento_que_no_existe_responde_404(cliente, eventos):
+    assert ver(cliente, uuid4()).status_code == 404
+
+
+def test_un_token_invalido_en_el_detalle_se_trata_como_anonimo(cliente, eventos, settings):
+    publicado = eventos.crear(evento(PUBLICADO))
+    borrador = eventos.crear(evento(BORRADOR))
+    vencido = crear_access_token(ORGANIZADOR.id, settings.jwt_secret, -1)
+
+    assert ver(cliente, publicado.id, "esto.no.es-un-jwt").status_code == 200
+    assert ver(cliente, borrador.id, vencido).status_code == 404
