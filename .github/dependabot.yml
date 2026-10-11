@@ -9,6 +9,18 @@ updates:
     directory: /frontend
     schedule:
       interval: weekly
+    groups:
+      vitest:
+        patterns: ["vitest", "@vitest/*"]
+      menores:
+        update-types: ["minor", "patch"]
+    ignore:
+      # openapi-typescript 7 pide typescript ^5.x
+      - dependency-name: typescript
+        update-types: ["version-update:semver-major"]
+      # MSW 3 cambia la API de los handlers
+      - dependency-name: msw
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: docker
     directories:
