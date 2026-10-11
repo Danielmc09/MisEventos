@@ -47,24 +47,29 @@ def credenciales_demo(settings: Settings) -> CredencialesDemo:
 
 
 def sembrar_usuarios(repo: Usuarios, credenciales: CredencialesDemo) -> None:
-    """Crea el admin y los usuarios demo que falten. Al que ya existe no lo toca: ni su
-    contraseña ni ningún otro dato. Entran directo, sin cambio obligatorio de contraseña."""
+    """Crea el admin y los usuarios demo que falten. Al que ya existe solo le completa el
+    nombre si no tiene; su contraseña, email, rol y un nombre propio no se tocan.
+    Entran directo, sin cambio obligatorio de contraseña."""
     demo = [
-        (credenciales.admin_email, credenciales.admin_password, Rol.ADMIN),
-        (ORGANIZADOR_DEMO, credenciales.demo_password, Rol.ORGANIZER),
-        (ASISTENTE_DEMO, credenciales.demo_password, Rol.ATTENDEE),
+        (credenciales.admin_email, credenciales.admin_password, Rol.ADMIN, "Ana Administradora"),
+        (ORGANIZADOR_DEMO, credenciales.demo_password, Rol.ORGANIZER, "Oscar Organizador"),
+        (ASISTENTE_DEMO, credenciales.demo_password, Rol.ATTENDEE, "Andrea Asistente"),
     ]
-    for email, password, rol in demo:
-        if repo.por_email(email) is None:
+    for email, password, rol, nombre in demo:
+        existente = repo.por_email(email)
+        if existente is None:
             repo.crear(
                 User(
                     email=email,
                     password_hash=hashear(password),
                     role=rol,
+                    full_name=nombre,
                     is_active=True,
                     must_change_password=False,
                 )
             )
+        elif not existente.full_name:
+            existente.full_name = nombre  # la transacción del seed lo guarda al confirmar
 
 
 def sembrar(session: Session, credenciales: CredencialesDemo) -> None:

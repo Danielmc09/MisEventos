@@ -162,6 +162,18 @@ def test_crea_el_admin_y_los_dos_usuarios_demo_con_sus_roles():
     assert verificar(por_email["asistente@miseventos.local"].password_hash, "Demo-Test-2026")
 
 
+def test_crea_a_cada_usuario_demo_con_su_nombre():
+    repo = RepositorioUsuariosFalso()
+
+    sembrar_usuarios(repo, DEMO)
+
+    assert {u.email: u.full_name for u in repo.creados} == {
+        "admin@miseventos.local": "Ana Administradora",
+        "organizador@miseventos.local": "Oscar Organizador",
+        "asistente@miseventos.local": "Andrea Asistente",
+    }
+
+
 def test_no_toca_un_usuario_que_ya_existe_aunque_cambio_su_contrasena():
     hash_propio = hashear("Clave-Propia-1")
     admin = User(email="admin@miseventos.local", password_hash=hash_propio, role=Rol.ADMIN)
@@ -179,6 +191,32 @@ def test_no_toca_un_usuario_que_ya_existe_aunque_cambio_su_contrasena():
     assert admin.password_hash == asistente.password_hash == hash_propio
     assert asistente.full_name == "Nombre que puso la persona"
     assert len(repo.usuarios) == 3
+
+
+@pytest.mark.parametrize("sin_nombre", [None, ""])
+def test_completa_el_nombre_de_un_usuario_demo_que_existe_sin_nombre(sin_nombre):
+    hash_propio = hashear("Clave-Propia-1")
+    admin = User(
+        email="admin@miseventos.local",
+        password_hash=hash_propio,
+        role=Rol.ADMIN,
+        full_name=sin_nombre,
+    )
+    organizador = User(
+        email="organizador@miseventos.local",
+        password_hash=hash_propio,
+        role=Rol.ORGANIZER,
+        full_name="Otro Nombre",
+    )
+    repo = RepositorioUsuariosFalso(admin, organizador)
+
+    sembrar_usuarios(repo, DEMO)
+
+    assert admin.full_name == "Ana Administradora"
+    assert organizador.full_name == "Otro Nombre"
+    assert admin.password_hash == organizador.password_hash == hash_propio
+    assert (admin.email, admin.role) == ("admin@miseventos.local", Rol.ADMIN)
+    assert [u.email for u in repo.creados] == ["asistente@miseventos.local"]
 
 
 def test_correrlo_dos_veces_no_crea_nada_la_segunda():
