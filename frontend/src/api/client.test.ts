@@ -2,7 +2,9 @@ import { http, HttpResponse } from "msw";
 import { setupServer } from "msw/node";
 import { useSession } from "../stores/session";
 import { api } from "./client";
+import { responder } from "../test/msw";
 import { ApiError } from "./errors";
+import type { components } from "./schema";
 
 const API = "http://localhost:8000";
 const server = setupServer();
@@ -10,9 +12,19 @@ const server = setupServer();
 beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
 afterEach(() => {
   server.resetHandlers();
-  useSession.getState().clear();
+  useSession.getState().cerrarSesion();
 });
 afterAll(() => server.close());
+
+const usuario: components["schemas"]["UsuarioSalida"] = {
+  id: "7c9e6679-7425-40de-944b-e07fc1f90ae7",
+  email: "ana@mail.com",
+  full_name: "Ana",
+  role: "ATTENDEE",
+  is_active: true,
+  must_change_password: false,
+  created_at: "2026-10-11T15:30:00Z",
+};
 
 const problem = (status: number, body: Record<string, unknown>) =>
   HttpResponse.json(body, { status, headers: { "Content-Type": "application/problem+json" } });
@@ -43,10 +55,15 @@ test("convierte un 409 problem+json en un ApiError con su title y su traceId", a
 });
 
 test("ante un 401 vacía la sesión", async () => {
-  useSession.getState().setToken("token-vencido");
+  useSession.getState().iniciarSesion(usuario, "token-vencido");
   server.use(
     http.get(`${API}/auth/me`, () =>
-      problem(401, { type: "unauthorized", title: "Sesión inválida", status: 401 }),
+      responder("/auth/me", "get", 401, {
+        type: "unauthorized",
+        title: "Sesión inválida",
+        status: 401,
+        trace_id: "t-1",
+      }),
     ),
   );
 
@@ -67,12 +84,12 @@ test("ante un error de red devuelve el título «No se pudo conectar con el serv
 });
 
 test("agrega el token de la sesión en el header Authorization", async () => {
-  useSession.getState().setToken("abc123");
+  useSession.getState().iniciarSesion(usuario, "abc123");
   let authorization: string | null = null;
   server.use(
     http.get(`${API}/auth/me`, ({ request }) => {
       authorization = request.headers.get("Authorization");
-      return HttpResponse.json({ ok: true });
+      return responder("/auth/me", "get", 200, usuario);
     }),
   );
 
