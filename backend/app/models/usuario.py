@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Any
 from uuid import UUID, uuid4
 
 from sqlalchemy import Column, DateTime, Enum, Index, String, func, text
@@ -37,3 +38,11 @@ class User(SQLModel, table=True):
         nullable=False,
         sa_column_kwargs={"server_default": func.now()},
     )
+
+    def __setattr__(self, nombre: str, valor: Any) -> None:
+        # Un modelo de tabla no valida con Pydantic, y SQLModel escribe el valor dos veces
+        # (SQLAlchemy y Pydantic), así que @validates se pisa. Este es el único paso común
+        # al constructor y a la asignación.
+        if nombre == "email" and isinstance(valor, str):
+            valor = valor.strip().lower()
+        super().__setattr__(nombre, valor)
