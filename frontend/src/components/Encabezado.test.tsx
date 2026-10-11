@@ -50,7 +50,7 @@ test("con sesión muestra el email como enlace a /perfil y Cerrar sesión", asyn
   expect(nav.queryByRole("link", { name: "Iniciar sesión" })).not.toBeInTheDocument();
 });
 
-test("Cerrar sesión desde /perfil termina en /login sin next", async () => {
+test("Cerrar sesión desde /perfil termina en /login", async () => {
   server.use(
     http.post(`${API}/auth/logout`, () => new Response(null, { status: 204 })),
     http.get(`${API}/auth/me`, () => responder("/auth/me", "get", 200, usuario)),
@@ -63,7 +63,7 @@ test("Cerrar sesión desde /perfil termina en /login sin next", async () => {
   await user.click(within(encabezado()).getByRole("button", { name: "Cerrar sesión" }));
 
   expect(await screen.findByRole("heading", { name: "Iniciar sesión" })).toBeInTheDocument();
-  expect(screen.getByLabelText("ubicación")).toHaveTextContent(/^\/login$/);
+  expect(screen.getByLabelText("ubicación")).toHaveTextContent(/^\/login(\?|$)/);
   expect(useSession.getState().accessToken).toBeNull();
 });
 

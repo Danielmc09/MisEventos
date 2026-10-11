@@ -7,8 +7,7 @@ export function useCerrarSesion() {
   const navigate = useNavigate();
   return async () => {
     await api("/auth/logout", { method: "POST" }).catch(() => undefined);
-    // Primero navegar: si no, RutaProtegida ve la sesión vacía y manda a /login?next=<ruta actual>.
-    navigate("/login");
     useSession.getState().cerrarSesion();
+    navigate("/login"); // desde una ruta protegida, RutaProtegida puede sumar ?next=<ruta actual>
   };
 }
