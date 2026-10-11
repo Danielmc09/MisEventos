@@ -1,10 +1,13 @@
 import logging
+from typing import Literal
 
 import pytest
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, field_validator
+from pydantic_core import PydanticCustomError
 
 from app.api.errores import respuestas_de_error
 from app.core.excepciones import Conflict, NotFound
+from app.schemas.comunes import FechaUTC
 
 PROBLEM_JSON = "application/problem+json"
 SECRETO = "SELECT password_hash FROM users -- detalle interno"
@@ -107,3 +110,77 @@ def test_respuestas_de_error_declara_problem_json_en_el_openapi(rutas, cliente):
     assert set(respuestas) >= {"404", "409"}
     contenido = respuestas["409"]["content"][PROBLEM_JSON]["schema"]
     assert contenido["$ref"].endswith("/Problema")
+
+
+class Formulario(BaseModel):
+    nombre: str = Field(min_length=3)
+    cupo: int = Field(default=1, ge=1, le=500)
+    inicio: FechaUTC | None = None
+    modalidad: Literal["presencial", "virtual"] = "presencial"
+    codigo: str = "ok"
+    fin: str = "ok"
+
+    @field_validator("codigo")
+    @classmethod
+    def codigo_raro(cls, valor: str) -> str:
+        if valor == "raro":
+            raise PydanticCustomError("tipo_que_nadie_tradujo", "Some english text {x}", {"x": 1})
+        return valor
+
+    @field_validator("fin")
+    @classmethod
+    def fin_propio(cls, valor: str) -> str:
+        if valor == "antes":
+            raise ValueError("Debe ser posterior a start_at")
+        return valor
+
+
+@pytest.fixture
+def formulario(app):
+    @app.post("/formulario")
+    def recibir(datos: Formulario) -> None:
+        return None
+
+    return app
+
+
+def mensajes(cliente, cuerpo: dict) -> dict[str, str]:
+    respuesta = cliente.post("/formulario", json=cuerpo)
+    assert respuesta.status_code == 422
+    return {e["field"]: e["message"] for e in respuesta.json()["errors"]}
+
+
+@pytest.mark.parametrize(
+    ("cuerpo", "campo", "mensaje"),
+    [
+        (
+            {"nombre": "Feria", "inicio": "2026-10-13T10:00:00"},
+            "inicio",
+            "Debe incluir la zona horaria",
+        ),
+        ({}, "nombre", "Este campo es obligatorio"),
+        ({"nombre": "ab"}, "nombre", "Debe tener al menos 3 caracteres"),
+        ({"nombre": "Feria", "cupo": 0}, "cupo", "Debe ser mayor o igual que 1"),
+        ({"nombre": "Feria", "cupo": 501}, "cupo", "Debe ser menor o igual que 500"),
+        ({"nombre": "Feria", "cupo": "x"}, "cupo", "Debe ser un número entero"),
+        (
+            {"nombre": "Feria", "modalidad": "otra"},
+            "modalidad",
+            "Debe ser uno de: 'presencial' o 'virtual'",
+        ),
+        ({"nombre": "Feria", "codigo": "raro"}, "codigo", "Valor inválido"),
+        ({"nombre": "Feria", "fin": "antes"}, "fin", "Debe ser posterior a start_at"),
+    ],
+)
+def test_los_mensajes_del_422_salen_en_espanol(formulario, cliente, cuerpo, campo, mensaje):
+    assert mensajes(cliente, cuerpo)[campo] == mensaje
+
+
+def test_ningun_mensaje_del_422_sale_en_ingles(formulario, cliente):
+    respuesta = cliente.post(
+        "/formulario", json={"nombre": "", "cupo": "x", "inicio": "ayer", "codigo": "raro"}
+    )
+
+    texto = respuesta.text
+    for ingles in ("Input should", "Field required", "String should", "english"):
+        assert ingles not in texto
