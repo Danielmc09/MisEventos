@@ -82,3 +82,62 @@ def test_quien_tiene_el_permiso_crea_un_borrador_a_su_nombre(cliente, eventos, t
     assert cuerpo["is_finished"] is False
     assert cuerpo["start_at"].endswith("Z")
     assert len(eventos.eventos) == 1
+
+
+# --- Crear: validaciones -------------------------------------------------------------------
+
+AHORA = datetime.now(UTC)
+INICIO = AHORA + timedelta(days=30)
+
+
+@pytest.mark.parametrize(
+    ("cambios", "campo"),
+    [
+        ({"end_at": INICIO.isoformat()}, "end_at"),
+        ({"end_at": (INICIO - timedelta(minutes=1)).isoformat()}, "end_at"),
+        ({"start_at": (AHORA - timedelta(hours=1)).isoformat()}, "start_at"),
+        ({"start_at": "2030-01-10T15:00:00", "end_at": "2030-01-10T18:00:00Z"}, "start_at"),
+        ({"capacity": 0}, "capacity"),
+        ({"capacity": 100_001}, "capacity"),
+        ({"name": "ab"}, "name"),
+        ({"name": "  ab  "}, "name"),
+        ({"name": "a" * 151}, "name"),
+        ({"description": "a" * 5001}, "description"),
+        ({"location": "a" * 201}, "location"),
+        ({"status": "PUBLISHED"}, "status"),
+        ({"organizer_id": str(ADMIN.id)}, "organizer_id"),
+    ],
+    ids=[
+        "fin-igual-inicio",
+        "fin-antes-inicio",
+        "inicio-pasado",
+        "inicio-sin-zona",
+        "capacidad-0",
+        "capacidad-100001",
+        "nombre-2",
+        "nombre-2-con-espacios",
+        "nombre-151",
+        "descripcion-5001",
+        "lugar-201",
+        "con-status",
+        "con-organizer_id",
+    ],
+)
+def test_un_cuerpo_invalido_responde_422_en_su_campo(cliente, eventos, token, cambios, campo):
+    cuerpo = cuerpo_valido(
+        start_at=INICIO.isoformat(), end_at=(INICIO + timedelta(hours=8)).isoformat()
+    )
+
+    respuesta = crear(cliente, cuerpo | cambios, token(ORGANIZADOR))
+
+    assert respuesta.status_code == 422
+    assert respuesta.headers["content-type"] == "application/problem+json"
+    assert [e["field"] for e in respuesta.json()["errors"]] == [campo]
+    assert eventos.eventos == {}
+
+
+def test_el_nombre_se_guarda_sin_espacios_al_inicio_ni_al_final(cliente, eventos, token):
+    respuesta = crear(cliente, cuerpo_valido(name="  PyCon  "), token(ORGANIZADOR))
+
+    assert respuesta.status_code == 201
+    assert respuesta.json()["name"] == "PyCon"
