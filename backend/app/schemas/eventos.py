@@ -1,19 +1,39 @@
 from datetime import UTC, datetime
+from typing import Annotated
 from uuid import UUID
 
-from pydantic import BaseModel, computed_field
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    StringConstraints,
+    ValidationInfo,
+    computed_field,
+    field_validator,
+)
 
 from app.models.evento import EstadoEvento
 from app.schemas.comunes import FechaUTC
 
 
 class EventoEntrada(BaseModel):
-    name: str
-    description: str | None = None
-    location: str | None = None
-    start_at: datetime
-    end_at: datetime
-    capacity: int
+    # status y organizer_id (y cualquier otro campo) no se aceptan: los decide el servidor.
+    model_config = ConfigDict(extra="forbid")
+
+    name: Annotated[str, StringConstraints(strip_whitespace=True, min_length=3, max_length=150)]
+    description: str | None = Field(default=None, max_length=5000)
+    location: str | None = Field(default=None, max_length=200)
+    start_at: FechaUTC
+    end_at: FechaUTC
+    capacity: int = Field(ge=1, le=100_000)
+
+    @field_validator("end_at")
+    @classmethod
+    def fin_despues_del_inicio(cls, end_at: datetime, info: ValidationInfo) -> datetime:
+        start_at = info.data.get("start_at")  # no está si start_at ya falló
+        if start_at is not None and end_at <= start_at:
+            raise ValueError("Tiene que ser posterior al inicio")
+        return end_at
 
 
 class EventoSalida(BaseModel):
