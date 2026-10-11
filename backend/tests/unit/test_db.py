@@ -1,13 +1,10 @@
-from typing import Annotated
-
 import pytest
-from fastapi import Depends
 from sqlalchemy import CheckConstraint, Column, ForeignKey, Integer, MetaData, String, Table
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.schema import CreateTable
-from sqlmodel import Session, SQLModel
+from sqlmodel import SQLModel
 
-from app.core.db import get_session, sesion_transaccional
+from app.core.db import SesionDB, sesion_transaccional
 from app.core.excepciones import Conflict
 
 
@@ -58,11 +55,11 @@ def test_la_sesion_hace_rollback_si_hay_un_error_y_lo_propaga():
 @pytest.fixture
 def rutas_con_sesion(app):
     @app.get("/escribe")
-    def escribe(session: Annotated[Session, Depends(get_session)]) -> dict[str, str]:
+    def escribe(session: SesionDB) -> dict[str, str]:
         return {"ok": "si"}
 
     @app.get("/choca")
-    def choca(session: Annotated[Session, Depends(get_session)]) -> None:
+    def choca(session: SesionDB) -> None:
         raise Conflict("ya existe")
 
     return app
@@ -98,7 +95,8 @@ def test_la_metadata_nombra_constraints_e_indices_con_la_convencion():
         metadata,
         Column("id", Integer, primary_key=True),
         Column("event_id", ForeignKey("events.id")),
-        Column("email", String, unique=True, index=True),
+        Column("email", String, unique=True),
+        Column("ciudad", String, index=True),
         Column("cupo", Integer),
         CheckConstraint("cupo > 0", name="cupo_positivo"),
     )
@@ -111,6 +109,6 @@ def test_la_metadata_nombra_constraints_e_indices_con_la_convencion():
         "fk_registrations_event_id_events",
         "uq_registrations_email",
         "ck_registrations_cupo_positivo",
-        "ix_registrations_email",
+        "ix_registrations_ciudad",
     }
     assert "CONSTRAINT pk_registrations" in ddl
