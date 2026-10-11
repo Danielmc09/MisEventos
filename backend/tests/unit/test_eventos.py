@@ -470,3 +470,78 @@ def test_sin_token_no_se_elimina(cliente, eventos):
 
 def test_eliminar_un_evento_que_no_existe_responde_404(cliente, eventos, token):
     assert eliminar(cliente, uuid4(), token(ORGANIZADOR)).status_code == 404
+
+
+# --- Permisos de escritura -----------------------------------------------------------------
+
+# Cada acción de escritura, con lo que hay que mandar para que sea válida sobre un publicado.
+ESCRITURAS = {
+    "editar": lambda c, id_, t: editar(c, id_, {"name": "Otro nombre"}, t),
+    "despublicar": lambda c, id_, t: accion(c, id_, "unpublish", t),
+    "cancelar": lambda c, id_, t: accion(c, id_, "cancel", t),
+    "eliminar": lambda c, id_, t: eliminar(c, id_, t),
+}
+
+
+def sin_cambios(eventos: RepositorioEventosFalso, original: Event) -> bool:
+    guardado = eventos.eventos.get(original.id)
+    return guardado is not None and (guardado.name, guardado.status) == (
+        "PyCon Bogotá",
+        original.status,
+    )
+
+
+@pytest.mark.parametrize("escritura", ESCRITURAS)
+@pytest.mark.parametrize(
+    ("usuario", "dueno"),
+    [(ASISTENTE, ORGANIZADOR), (OTRO_ORGANIZADOR, ORGANIZADOR), (ASISTENTE, ASISTENTE)],
+    ids=["asistente", "organizador-ajeno", "asistente-que-fue-organizador"],
+)
+def test_sin_el_permiso_o_sin_ser_el_dueno_un_publicado_responde_403(
+    cliente, eventos, token, escritura, usuario, dueno
+):
+    publicado = eventos.crear(evento(PUBLICADO, dueno))
+
+    respuesta = ESCRITURAS[escritura](cliente, publicado.id, token(usuario))
+
+    assert respuesta.status_code == 403
+    assert respuesta.json()["type"] == "forbidden"
+    assert sin_cambios(eventos, publicado)
+
+
+@pytest.mark.parametrize("usuario", [ASISTENTE, OTRO_ORGANIZADOR], ids=["asistente", "otro-orga"])
+@pytest.mark.parametrize(
+    "escritura",
+    {
+        "editar": ESCRITURAS["editar"],
+        "publicar": lambda c, id_, t: accion(c, id_, "publish", t),
+        "cancelar": ESCRITURAS["cancelar"],
+        "eliminar": ESCRITURAS["eliminar"],
+    }.items(),
+    ids=lambda par: par[0],
+)
+def test_un_borrador_ajeno_responde_404_y_no_403(cliente, eventos, token, escritura, usuario):
+    borrador = eventos.crear(evento(BORRADOR, ORGANIZADOR))
+    _, hacer = escritura
+
+    respuesta = hacer(cliente, borrador.id, token(usuario))
+
+    assert respuesta.status_code == 404
+    assert respuesta.json()["type"] == "not-found"
+    assert sin_cambios(eventos, borrador)
+
+
+def test_el_admin_edita_publica_y_elimina_eventos_ajenos(cliente, eventos, token):
+    publicado = eventos.crear(evento(PUBLICADO))
+    borrador = eventos.crear(evento(BORRADOR))
+
+    editado = editar(cliente, publicado.id, {"name": "Otro nombre"}, token(ADMIN))
+    publicado_por_admin = accion(cliente, borrador.id, "publish", token(ADMIN))
+    eliminado = eliminar(cliente, publicado.id, token(ADMIN))
+
+    assert editado.status_code == 200
+    assert editado.json()["name"] == "Otro nombre"
+    assert editado.json()["organizer_id"] == str(ORGANIZADOR.id)
+    assert publicado_por_admin.status_code == 200
+    assert eliminado.status_code == 204
+    assert list(eventos.eventos) == [borrador.id]
