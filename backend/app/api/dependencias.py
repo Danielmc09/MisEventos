@@ -8,6 +8,7 @@ from app.core.db import SesionDB
 from app.core.excepciones import Unauthorized
 from app.models.usuario import User
 from app.repositories.eventos import RepositorioEventos
+from app.repositories.ponentes import RepositorioPonentes
 from app.repositories.usuarios import RepositorioUsuarios
 from app.services import autenticacion
 
@@ -27,13 +28,14 @@ def repositorio_eventos(session: SesionDB) -> RepositorioEventos:
     return RepositorioEventos(session)
 
 
-def repositorio_ponentes(session: SesionDB) -> None:
-    return None
+def repositorio_ponentes(session: SesionDB) -> RepositorioPonentes:
+    return RepositorioPonentes(session)
 
 
 ConfigApp = Annotated[Settings, Depends(get_settings)]
 RepoUsuarios = Annotated[RepositorioUsuarios, Depends(repositorio_usuarios)]
 RepoEventos = Annotated[RepositorioEventos, Depends(repositorio_eventos)]
+RepoPonentes = Annotated[RepositorioPonentes, Depends(repositorio_ponentes)]
 
 
 def usuario_actual(

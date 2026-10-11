@@ -26,7 +26,7 @@ class ConRol(Protocol):
 # Los roles están anidados: cada uno puede todo lo del anterior. Un rol nuevo es una fila más.
 PERMISOS_POR_ROL: dict[Rol, frozenset[Permiso]] = {
     Rol.ATTENDEE: frozenset(),
-    Rol.ORGANIZER: frozenset({Permiso.EVENTO_CREAR}),
+    Rol.ORGANIZER: frozenset({Permiso.EVENTO_CREAR, Permiso.PONENTE_GESTIONAR}),
     Rol.ADMIN: frozenset(Permiso),
 }
 
