@@ -8,7 +8,10 @@ interface SessionState {
   user: Usuario | null;
   accessToken: string | null;
   iniciarSesion: (user: Usuario, accessToken: string) => void;
+  /** true tras un logout voluntario: la ruta protegida no debe recordar adónde volver. */
+  saliendo: boolean;
   cerrarSesion: () => void;
+  salir: () => void;
 }
 
 export const useSession = create<SessionState>()(
@@ -16,8 +19,10 @@ export const useSession = create<SessionState>()(
     (set) => ({
       user: null,
       accessToken: null,
-      iniciarSesion: (user, accessToken) => set({ user, accessToken }),
-      cerrarSesion: () => set({ user: null, accessToken: null }),
+      saliendo: false,
+      iniciarSesion: (user, accessToken) => set({ user, accessToken, saliendo: false }),
+      cerrarSesion: () => set({ user: null, accessToken: null, saliendo: false }),
+      salir: () => set({ user: null, accessToken: null, saliendo: true }),
     }),
     {
       name: "sesion",
