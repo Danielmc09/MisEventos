@@ -1,7 +1,9 @@
 """Dobles de los repositorios: los tests unitarios no tocan la base."""
 
+from datetime import UTC, datetime
 from uuid import UUID
 
+from app.models.evento import Event
 from app.models.usuario import User
 
 
@@ -25,3 +27,17 @@ class RepositorioUsuariosFalso:
         self.creados.append(usuario)
         self.usuarios[usuario.id] = usuario
         return True
+
+
+class RepositorioEventosFalso:
+    def __init__(self, *eventos: Event) -> None:
+        self.eventos = {e.id: e for e in eventos}
+
+    def por_id(self, id_: UUID) -> Event | None:
+        return self.eventos.get(id_)
+
+    def crear(self, evento: Event) -> Event:
+        # Lo que en la base pone el server_default.
+        evento.created_at = evento.updated_at = datetime.now(UTC)
+        self.eventos[evento.id] = evento
+        return evento
