@@ -18,6 +18,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         description="Gestión de eventos, sesiones, ponentes e inscripciones.",
     )
     # El engine no se conecta hasta la primera consulta: crear la app no necesita la base.
+    app.state.settings = settings
     app.state.sesiones = crear_fabrica_de_sesiones(settings.database_url)
     registrar_manejadores(app)
     app.include_router(health.router)

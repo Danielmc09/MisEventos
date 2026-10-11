@@ -1,3 +1,5 @@
+from uuid import UUID
+
 from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, select
@@ -15,6 +17,9 @@ class RepositorioUsuarios:
         # lower(email) usa el índice único uq_users_email.
         consulta = select(User).where(func.lower(User.email) == email.strip().lower())
         return self.session.exec(consulta).first()
+
+    def por_id(self, id_usuario: UUID) -> User | None:
+        return self.session.get(User, id_usuario)
 
     def crear(self, usuario: User) -> bool:
         """False si el email ya existía: otro registro ganó la carrera contra el índice único."""

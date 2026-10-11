@@ -6,6 +6,7 @@ class DomainError(Exception):
     status: int = 400
     tipo: str = "bad-request"
     titulo: str = "La solicitud no es válida"
+    headers: dict[str, str] | None = None
 
     def __init__(
         self, detalle: str | None = None, *, tipo: str | None = None, titulo: str | None = None
@@ -22,6 +23,7 @@ class Unauthorized(DomainError):
     status = 401
     tipo = "unauthorized"
     titulo = "Necesitás iniciar sesión"
+    headers = {"WWW-Authenticate": "Bearer"}
 
 
 class Forbidden(DomainError):

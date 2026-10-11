@@ -1,7 +1,11 @@
-from typing import Annotated
+from typing import Annotated, Literal
+from uuid import UUID
 
 from email_validator import EmailNotValidError, validate_email
 from pydantic import AfterValidator, BaseModel, ConfigDict, Field
+
+from app.core.permisos import Rol
+from app.schemas.comunes import FechaUTC
 
 
 def _email_valido(valor: str) -> str:
@@ -26,3 +30,19 @@ class RegistroEntrada(BaseModel):
 
 class Mensaje(BaseModel):
     message: str
+
+
+class TokenAcceso(BaseModel):
+    access_token: str
+    token_type: Literal["bearer"] = "bearer"  # noqa: S105 - el tipo de OAuth2, no un secreto
+    expires_in: int
+
+
+class UsuarioSalida(BaseModel):
+    id: UUID
+    email: str
+    full_name: str | None
+    role: Rol
+    is_active: bool
+    must_change_password: bool
+    created_at: FechaUTC
