@@ -1,7 +1,8 @@
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import type { Usuario } from "../../stores/session";
 import { useSession } from "../../stores/session";
 import { Button } from "../../components/ui/Button";
+import { Toast } from "../../components/ui/Toast";
 import { useCerrarSesion } from "../../lib/useCerrarSesion";
 
 const ROLES: Record<Usuario["role"], string> = {
@@ -13,10 +14,12 @@ const ROLES: Record<Usuario["role"], string> = {
 export default function Perfil() {
   const user = useSession((s) => s.user);
   const cerrarSesion = useCerrarSesion();
+  const aviso = (useLocation().state as { aviso?: string } | null)?.aviso;
   if (!user) return null;
   return (
     <main className="mx-auto max-w-md p-6">
       <h1 className="text-2xl font-bold">Perfil</h1>
+      {aviso && <Toast tone="exito" message={aviso} />}
       <dl className="mt-4 grid grid-cols-[auto_1fr] gap-x-4 gap-y-2">
         <dt className="font-medium">Correo electrónico</dt>
         <dd className="break-all">{user.email}</dd>
