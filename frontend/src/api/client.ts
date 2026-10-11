@@ -33,7 +33,7 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   }
 
   if (!response.ok) {
-    // ponytail: sin refresh token en este nivel, un 401 cierra la sesión
+    // El token dura 60 minutos; al vencer, el 401 cierra la sesión.
     if (response.status === 401) useSession.getState().clear();
     throw await toApiError(response);
   }
