@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import { http } from "msw";
 import { setupServer } from "msw/node";
 import { MemoryRouter, useLocation } from "react-router-dom";
@@ -65,7 +65,7 @@ test("un 401 estando en /login no vuelve a redirigir", async () => {
   montar("/login?next=%2Fperfil");
   await screen.findByRole("heading", { name: "Iniciar sesión" });
 
-  await api("/auth/me").catch(() => undefined);
+  await act(() => api("/auth/me").catch(() => undefined));
 
   expect(screen.getByLabelText("ubicación")).toHaveTextContent(/^\/login\?next=%2Fperfil$/);
 });

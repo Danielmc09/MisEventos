@@ -1,5 +1,6 @@
 import { useSession } from "../stores/session";
 import { ApiError } from "./errors";
+import { irALogin } from "./navegacion";
 
 const BASE_URL = import.meta.env.VITE_API_URL ?? "http://localhost:8000";
 
@@ -34,7 +35,10 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
 
   if (!response.ok) {
     // El token dura 60 minutos; al vencer, el 401 cierra la sesión.
-    if (response.status === 401) useSession.getState().cerrarSesion();
+    if (response.status === 401) {
+      useSession.getState().cerrarSesion();
+      irALogin();
+    }
     throw await toApiError(response);
   }
   return response.status === 204 ? (undefined as T) : response.json();
