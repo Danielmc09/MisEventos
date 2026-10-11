@@ -123,6 +123,19 @@ def test_valores_fuera_de_rango_fallan_nombrando_la_variable(entorno, variable, 
     falla_nombrando(entorno, {**DESARROLLO, variable: valor}, variable)
 
 
+@pytest.mark.parametrize("nivel", ["verbose", "", "INFORMACION", "10"])
+def test_log_level_invalido_falla_nombrandolo(entorno, nivel):
+    falla_nombrando(entorno, {**DESARROLLO, "LOG_LEVEL": nivel}, "LOG_LEVEL")
+
+
+@pytest.mark.parametrize(
+    ("nivel", "esperado"),
+    [("info", "INFO"), ("Debug", "DEBUG"), ("WARNING", "WARNING"), ("error", "ERROR")],
+)
+def test_log_level_acepta_los_niveles_estandar_sin_importar_mayusculas(entorno, nivel, esperado):
+    assert entorno({**DESARROLLO, "LOG_LEVEL": nivel}).log_level == esperado
+
+
 @pytest.mark.parametrize(
     ("variable", "valor_de_demo"),
     [

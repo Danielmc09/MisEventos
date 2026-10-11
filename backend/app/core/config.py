@@ -32,7 +32,12 @@ class Settings(BaseSettings):
     admin_email: str | None = None
     admin_password: str | None = None
     demo_password: str | None = None
-    log_level: str = "INFO"
+    log_level: Literal["CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG"] = "INFO"
+
+    @field_validator("log_level", mode="before")
+    @classmethod
+    def nivel_en_mayusculas(cls, valor: object) -> object:
+        return valor.upper() if isinstance(valor, str) else valor
 
     @field_validator("cors_origins", mode="before")
     @classmethod

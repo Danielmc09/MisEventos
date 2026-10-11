@@ -58,12 +58,20 @@ def test_page_size_100_y_page_3_se_aceptan(rutas, cliente):
     assert respuesta.json() == {"page": 3, "page_size": 100, "offset": 200}
 
 
+def test_page_10000_es_la_ultima_pagina_aceptada(rutas, cliente):
+    respuesta = cliente.get("/listado", params={"page": 10000})
+
+    assert respuesta.status_code == 200
+    assert respuesta.json()["page"] == 10000
+
+
 @pytest.mark.parametrize(
     ("params", "campo"),
     [
         ({"page_size": 101}, "page_size"),
         ({"page_size": 0}, "page_size"),
         ({"page": 0}, "page"),
+        ({"page": 10001}, "page"),
     ],
 )
 def test_paginacion_fuera_de_rango_responde_422(rutas, cliente, params, campo):

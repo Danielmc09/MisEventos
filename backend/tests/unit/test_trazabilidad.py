@@ -4,6 +4,7 @@ import uuid
 
 import pytest
 
+from app.core.excepciones import NotFound
 from app.core.logs import FormatoJson
 
 TOKEN = "eyJ-token-secreto-que-no-va-al-log"
@@ -38,6 +39,28 @@ def test_con_un_uuid_se_devuelve_el_mismo(con_ruta, cliente):
     respuesta = cliente.get("/prueba", headers={"X-Request-ID": propio})
 
     assert respuesta.headers.get("X-Request-ID") == propio
+
+
+@pytest.mark.parametrize(
+    "formato",
+    [
+        "359DAD91-CEC1-4995-BEF0-7FB658100BC6",
+        "e90f4f7b769b40dc991bc452a2523032",
+        "{f06468e7-3bb0-480e-bcc9-8c15007d4b2a}",
+    ],
+)
+def test_un_uuid_en_otro_formato_vuelve_exactamente_igual(app, cliente, caplog, formato):
+    @app.get("/no-esta")
+    def no_esta() -> None:
+        raise NotFound()
+
+    caplog.set_level(logging.INFO, logger="miseventos")
+
+    respuesta = cliente.get("/no-esta", headers={"X-Request-ID": formato})
+
+    assert respuesta.headers.get("X-Request-ID") == formato
+    assert respuesta.json()["trace_id"] == formato
+    assert [linea["trace_id"] for linea in lineas_de_acceso(caplog)] == [formato]
 
 
 @pytest.mark.parametrize("invalido", ["no-es-un-uuid", "1234", "<script>", "a" * 200])
