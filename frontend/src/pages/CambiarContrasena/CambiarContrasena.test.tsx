@@ -10,7 +10,7 @@ import CambiarContrasena from "./CambiarContrasena";
 
 const server = setupServer();
 beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
-beforeEach(() => useSession.getState().iniciarSesion(usuario, "token-viejo"));
+beforeEach(() => useSession.getState().iniciarSesion(usuario, "token-viejo", 3600));
 afterEach(() => {
   server.resetHandlers();
   useSession.getState().cerrarSesion();

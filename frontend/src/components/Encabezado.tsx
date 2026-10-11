@@ -1,11 +1,12 @@
 import { Link } from "react-router-dom";
 import { useCerrarSesion } from "../lib/useCerrarSesion";
-import { useSession } from "../stores/session";
+import { useSesionVigente, useSession } from "../stores/session";
 
 const enlace = "text-indigo-700 hover:underline";
 
 export function Encabezado() {
   const user = useSession((s) => s.user);
+  const vigente = useSesionVigente();
   const cerrarSesion = useCerrarSesion();
   return (
     <header className="border-b border-gray-200">
@@ -16,7 +17,7 @@ export function Encabezado() {
         <Link to="/" className="mr-auto font-bold">
           Mis Eventos
         </Link>
-        {user ? (
+        {user && vigente ? (
           <>
             <Link to="/perfil" className={`${enlace} max-w-full truncate`}>
               {user.email}

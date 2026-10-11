@@ -23,18 +23,21 @@ export default function Login() {
     setEnviando(true);
     setError(null);
     try {
-      const { access_token } = await api<components["schemas"]["TokenAcceso"]>("/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        body: new URLSearchParams({
-          username: String(datos.get("username")),
-          password: String(datos.get("password")),
-        }),
-      });
+      const { access_token, expires_in } = await api<components["schemas"]["TokenAcceso"]>(
+        "/auth/login",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body: new URLSearchParams({
+            username: String(datos.get("username")),
+            password: String(datos.get("password")),
+          }),
+        },
+      );
       const user = await api<components["schemas"]["UsuarioSalida"]>("/auth/me", {
         headers: { Authorization: `Bearer ${access_token}` },
       });
-      useSession.getState().iniciarSesion(user, access_token);
+      useSession.getState().iniciarSesion(user, access_token, expires_in);
       navigate(rutaSegura(next), { replace: true });
     } catch (err) {
       setError(errorDeFormulario(err));

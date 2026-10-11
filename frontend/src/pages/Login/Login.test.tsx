@@ -165,3 +165,70 @@ test("registro, login y vuelta al next original", async () => {
   expect(await screen.findByRole("heading", { name: "Evento" })).toBeInTheDocument();
   expect(screen.getByLabelText("ubicación")).toHaveTextContent(/^\/eventos\/abc$/);
 });
+
+const organizador = {
+  ...usuario,
+  id: "11111111-2222-4333-8444-555555555555",
+  email: "org@mail.com",
+  role: "ORGANIZER" as const,
+};
+
+test("con la sesión de otro usuario en el store, el login deja el usuario y el token de la cuenta nueva", async () => {
+  server.use(
+    http.post(`${API}/auth/login`, () =>
+      responder("/auth/login", "post", 200, {
+        access_token: "token-organizador",
+        token_type: "bearer",
+        expires_in: 3600,
+      }),
+    ),
+    http.get(`${API}/auth/me`, ({ request }) =>
+      responder(
+        "/auth/me",
+        "get",
+        200,
+        request.headers.get("Authorization") === "Bearer token-organizador" ? organizador : usuario,
+      ),
+    ),
+  );
+  useSession.getState().iniciarSesion(usuario, "token-asistente", 3600);
+  const user = userEvent.setup();
+  montar("/login", rutas);
+
+  await ingresar(user);
+
+  await screen.findByRole("heading", { name: "Inicio de prueba" });
+  expect(useSession.getState().user).toEqual(organizador);
+  expect(useSession.getState().accessToken).toBe("token-organizador");
+});
+
+test("con un token vencido en el store, el login con credenciales correctas funciona a la primera", async () => {
+  server.use(
+    http.post(`${API}/auth/login`, () =>
+      responder("/auth/login", "post", 200, {
+        access_token: "token-nuevo",
+        token_type: "bearer",
+        expires_in: 3600,
+      }),
+    ),
+    http.get(`${API}/auth/me`, ({ request }) =>
+      request.headers.get("Authorization") === "Bearer token-nuevo"
+        ? responder("/auth/me", "get", 200, usuario)
+        : responder("/auth/me", "get", 401, {
+            type: "unauthorized",
+            title: "Sesión inválida",
+            status: 401,
+            trace_id: "t-1",
+          }),
+    ),
+  );
+  useSession.getState().iniciarSesion(usuario, "token-vencido", 3600);
+  const user = userEvent.setup();
+  montar("/login", rutas);
+
+  await ingresar(user);
+
+  await screen.findByRole("heading", { name: "Inicio de prueba" });
+  expect(useSession.getState().accessToken).toBe("token-nuevo");
+  expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+});

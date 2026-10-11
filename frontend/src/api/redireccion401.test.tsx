@@ -48,7 +48,7 @@ const montar = (ruta: string) =>
   );
 
 test("ante un 401 vacía la sesión y la app termina en /login?next=<ruta donde estaba>", async () => {
-  useSession.getState().iniciarSesion(usuario, "token-vencido");
+  useSession.getState().iniciarSesion(usuario, "token-vencido", 3600);
   montar("/?x=1");
   await screen.findByRole("heading", { name: "Mis Eventos" });
 
