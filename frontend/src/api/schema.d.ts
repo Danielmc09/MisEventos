@@ -124,6 +124,118 @@ export interface paths {
     patch: operations["cambiar_contrasena_auth_me_password_patch"];
     trace?: never;
   };
+  "/events": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Listar y buscar eventos
+     * @description Público. Solo trae lo que quien pregunta puede ver: un borrador, solo su dueño y el admin. Por defecto, los que no terminaron, ordenados por fecha de inicio.
+     */
+    get: operations["listar_events_get"];
+    put?: never;
+    /**
+     * Crear un evento
+     * @description Lo crea en borrador (`DRAFT`), a nombre del usuario actual.
+     */
+    post: operations["crear_events_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/events/{id_evento}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Ver un evento
+     * @description Público. Un borrador solo lo ven su dueño y el admin; para el resto, 404.
+     */
+    get: operations["ver_events__id_evento__get"];
+    put?: never;
+    post?: never;
+    /**
+     * Eliminar un evento
+     * @description Lo borra de forma definitiva. Su dueño o el admin.
+     */
+    delete: operations["eliminar_events__id_evento__delete"];
+    options?: never;
+    head?: never;
+    /**
+     * Editar un evento
+     * @description Se manda solo lo que cambia. `status` y `organizer_id` no se aceptan. Un evento cancelado o finalizado no se edita (409). Su dueño o el admin.
+     */
+    patch: operations["editar_events__id_evento__patch"];
+    trace?: never;
+  };
+  "/events/{id_evento}/publish": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Publicar un evento
+     * @description `DRAFT → PUBLISHED`, solo si todavía no empezó. Su dueño o el admin.
+     */
+    post: operations["publicar_events__id_evento__publish_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/events/{id_evento}/unpublish": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Despublicar un evento
+     * @description `PUBLISHED → DRAFT`. Su dueño o el admin.
+     */
+    post: operations["despublicar_events__id_evento__unpublish_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/events/{id_evento}/cancel": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Cancelar un evento
+     * @description `DRAFT | PUBLISHED → CANCELLED`, si no terminó. Es definitivo.
+     */
+    post: operations["cancelar_events__id_evento__cancel_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -159,6 +271,11 @@ export interface components {
       /** New Password */
       new_password: string;
     };
+    /**
+     * Cuando
+     * @enum {string}
+     */
+    Cuando: "upcoming" | "past";
     /** ErrorDeCampo */
     ErrorDeCampo: {
       /** Field */
@@ -166,10 +283,123 @@ export interface components {
       /** Message */
       message: string;
     };
+    /**
+     * EstadoEvento
+     * @enum {string}
+     */
+    EstadoEvento: "DRAFT" | "PUBLISHED" | "CANCELLED";
+    /**
+     * EventoEdicion
+     * @description Solo lo que cambia. Las fechas se comparan con lo guardado en el servicio.
+     */
+    EventoEdicion: {
+      /** Name */
+      name?: string | null;
+      /** Description */
+      description?: string | null;
+      /** Location */
+      location?: string | null;
+      /** Start At */
+      start_at?: string | null;
+      /** End At */
+      end_at?: string | null;
+      /** Capacity */
+      capacity?: number | null;
+    };
+    /** EventoEntrada */
+    EventoEntrada: {
+      /** Name */
+      name: string;
+      /** Description */
+      description?: string | null;
+      /** Location */
+      location?: string | null;
+      /**
+       * Start At
+       * Format: date-time
+       */
+      start_at: string;
+      /**
+       * End At
+       * Format: date-time
+       */
+      end_at: string;
+      /** Capacity */
+      capacity: number;
+    };
+    /** EventoSalida */
+    EventoSalida: {
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string;
+      /** Name */
+      name: string;
+      /** Description */
+      description: string | null;
+      /** Location */
+      location: string | null;
+      /**
+       * Start At
+       * Format: date-time
+       */
+      start_at: string;
+      /**
+       * End At
+       * Format: date-time
+       */
+      end_at: string;
+      /** Capacity */
+      capacity: number;
+      status: components["schemas"]["EstadoEvento"];
+      /**
+       * Organizer Id
+       * Format: uuid
+       */
+      organizer_id: string;
+      /**
+       * Created At
+       * Format: date-time
+       */
+      created_at: string;
+      /**
+       * Updated At
+       * Format: date-time
+       */
+      updated_at: string;
+      /**
+       * Registered Count
+       * @default 0
+       */
+      registered_count: number;
+      /** Available Spots */
+      readonly available_spots: number;
+      /** Is Finished */
+      readonly is_finished: boolean;
+    };
     /** Mensaje */
     Mensaje: {
       /** Message */
       message: string;
+    };
+    /**
+     * OrdenEventos
+     * @enum {string}
+     */
+    OrdenEventos: "start_at" | "-start_at" | "name";
+    /** Pagina[EventoSalida] */
+    Pagina_EventoSalida_: {
+      /** Items */
+      items: components["schemas"]["EventoSalida"][];
+      /** Total */
+      total: number;
+      /** Page */
+      page: number;
+      /** Page Size */
+      page_size: number;
+      /** Pages */
+      pages: number;
     };
     /**
      * Problema
@@ -429,6 +659,511 @@ export interface operations {
       };
       /** @description Necesitás iniciar sesión */
       401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problema"];
+          "application/json": components["schemas"]["Problema"];
+        };
+      };
+      /** @description Los datos enviados no son válidos */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problema"];
+          "application/json": components["schemas"]["Problema"];
+        };
+      };
+    };
+  };
+  listar_events_get: {
+    parameters: {
+      query?: {
+        /** @description Nombre o parte del nombre */
+        q?: string | null;
+        /** @description Uno o varios estados */
+        status?: components["schemas"]["EstadoEvento"][] | null;
+        /** @description Empieza desde, con zona */
+        from?: string | null;
+        /** @description Empieza hasta, con zona */
+        to?: string | null;
+        /** @description `upcoming` o `past` */
+        when?: components["schemas"]["Cuando"];
+        /** @description `start_at`, `-start_at` o `name` */
+        order_by?: components["schemas"]["OrdenEventos"];
+        /** @description Página, desde 1 hasta 10000 */
+        page?: number;
+        /** @description Elementos por página, hasta 100 */
+        page_size?: number;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Pagina_EventoSalida_"];
+        };
+      };
+      /** @description Los datos enviados no son válidos */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problema"];
+          "application/json": components["schemas"]["Problema"];
+        };
+      };
+    };
+  };
+  crear_events_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["EventoEntrada"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["EventoSalida"];
+        };
+      };
+      /** @description Necesitás iniciar sesión */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problema"];
+          "application/json": components["schemas"]["Problema"];
+        };
+      };
+      /** @description No tenés permiso para hacer esto */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problema"];
+          "application/json": components["schemas"]["Problema"];
+        };
+      };
+      /** @description Los datos enviados no son válidos */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problema"];
+          "application/json": components["schemas"]["Problema"];
+        };
+      };
+    };
+  };
+  ver_events__id_evento__get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id_evento: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["EventoSalida"];
+        };
+      };
+      /** @description No encontramos lo que buscás */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problema"];
+          "application/json": components["schemas"]["Problema"];
+        };
+      };
+      /** @description Los datos enviados no son válidos */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problema"];
+          "application/json": components["schemas"]["Problema"];
+        };
+      };
+    };
+  };
+  eliminar_events__id_evento__delete: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id_evento: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Necesitás iniciar sesión */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problema"];
+          "application/json": components["schemas"]["Problema"];
+        };
+      };
+      /** @description No tenés permiso para hacer esto */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problema"];
+          "application/json": components["schemas"]["Problema"];
+        };
+      };
+      /** @description No encontramos lo que buscás */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problema"];
+          "application/json": components["schemas"]["Problema"];
+        };
+      };
+      /** @description La operación choca con el estado actual */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problema"];
+          "application/json": components["schemas"]["Problema"];
+        };
+      };
+      /** @description Los datos enviados no son válidos */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problema"];
+          "application/json": components["schemas"]["Problema"];
+        };
+      };
+    };
+  };
+  editar_events__id_evento__patch: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id_evento: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["EventoEdicion"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["EventoSalida"];
+        };
+      };
+      /** @description Necesitás iniciar sesión */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problema"];
+          "application/json": components["schemas"]["Problema"];
+        };
+      };
+      /** @description No tenés permiso para hacer esto */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problema"];
+          "application/json": components["schemas"]["Problema"];
+        };
+      };
+      /** @description No encontramos lo que buscás */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problema"];
+          "application/json": components["schemas"]["Problema"];
+        };
+      };
+      /** @description La operación choca con el estado actual */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problema"];
+          "application/json": components["schemas"]["Problema"];
+        };
+      };
+      /** @description Los datos enviados no son válidos */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problema"];
+          "application/json": components["schemas"]["Problema"];
+        };
+      };
+    };
+  };
+  publicar_events__id_evento__publish_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id_evento: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["EventoSalida"];
+        };
+      };
+      /** @description Necesitás iniciar sesión */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problema"];
+          "application/json": components["schemas"]["Problema"];
+        };
+      };
+      /** @description No tenés permiso para hacer esto */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problema"];
+          "application/json": components["schemas"]["Problema"];
+        };
+      };
+      /** @description No encontramos lo que buscás */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problema"];
+          "application/json": components["schemas"]["Problema"];
+        };
+      };
+      /** @description La operación choca con el estado actual */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problema"];
+          "application/json": components["schemas"]["Problema"];
+        };
+      };
+      /** @description Los datos enviados no son válidos */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problema"];
+          "application/json": components["schemas"]["Problema"];
+        };
+      };
+    };
+  };
+  despublicar_events__id_evento__unpublish_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id_evento: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["EventoSalida"];
+        };
+      };
+      /** @description Necesitás iniciar sesión */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problema"];
+          "application/json": components["schemas"]["Problema"];
+        };
+      };
+      /** @description No tenés permiso para hacer esto */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problema"];
+          "application/json": components["schemas"]["Problema"];
+        };
+      };
+      /** @description No encontramos lo que buscás */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problema"];
+          "application/json": components["schemas"]["Problema"];
+        };
+      };
+      /** @description La operación choca con el estado actual */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problema"];
+          "application/json": components["schemas"]["Problema"];
+        };
+      };
+      /** @description Los datos enviados no son válidos */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problema"];
+          "application/json": components["schemas"]["Problema"];
+        };
+      };
+    };
+  };
+  cancelar_events__id_evento__cancel_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id_evento: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["EventoSalida"];
+        };
+      };
+      /** @description Necesitás iniciar sesión */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problema"];
+          "application/json": components["schemas"]["Problema"];
+        };
+      };
+      /** @description No tenés permiso para hacer esto */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problema"];
+          "application/json": components["schemas"]["Problema"];
+        };
+      };
+      /** @description No encontramos lo que buscás */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problema"];
+          "application/json": components["schemas"]["Problema"];
+        };
+      };
+      /** @description La operación choca con el estado actual */
+      409: {
         headers: {
           [name: string]: unknown;
         };
