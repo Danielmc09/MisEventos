@@ -7,6 +7,8 @@ from app.services import autenticacion
 from tests.unit.dobles import RepositorioUsuariosFalso
 
 MENSAJE = {"message": "Registro recibido. Iniciá sesión con tu correo y contraseña."}
+# El email más largo que se acepta: 254 caracteres, con etiquetas de dominio válidas.
+EMAIL_254 = "a" * 64 + "@" + "b" * 63 + "." + "c" * 63 + "." + "d" * 57 + ".com"
 VALIDO = {"email": "ana@mail.com", "password": "ocho-car", "full_name": "Ana"}
 
 
@@ -42,7 +44,7 @@ def hashes(monkeypatch) -> list[str]:
         ({"email": "ana@"}, "email"),
         ({"role": "ADMIN"}, "role"),
         ({"full_name": "a" * 121}, "full_name"),
-        ({"email": "a" * 64 + "@" + "b" * 185 + ".com"}, "email"),
+        ({"email": EMAIL_254.replace("@", "@x")}, "email"),
     ],
 )
 def test_un_cuerpo_invalido_responde_422_y_no_crea_nada(con_repo, cliente, cambios, campo):
@@ -107,3 +109,13 @@ def test_si_otro_registro_gana_la_carrera_responde_el_mismo_201(con_repo, client
     assert respuesta.status_code == 201
     assert respuesta.json() == MENSAJE
     assert repo.creados == []
+
+
+def test_un_email_de_254_caracteres_se_acepta(con_repo, cliente):
+    assert len(EMAIL_254) == 254
+    repo = con_repo(RepositorioUsuariosFalso())
+
+    respuesta = cliente.post("/auth/register", json=VALIDO | {"email": EMAIL_254})
+
+    assert respuesta.status_code == 201
+    assert [u.email for u in repo.creados] == [EMAIL_254]
