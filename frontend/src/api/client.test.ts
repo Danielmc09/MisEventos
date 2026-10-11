@@ -30,7 +30,7 @@ test("convierte un 409 problem+json en un ApiError con su title y su traceId", a
     ),
   );
 
-  const error = await api("/events/1/registrations", { method: "POST" }).catch((e) => e);
+  const error = await api("/events/1/registrations", { method: "POST" }).catch((e: ApiError) => e);
 
   expect(error).toBeInstanceOf(ApiError);
   expect(error).toMatchObject({
@@ -50,20 +50,20 @@ test("ante un 401 vacía la sesión", async () => {
     ),
   );
 
-  const error = await api("/auth/me").catch((e) => e);
+  const error = await api("/auth/me").catch((e: ApiError) => e);
 
   expect(error).toBeInstanceOf(ApiError);
-  expect(error.status).toBe(401);
+  expect(error).toMatchObject({ status: 401 });
   expect(useSession.getState().accessToken).toBeNull();
 });
 
 test("ante un error de red devuelve el título «No se pudo conectar con el servidor»", async () => {
   server.use(http.get(`${API}/events`, () => HttpResponse.error()));
 
-  const error = await api("/events").catch((e) => e);
+  const error = await api("/events").catch((e: ApiError) => e);
 
   expect(error).toBeInstanceOf(ApiError);
-  expect(error.title).toBe("No se pudo conectar con el servidor");
+  expect(error).toMatchObject({ title: "No se pudo conectar con el servidor" });
 });
 
 test("agrega el token de la sesión en el header Authorization", async () => {
@@ -85,4 +85,33 @@ test("devuelve el cuerpo JSON de una respuesta exitosa", async () => {
   server.use(http.get(`${API}/events`, () => HttpResponse.json({ items: [], total: 0 })));
 
   expect(await api("/events")).toEqual({ items: [], total: 0 });
+});
+
+test("un error que no es problem+json igual produce un ApiError con título genérico", async () => {
+  server.use(http.get(`${API}/events`, () => new HttpResponse("Bad gateway", { status: 502 })));
+
+  const error = await api("/events").catch((e: ApiError) => e);
+
+  expect(error).toBeInstanceOf(ApiError);
+  expect(error).toMatchObject({ status: 502, title: "Ocurrió un error inesperado" });
+});
+
+test("una respuesta 204 no intenta leer el cuerpo", async () => {
+  server.use(http.delete(`${API}/events/1`, () => new HttpResponse(null, { status: 204 })));
+
+  expect(await api("/events/1", { method: "DELETE" })).toBeUndefined();
+});
+
+test("envía el cuerpo como JSON", async () => {
+  let contentType: string | null = null;
+  server.use(
+    http.post(`${API}/events`, ({ request }) => {
+      contentType = request.headers.get("Content-Type");
+      return HttpResponse.json({ id: 1 });
+    }),
+  );
+
+  await api("/events", { method: "POST", body: JSON.stringify({ title: "Foro" }) });
+
+  expect(contentType).toBe("application/json");
 });
