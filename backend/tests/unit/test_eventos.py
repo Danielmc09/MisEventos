@@ -328,3 +328,116 @@ def test_sin_token_no_se_cambia_el_estado(cliente, eventos, nombre):
 
     assert respuesta.status_code == 401
     assert eventos.eventos[existente.id].status == PUBLICADO
+
+
+# --- Editar --------------------------------------------------------------------------------
+
+
+def editar(cliente, id_evento, cuerpo: dict, token: str | None = None):
+    headers = {"Authorization": f"Bearer {token}"} if token else {}
+    return cliente.patch(f"/events/{id_evento}", json=cuerpo, headers=headers)
+
+
+def test_el_dueno_edita_solo_lo_que_manda(cliente, eventos, token):
+    existente = eventos.crear(evento(PUBLICADO))
+    inicio_guardado = existente.start_at
+
+    respuesta = editar(
+        cliente, existente.id, {"name": "  PyCon 2030 ", "capacity": 80}, token(ORGANIZADOR)
+    )
+
+    assert respuesta.status_code == 200
+    cuerpo = respuesta.json()
+    assert cuerpo["name"] == "PyCon 2030"
+    assert cuerpo["capacity"] == 80
+    assert cuerpo["available_spots"] == 80
+    assert cuerpo["status"] == "PUBLISHED"
+    guardado = eventos.eventos[existente.id]
+    assert (guardado.name, guardado.capacity) == ("PyCon 2030", 80)
+    assert guardado.start_at == inicio_guardado
+
+
+def test_se_puede_mover_el_evento_a_otras_fechas_futuras(cliente, eventos, token):
+    existente = eventos.crear(evento(BORRADOR))
+    inicio = datetime.now(UTC) + timedelta(days=60)
+    cambios = {
+        "start_at": inicio.isoformat(),
+        "end_at": (inicio + timedelta(hours=2)).isoformat(),
+    }
+
+    respuesta = editar(cliente, existente.id, cambios, token(ORGANIZADOR))
+
+    assert respuesta.status_code == 200
+    assert eventos.eventos[existente.id].start_at == inicio
+
+
+@pytest.mark.parametrize("estado", [CANCELADO, PUBLICADO], ids=["cancelado", "finalizado"])
+def test_un_evento_cancelado_o_finalizado_no_se_edita(cliente, eventos, token, estado):
+    existente = evento(estado)
+    if estado == PUBLICADO:
+        en_el_pasado(existente, termino=True)
+    eventos.crear(existente)
+
+    respuesta = editar(cliente, existente.id, {"name": "Otro nombre"}, token(ORGANIZADOR))
+
+    assert respuesta.status_code == 409
+    assert respuesta.headers["content-type"] == "application/problem+json"
+    assert eventos.eventos[existente.id].name == "PyCon Bogotá"
+
+
+@pytest.mark.parametrize(
+    ("cambios", "campo"),
+    [
+        ({"status": "PUBLISHED"}, "status"),
+        ({"organizer_id": str(ADMIN.id)}, "organizer_id"),
+        ({"name": "ab"}, "name"),
+        ({"name": None}, "name"),
+        ({"capacity": 0}, "capacity"),
+        ({"capacity": None}, "capacity"),
+        ({"location": "a" * 201}, "location"),
+        ({"start_at": "2030-01-10T15:00:00"}, "start_at"),
+        ({"end_at": None}, "end_at"),
+        # El fin se compara con el inicio guardado aunque el inicio no venga en el cuerpo.
+        ({"end_at": (INICIO - timedelta(days=1)).isoformat()}, "end_at"),
+        # Y un inicio nuevo, con el fin guardado.
+        ({"start_at": (INICIO + timedelta(days=1)).isoformat()}, "end_at"),
+        ({"start_at": (AHORA - timedelta(hours=1)).isoformat()}, "start_at"),
+    ],
+    ids=[
+        "con-status",
+        "con-organizer_id",
+        "nombre-2",
+        "nombre-nulo",
+        "capacidad-0",
+        "capacidad-nula",
+        "lugar-201",
+        "inicio-sin-zona",
+        "fin-nulo",
+        "fin-antes-del-inicio-guardado",
+        "inicio-despues-del-fin-guardado",
+        "inicio-pasado",
+    ],
+)
+def test_una_edicion_invalida_responde_422_en_su_campo(cliente, eventos, token, cambios, campo):
+    existente = evento(PUBLICADO)
+    existente.start_at, existente.end_at = INICIO, INICIO + timedelta(hours=8)
+    eventos.crear(existente)
+
+    respuesta = editar(cliente, existente.id, cambios, token(ORGANIZADOR))
+
+    assert respuesta.status_code == 422
+    assert [e["field"] for e in respuesta.json()["errors"]] == [campo]
+    guardado = eventos.eventos[existente.id]
+    assert (guardado.name, guardado.start_at, guardado.end_at, guardado.capacity) == (
+        "PyCon Bogotá",
+        INICIO,
+        INICIO + timedelta(hours=8),
+        100,
+    )
+
+
+def test_sin_token_no_se_edita(cliente, eventos):
+    existente = eventos.crear(evento(PUBLICADO))
+
+    assert editar(cliente, existente.id, {"name": "Otro nombre"}).status_code == 401
+    assert eventos.eventos[existente.id].name == "PyCon Bogotá"
