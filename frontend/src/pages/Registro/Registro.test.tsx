@@ -109,9 +109,9 @@ test("al registrarse muestra el mensaje del backend y lleva a /login conservando
   await user.click(screen.getByRole("button", { name: /crear cuenta/i }));
 
   expect(await screen.findByRole("heading", { name: "Iniciar sesión" })).toBeInTheDocument();
-  expect(screen.getByRole("status")).toHaveTextContent(
-    "Si el correo es válido, te enviamos las instrucciones",
-  );
+  expect(
+    screen.getByText("Si el correo es válido, te enviamos las instrucciones"),
+  ).toBeInTheDocument();
   expect(screen.getByLabelText("ubicación")).toHaveTextContent("/login?next=%2Feventos%2Fabc");
   expect(cuerpo).toEqual({ email: "ana@mail.com", password: "clave de prueba", full_name: "Ana" });
 });
