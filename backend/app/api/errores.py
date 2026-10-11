@@ -1,3 +1,4 @@
+from collections.abc import Mapping
 from typing import Any
 
 from fastapi import FastAPI, Request
@@ -62,8 +63,42 @@ def _campo(loc: tuple[int | str, ...]) -> str:
     return ".".join(str(parte) for parte in partes)
 
 
-def _mensaje(msg: str) -> str:
-    return msg.removeprefix("Value error, ")
+# Mensajes del 422 por type de error de pydantic; los {campos} salen de su ctx.
+FECHA_ISO = "Debe ser una fecha y hora ISO 8601"
+MENSAJES_422 = {
+    "missing": "Este campo es obligatorio",
+    "string_too_short": "Debe tener al menos {min_length} caracteres",
+    "string_too_long": "Debe tener como máximo {max_length} caracteres",
+    "greater_than_equal": "Debe ser mayor o igual que {ge}",
+    "less_than_equal": "Debe ser menor o igual que {le}",
+    "greater_than": "Debe ser mayor que {gt}",
+    "less_than": "Debe ser menor que {lt}",
+    "int_parsing": "Debe ser un número entero",
+    "float_parsing": "Debe ser un número",
+    "bool_parsing": "Debe ser verdadero o falso",
+    "datetime_parsing": FECHA_ISO,
+    "datetime_from_date_parsing": FECHA_ISO,
+    "timezone_aware": "Debe incluir la zona horaria",
+    "uuid_parsing": "Debe ser un UUID válido",
+    "enum": "Debe ser uno de: {expected}",
+    "literal_error": "Debe ser uno de: {expected}",
+    "extra_forbidden": "Este campo no está permitido",
+    "json_invalid": "El cuerpo no es un JSON válido",
+}
+MENSAJE_GENERICO = "Valor inválido"
+
+
+def _mensaje(error: Mapping[str, Any]) -> str:
+    """Traduce un error de pydantic. Nunca devuelve el texto en inglés de pydantic."""
+    if error["type"] == "value_error":
+        # Lo lanzan nuestros validadores, ya en español; pydantic solo le antepone un prefijo.
+        return error["msg"].removeprefix("Value error, ")
+    plantilla = MENSAJES_422.get(error["type"], MENSAJE_GENERICO)
+    ctx = {k: str(v).replace(" or ", " o ") for k, v in error.get("ctx", {}).items()}
+    try:
+        return plantilla.format_map(ctx)
+    except KeyError:  # un type conocido sin el ctx que su mensaje necesita
+        return MENSAJE_GENERICO
 
 
 async def _dominio(request: Request, exc: DomainError) -> JSONResponse:
@@ -78,8 +113,7 @@ async def _http(request: Request, exc: StarletteHTTPException) -> JSONResponse:
 
 async def _validacion(request: Request, exc: RequestValidationError) -> JSONResponse:
     errores = [
-        ErrorDeCampo(field=_campo(tuple(e["loc"])), message=_mensaje(e["msg"]))
-        for e in exc.errors()
+        ErrorDeCampo(field=_campo(tuple(e["loc"])), message=_mensaje(e)) for e in exc.errors()
     ]
     return problema(_trace_id(request), 422, errores=errores)
 

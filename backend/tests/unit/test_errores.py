@@ -125,6 +125,9 @@ class Formulario(BaseModel):
     def codigo_raro(cls, valor: str) -> str:
         if valor == "raro":
             raise PydanticCustomError("tipo_que_nadie_tradujo", "Some english text {x}", {"x": 1})
+        if valor == "sin-ctx":
+            # Un type traducido que llega sin el ctx que su mensaje necesita.
+            raise PydanticCustomError("string_too_short", "Too short")
         return valor
 
     @field_validator("fin")
@@ -169,6 +172,7 @@ def mensajes(cliente, cuerpo: dict) -> dict[str, str]:
             "Debe ser uno de: 'presencial' o 'virtual'",
         ),
         ({"nombre": "Feria", "codigo": "raro"}, "codigo", "Valor inválido"),
+        ({"nombre": "Feria", "codigo": "sin-ctx"}, "codigo", "Valor inválido"),
         ({"nombre": "Feria", "fin": "antes"}, "fin", "Debe ser posterior a start_at"),
     ],
 )
