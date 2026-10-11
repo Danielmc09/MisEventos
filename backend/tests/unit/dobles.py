@@ -36,6 +36,17 @@ class RepositorioEventosFalso:
     def por_id(self, id_: UUID) -> Event | None:
         return self.eventos.get(id_)
 
+    def por_id_para_escribir(self, id_: UUID) -> Event | None:
+        return self.eventos.get(id_)
+
+    def guardar(self, evento: Event) -> Event:
+        evento.updated_at = datetime.now(UTC)
+        self.eventos[evento.id] = evento
+        return evento
+
+    def eliminar(self, evento: Event) -> None:
+        del self.eventos[evento.id]
+
     def crear(self, evento: Event) -> Event:
         # Lo que en la base pone el server_default.
         evento.created_at = evento.updated_at = datetime.now(UTC)
