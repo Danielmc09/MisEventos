@@ -13,12 +13,14 @@ logger = logging.getLogger("miseventos.acceso")
 
 
 def _trace_id(recibido: str | None) -> str:
-    """Respeta el X-Request-ID del cliente solo si es un UUID; si no, genera uno."""
+    """Usa el X-Request-ID del cliente, tal cual llegó, si es un UUID; si no, genera uno."""
     if recibido:
         try:
-            return str(uuid.UUID(recibido))
+            uuid.UUID(recibido)
         except ValueError:
             pass
+        else:
+            return recibido
     return str(uuid.uuid4())
 
 
