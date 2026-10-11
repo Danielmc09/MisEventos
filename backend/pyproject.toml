@@ -20,6 +20,10 @@ target-version = "py314"
 [tool.ruff.lint]
 select = ["E", "W", "F", "I", "N", "UP", "B", "SIM", "C90", "S"]
 
+[tool.ruff.lint.isort]
+# La carpeta alembic/ son las migraciones; el paquete alembic es la dependencia.
+known-third-party = ["alembic"]
+
 [tool.ruff.lint.mccabe]
 max-complexity = 10
 
