@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 
+from app.api import health
 from app.api.errores import registrar_manejadores
 from app.api.middleware import trazabilidad
 from app.core.config import Settings
@@ -15,5 +16,6 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         description="Gestión de eventos, sesiones, ponentes e inscripciones.",
     )
     registrar_manejadores(app)
+    app.include_router(health.router)
     app.middleware("http")(trazabilidad)
     return app
