@@ -51,7 +51,9 @@ def entorno(monkeypatch):
 def falla_nombrando(entorno, valores: dict[str, str], variable: str) -> None:
     with pytest.raises(ValidationError) as error:
         entorno(valores)
-    assert variable in str(error.value)
+    # Solo ubicación y mensaje: str(error) incluye el input, que trae todos los nombres.
+    explicacion = " ".join(f"{e['loc']} {e['msg']}" for e in error.value.errors())
+    assert variable in explicacion
 
 
 def test_desarrollo_con_los_valores_de_ejemplo_arranca(entorno):
@@ -72,6 +74,12 @@ def test_cors_origins_se_separa_por_comas(entorno):
     config = entorno({**DESARROLLO, "CORS_ORIGINS": "http://a.test, http://b.test"})
 
     assert config.cors_origins == ["http://a.test", "http://b.test"]
+
+
+def test_sin_cors_origins_no_se_permite_ningun_origen(entorno):
+    valores = {k: v for k, v in DESARROLLO.items() if k != "CORS_ORIGINS"}
+
+    assert entorno(valores).cors_origins == []
 
 
 def test_sin_database_url_falla_nombrandola(entorno):
