@@ -103,7 +103,12 @@ def _mensaje(error: Mapping[str, Any]) -> str:
 
 async def _dominio(request: Request, exc: DomainError) -> JSONResponse:
     return problema(
-        _trace_id(request), exc.status, tipo=exc.tipo, titulo=exc.titulo, detalle=exc.detalle
+        _trace_id(request),
+        exc.status,
+        tipo=exc.tipo,
+        titulo=exc.titulo,
+        detalle=exc.detalle,
+        headers=exc.headers,
     )
 
 

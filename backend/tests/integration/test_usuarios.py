@@ -1,6 +1,6 @@
 import pytest
 from sqlalchemy import Connection, text
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import DataError, IntegrityError
 
 from tests.integration.infraestructura import migrar, revertir
 
@@ -61,3 +61,10 @@ def test_el_downgrade_a_0001_borra_users_y_su_tipo(conexion):
 
     migrar(conexion, "head")
     assert existe_tabla_users(conexion)
+
+
+def test_la_base_rechaza_un_email_de_255_caracteres(conexion):
+    insertar_usuario(conexion, "a" * 64 + "@" + "b" * 185 + ".com")  # 254: entra
+
+    with pytest.raises(DataError, match="character varying\\(254\\)"):
+        insertar_usuario(conexion, "a" * 64 + "@" + "b" * 186 + ".com")  # 255

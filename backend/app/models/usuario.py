@@ -18,7 +18,8 @@ class User(SQLModel, table=True):
         primary_key=True,
         sa_column_kwargs={"server_default": text("gen_random_uuid()")},
     )
-    email: str = Field(sa_type=String, nullable=False)
+    # 254: el largo máximo de una dirección de correo (RFC 5321).
+    email: str = Field(sa_type=String(254), nullable=False)
     full_name: str | None = Field(default=None, max_length=120)
     password_hash: str = Field(sa_type=String, nullable=False)
     role: Rol = Field(sa_column=Column(Enum(Rol, name="user_role"), nullable=False))
