@@ -5,6 +5,8 @@ from collections.abc import Awaitable, Callable
 
 from fastapi import Request, Response
 
+from app.api.errores import problema
+
 HEADER_TRACE = "X-Request-ID"
 
 logger = logging.getLogger("miseventos.acceso")
@@ -35,7 +37,12 @@ async def trazabilidad(
     request.state.trace_id = trace_id
     inicio = time.perf_counter()
 
-    response = await call_next(request)
+    try:
+        response = await call_next(request)
+    except Exception:
+        # El detalle completo solo va al log; el cliente recibe un 500 genérico con el trace_id.
+        logger.exception("error no esperado", extra={"campos": {"trace_id": trace_id}})
+        response = problema(trace_id, 500)
 
     response.headers[HEADER_TRACE] = trace_id
     # Nunca cuerpos ni headers: ahí viajan contraseñas y tokens.
