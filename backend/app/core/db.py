@@ -1,10 +1,20 @@
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
+from functools import partial
 
-from sqlmodel import Session
+from fastapi import Request
+from sqlmodel import Session, create_engine
+
+FabricaDeSesiones = Callable[[], Session]
 
 
-def get_session() -> Iterator[Session]:
-    """Una sesión por request. Punto de inyección: el engine y el commit/rollback se conectan
-    junto con la configuración de la base; los tests unitarios la reemplazan por un doble."""
-    raise RuntimeError("La sesión de base de datos todavía no está configurada")
-    yield  # pragma: no cover
+def crear_fabrica_de_sesiones(database_url: str) -> FabricaDeSesiones:
+    return partial(Session, create_engine(database_url, pool_pre_ping=True))
+
+
+def sesion_transaccional(fabrica: FabricaDeSesiones) -> Iterator[Session]:
+    with fabrica() as session:
+        yield session
+
+
+def get_session(request: Request) -> Iterator[Session]:
+    yield from sesion_transaccional(request.app.state.sesiones)

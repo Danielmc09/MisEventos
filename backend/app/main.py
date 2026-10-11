@@ -5,6 +5,7 @@ from app.api import health
 from app.api.errores import registrar_manejadores
 from app.api.middleware import HEADER_TRACE, trazabilidad
 from app.core.config import Settings
+from app.core.db import crear_fabrica_de_sesiones
 from app.core.logs import configurar_logs
 
 
@@ -16,6 +17,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         version="0.1.0",
         description="Gestión de eventos, sesiones, ponentes e inscripciones.",
     )
+    # El engine no se conecta hasta la primera consulta: crear la app no necesita la base.
+    app.state.sesiones = crear_fabrica_de_sesiones(settings.database_url)
     registrar_manejadores(app)
     app.include_router(health.router)
     app.add_middleware(
