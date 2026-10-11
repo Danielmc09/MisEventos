@@ -28,6 +28,13 @@ class RegistroEntrada(BaseModel):
     full_name: str | None = Field(default=None, max_length=120)
 
 
+class CambioContrasenaEntrada(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    current_password: str = Field(min_length=8, max_length=128)
+    new_password: str = Field(min_length=8, max_length=128)
+
+
 class Mensaje(BaseModel):
     message: str
 

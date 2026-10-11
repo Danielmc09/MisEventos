@@ -5,7 +5,7 @@ from typing import Protocol
 from uuid import UUID
 
 from app.core.contrasenas import hashear, verificar
-from app.core.excepciones import Unauthorized
+from app.core.excepciones import DatosInvalidos, Unauthorized
 from app.core.permisos import Rol
 from app.core.tokens import crear_access_token, leer_access_token
 from app.models.usuario import User
@@ -65,3 +65,17 @@ def usuario_del_token(repo: Usuarios, token: str, secreto: str) -> User:
     if usuario is None or not usuario.is_active:
         raise Unauthorized()
     return usuario
+
+
+def cambiar_contrasena(usuario: User, actual: str, nueva: str, secreto: str, minutos: int) -> str:
+    """Guarda la nueva contraseña y devuelve un access token nuevo. El cambio lo persiste la
+    transacción del request, que ya tiene cargado al usuario."""
+    if not verificar(usuario.password_hash, actual):
+        raise DatosInvalidos("current_password", "La contraseña actual no es correcta")
+    if nueva == actual:
+        raise DatosInvalidos(
+            "new_password", "La nueva contraseña tiene que ser distinta de la actual"
+        )
+    usuario.password_hash = hashear(nueva)
+    usuario.must_change_password = False
+    return crear_access_token(usuario.id, secreto, minutos)

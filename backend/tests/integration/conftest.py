@@ -47,7 +47,6 @@ def cliente_db(conexion, url_db) -> Iterator[TestClient]:
         _env_file=None,
         DATABASE_URL=url_db,
         JWT_SECRET="integracion-" + "x" * 32,
-        ACCESS_TOKEN_MINUTES=60,
         CORS_ORIGINS="http://localhost:5173",
     )
     app = create_app(settings)

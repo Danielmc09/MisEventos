@@ -5,7 +5,13 @@ from fastapi.security import OAuth2PasswordRequestForm
 
 from app.api.dependencias import ConfigApp, RepoUsuarios, UsuarioActual
 from app.api.errores import respuestas_de_error
-from app.schemas.auth import Mensaje, RegistroEntrada, TokenAcceso, UsuarioSalida
+from app.schemas.auth import (
+    CambioContrasenaEntrada,
+    Mensaje,
+    RegistroEntrada,
+    TokenAcceso,
+    UsuarioSalida,
+)
 from app.services import autenticacion
 
 router = APIRouter(prefix="/auth", tags=["autenticación"])
@@ -43,6 +49,17 @@ def login(
     return TokenAcceso(access_token=token, expires_in=settings.access_token_minutes * 60)
 
 
+@router.post(
+    "/logout",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Cerrar sesión",
+    description="Sin estado en el servidor: el cliente descarta su access token. Responde 204 "
+    "siempre, con token o sin él.",
+)
+def logout() -> None:
+    return None
+
+
 @router.get(
     "/me",
     summary="Usuario actual",
@@ -51,3 +68,22 @@ def login(
 )
 def me(usuario: UsuarioActual) -> UsuarioSalida:
     return UsuarioSalida.model_validate(usuario, from_attributes=True)
+
+
+@router.patch(
+    "/me/password",
+    summary="Cambiar la contraseña",
+    description="Pide la contraseña actual. Devuelve un access token nuevo, como el login.",
+    responses=respuestas_de_error(401, 422),
+)
+def cambiar_contrasena(
+    datos: CambioContrasenaEntrada, usuario: UsuarioActual, settings: ConfigApp
+) -> TokenAcceso:
+    token = autenticacion.cambiar_contrasena(
+        usuario,
+        datos.current_password,
+        datos.new_password,
+        settings.jwt_secret,
+        settings.access_token_minutes,
+    )
+    return TokenAcceso(access_token=token, expires_in=settings.access_token_minutes * 60)

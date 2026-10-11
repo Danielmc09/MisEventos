@@ -1,8 +1,12 @@
 import pytest
 
 from app.core.config import Settings
+from app.core.contrasenas import hashear, verificar
+from app.core.permisos import Rol
+from app.models.usuario import User
 from app.scripts import seed
-from app.scripts.seed import CredencialesDemo, credenciales_demo
+from app.scripts.seed import CredencialesDemo, credenciales_demo, sembrar_usuarios
+from tests.unit.dobles import RepositorioUsuariosFalso
 
 CREDENCIALES = {
     "ADMIN_EMAIL": "admin@miseventos.local",
@@ -129,3 +133,58 @@ def test_al_arrancar_con_seed_demo_siembra(entorno, base_doble):
     seed.main(["--solo-si-seed-demo"])
 
     assert len(base_doble["sembrado"]) == 1
+
+
+# --- Usuarios demo -------------------------------------------------------------------------
+
+DEMO = CredencialesDemo(
+    admin_email="Admin@MisEventos.local",
+    admin_password="Admin-Test-2026",
+    demo_password="Demo-Test-2026",
+)
+
+
+def test_crea_el_admin_y_los_dos_usuarios_demo_con_sus_roles():
+    repo = RepositorioUsuariosFalso()
+
+    sembrar_usuarios(repo, DEMO)
+
+    assert len(repo.creados) == 3
+    por_email = {u.email: u for u in repo.creados}
+    assert {email: u.role for email, u in por_email.items()} == {
+        "admin@miseventos.local": Rol.ADMIN,
+        "organizador@miseventos.local": Rol.ORGANIZER,
+        "asistente@miseventos.local": Rol.ATTENDEE,
+    }
+    assert all(u.is_active and not u.must_change_password for u in repo.creados)
+    assert verificar(por_email["admin@miseventos.local"].password_hash, "Admin-Test-2026")
+    assert verificar(por_email["organizador@miseventos.local"].password_hash, "Demo-Test-2026")
+    assert verificar(por_email["asistente@miseventos.local"].password_hash, "Demo-Test-2026")
+
+
+def test_no_toca_un_usuario_que_ya_existe_aunque_cambio_su_contrasena():
+    hash_propio = hashear("Clave-Propia-1")
+    admin = User(email="admin@miseventos.local", password_hash=hash_propio, role=Rol.ADMIN)
+    asistente = User(
+        email="asistente@miseventos.local",
+        password_hash=hash_propio,
+        role=Rol.ATTENDEE,
+        full_name="Nombre que puso la persona",
+    )
+    repo = RepositorioUsuariosFalso(admin, asistente)
+
+    sembrar_usuarios(repo, DEMO)
+
+    assert [u.email for u in repo.creados] == ["organizador@miseventos.local"]
+    assert admin.password_hash == asistente.password_hash == hash_propio
+    assert asistente.full_name == "Nombre que puso la persona"
+    assert len(repo.usuarios) == 3
+
+
+def test_correrlo_dos_veces_no_crea_nada_la_segunda():
+    repo = RepositorioUsuariosFalso()
+    sembrar_usuarios(repo, DEMO)
+
+    sembrar_usuarios(repo, DEMO)
+
+    assert len(repo.creados) == 3
