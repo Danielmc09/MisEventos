@@ -4,8 +4,8 @@ import type { ReactNode } from "react";
 export function Cifra({ etiqueta, children }: { etiqueta: string; children: ReactNode }) {
   return (
     <div>
-      <dt className="text-sm text-gray-600">{etiqueta}</dt>
-      <dd className="text-2xl font-semibold">{children}</dd>
+      <dt className="text-sm text-texto-suave">{etiqueta}</dt>
+      <dd className="text-2xl font-bold text-tinta">{children}</dd>
     </div>
   );
 }

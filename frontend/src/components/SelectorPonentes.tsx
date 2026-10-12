@@ -3,6 +3,7 @@ import { api } from "../api/client";
 import type { components } from "../api/schema";
 import { errorDeFormulario } from "../lib/errores";
 import { Button } from "./ui/Button";
+import { Chip } from "./ui/Chip";
 import { Input } from "./ui/Input";
 
 export type PonenteDeSesion = components["schemas"]["PonenteDeSesion"];
@@ -73,17 +74,17 @@ export function SelectorPonentes({ seleccionados, onChange, error }: Props) {
         onKeyDown={(e) => e.key === "Enter" && e.preventDefault()}
       />
       {visibles.length > 0 && (
-        <ul aria-label="Resultados" className="flex flex-col gap-1">
+        <ul aria-label="Resultados" className="flex flex-wrap gap-2">
           {visibles.map((p) => (
             <li key={p.id}>
-              <button
+              <Button
                 type="button"
+                variante="secundario"
                 aria-label={`Agregar a ${p.full_name}`}
                 onClick={() => onChange([...seleccionados, p])}
-                className="rounded-md border border-gray-300 px-3 py-1"
               >
                 {p.full_name}
-              </button>
+              </Button>
             </li>
           ))}
         </ul>
@@ -105,32 +106,32 @@ export function SelectorPonentes({ seleccionados, onChange, error }: Props) {
             <Button type="button" loading={guardando} onClick={crear}>
               Guardar ponente
             </Button>
-            <button type="button" onClick={() => setCreando(false)}>
+            <Button type="button" variante="secundario" onClick={() => setCreando(false)}>
               Cancelar ponente
-            </button>
+            </Button>
           </div>
         </div>
       ) : (
-        <button
+        <Button
           type="button"
+          variante="secundario"
           onClick={() => setCreando(true)}
-          className="self-start rounded-md border border-gray-300 px-3 py-1"
+          className="self-start"
         >
           Crear ponente nuevo
-        </button>
+        </Button>
       )}
       {seleccionados.length > 0 && (
         <ul aria-label="Ponentes elegidos" className="flex flex-wrap gap-2">
           {seleccionados.map((p) => (
-            <li key={p.id} className="flex items-center gap-2 rounded-full bg-indigo-100 px-3 py-1">
-              {p.full_name}
-              <button
-                type="button"
-                aria-label={`Quitar a ${p.full_name}`}
-                onClick={() => onChange(seleccionados.filter((q) => q.id !== p.id))}
+            <li key={p.id}>
+              <Chip
+                tono="acento"
+                etiquetaQuitar={`Quitar a ${p.full_name}`}
+                onQuitar={() => onChange(seleccionados.filter((q) => q.id !== p.id))}
               >
-                ×
-              </button>
+                {p.full_name}
+              </Chip>
             </li>
           ))}
         </ul>

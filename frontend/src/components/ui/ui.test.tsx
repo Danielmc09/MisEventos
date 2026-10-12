@@ -5,7 +5,6 @@ import { Button } from "./Button";
 import { AlertaError } from "./AlertaError";
 import { Input } from "./Input";
 import { Textarea } from "./Textarea";
-import { Insignia } from "./Insignia";
 import { EnlaceBoton } from "./EnlaceBoton";
 import { BarraProgreso } from "./BarraProgreso";
 import { Tabla } from "./Tabla";
@@ -158,14 +157,6 @@ describe("Button: variantes", () => {
     expect(clases).toContain("motion-safe:active:scale-97");
     expect(clases).toContain("motion-safe:transition-[background-color,transform]");
     expect(clases).not.toMatch(/transition-all/);
-  });
-});
-
-describe("Insignia", () => {
-  test("muestra su texto", () => {
-    render(<Insignia tono="exito">Estás inscrito</Insignia>);
-
-    expect(screen.getByText("Estás inscrito")).toBeInTheDocument();
   });
 });
 

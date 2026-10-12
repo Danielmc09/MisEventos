@@ -13,9 +13,9 @@ export function BarraProgreso({ etiqueta, valor }: BarraProgresoProps) {
       aria-valuenow={acotado}
       aria-valuemin={0}
       aria-valuemax={100}
-      className="h-3 w-full overflow-hidden rounded-full bg-gray-200"
+      className="h-3 w-full overflow-hidden rounded-full bg-fondo"
     >
-      <div className="h-full bg-indigo-600" style={{ width: `${acotado}%` }} />
+      <div className="h-full bg-acento" style={{ width: `${acotado}%` }} />
     </div>
   );
 }
