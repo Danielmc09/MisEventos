@@ -105,3 +105,62 @@ describe("búsqueda con espera", () => {
     expect(screen.queryByRole("list", { name: "Ponentes elegidos" })).not.toBeInTheDocument();
   });
 });
+
+describe("crear un ponente nuevo", () => {
+  const rutaPost = `${API}/speakers`;
+
+  test("lo crea con POST, queda seleccionado y no envía el formulario que lo contiene", async () => {
+    const cuerpos: unknown[] = [];
+    server.use(
+      http.post(rutaPost, async ({ request }) => {
+        cuerpos.push(await request.json());
+        return responder("/speakers", "post", 201, ana);
+      }),
+    );
+    const alEnviar = vi.fn((e: React.FormEvent) => e.preventDefault());
+    const user = userEvent.setup();
+    render(
+      <form onSubmit={alEnviar}>
+        <Montado />
+      </form>,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Crear ponente nuevo" }));
+    await user.type(screen.getByLabelText("Nombre del ponente"), "Ana Pérez{Enter}");
+
+    const elegidos = await screen.findByRole("list", { name: "Ponentes elegidos" });
+    expect(elegidos).toHaveTextContent("Ana Pérez");
+    expect(cuerpos).toEqual([{ full_name: "Ana Pérez" }]);
+    expect(alEnviar).not.toHaveBeenCalled();
+    expect(screen.queryByLabelText("Nombre del ponente")).not.toBeInTheDocument();
+  });
+
+  test("un 422 aparece en el campo y no se selecciona nada", async () => {
+    server.use(
+      http.post(rutaPost, () =>
+        responder("/speakers", "post", 422, {
+          type: "validation-error",
+          title: "Los datos enviados no son válidos",
+          status: 422,
+          trace_id: "t-7",
+          errors: [
+            { field: "full_name", message: "El nombre debe tener entre 2 y 120 caracteres" },
+          ],
+        }),
+      ),
+    );
+    const user = userEvent.setup();
+    render(<Montado />);
+
+    await user.click(screen.getByRole("button", { name: "Crear ponente nuevo" }));
+    await user.type(screen.getByLabelText("Nombre del ponente"), "A");
+    await user.click(screen.getByRole("button", { name: "Guardar ponente" }));
+
+    await vi.waitFor(() =>
+      expect(screen.getByLabelText("Nombre del ponente")).toHaveAccessibleDescription(
+        "El nombre debe tener entre 2 y 120 caracteres",
+      ),
+    );
+    expect(screen.queryByRole("list", { name: "Ponentes elegidos" })).not.toBeInTheDocument();
+  });
+});
