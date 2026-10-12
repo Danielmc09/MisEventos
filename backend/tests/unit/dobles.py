@@ -59,7 +59,10 @@ class RepositorioUsuariosFalso:
             u.id != usuario.id and u.email == usuario.email for u in self.usuarios.values()
         ):
             return None
-        usuario.updated_at = datetime.now(UTC)
+        ahora = datetime.now(UTC)
+        if usuario.created_at is None:  # uno nuevo: la base le pone la fecha de alta
+            usuario.created_at = ahora
+        usuario.updated_at = ahora
         self.usuarios[usuario.id] = usuario
         return usuario
 

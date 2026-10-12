@@ -11,7 +11,7 @@ from uuid import UUID
 from app.core.excepciones import Conflict, Forbidden, NotFound
 from app.core.permisos import PERMISOS_POR_ROL, Permiso, Rol, tiene_permiso
 from app.models.usuario import User
-from app.schemas.administracion import FiltrosUsuarios, UsuarioEdicion
+from app.schemas.administracion import FiltrosUsuarios, UsuarioAlta, UsuarioEdicion
 
 # Lo que no puede quedarse sin nadie: alguien activo que gestione usuarios.
 PERMISO_DE_ADMIN = Permiso.USUARIOS_GESTIONAR
@@ -110,3 +110,7 @@ def cambiar(
         raise Conflict(tipo="email-taken", titulo="Ese email ya está registrado")
     usuario = guardado
     return ConInscripciones(usuario, repo.inscripciones_activas([usuario.id])[usuario.id])
+
+
+def crear(repo: Usuarios, actor: User, datos: UsuarioAlta) -> None:
+    return None

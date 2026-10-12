@@ -30,6 +30,12 @@ class UsuarioEdicion(EntradaBase):
         return valor
 
 
+class UsuarioAlta(EntradaBase):
+    email: str
+    role: Rol
+    full_name: str | None = None
+
+
 class UsuarioAdmin(BaseModel):
     id: UUID
     email: str
