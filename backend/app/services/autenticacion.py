@@ -26,11 +26,12 @@ class Usuarios(Protocol):
 
 def registrar(repo: Usuarios, email: str, password: str, full_name: str | None) -> None:
     """Crea un ATTENDEE. Si el email ya existe no hace nada, y quien llama responde lo mismo."""
+    # El hash se calcula siempre, antes de mirar el email: si solo se calculara con un email
+    # nuevo, el tiempo de respuesta revelaría si el email ya está registrado.
+    password_hash = hashear(password)
     if repo.por_email(email) is not None:
         return
-    usuario = User(
-        email=email, password_hash=hashear(password), full_name=full_name, role=Rol.ATTENDEE
-    )
+    usuario = User(email=email, password_hash=password_hash, full_name=full_name, role=Rol.ATTENDEE)
     repo.crear(usuario)  # si chocó con otro registro del mismo email, la respuesta es la misma
 
 
