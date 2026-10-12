@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 360" width="1440" height="360">
+  <rect width="1440" height="360" fill="#F2F4F8"/>
+  <!-- Arcos concéntricos a la izquierda -->
+  <circle cx="170" cy="250" r="230" fill="#6AC6DC"/>
+  <circle cx="170" cy="250" r="165" fill="#00AEC7"/>
+  <circle cx="170" cy="250" r="100" fill="#007E91"/>
+  <circle cx="170" cy="250" r="42" fill="#F2F4F8"/>
+  <!-- Bloques centrales -->
+  <rect x="470" y="60" width="150" height="150" rx="26" fill="#6F2277"/>
+  <rect x="560" y="140" width="190" height="190" rx="26" fill="#282A68"/>
+  <rect x="650" y="40" width="90" height="90" rx="45" fill="#00AEC7"/>
+  <!-- Triángulos -->
+  <polygon points="820,330 960,90 1100,330" fill="#007E91"/>
+  <polygon points="900,330 960,226 1020,330" fill="#F2F4F8"/>
+  <polygon points="1040,330 1130,175 1220,330" fill="#6AC6DC"/>
+  <!-- Semicírculos a la derecha -->
+  <path d="M1220 360 A140 140 0 0 1 1500 360 Z" fill="#6F2277"/>
+  <path d="M1270 360 A90 90 0 0 1 1450 360 Z" fill="#00AEC7"/>
+  <circle cx="1290" cy="70" r="34" fill="#282A68"/>
+  <circle cx="1370" cy="120" r="18" fill="#6F2277"/>
+  <circle cx="400" cy="60" r="14" fill="#007E91"/>
+  <circle cx="800" cy="60" r="10" fill="#6F2277"/>
+</svg>

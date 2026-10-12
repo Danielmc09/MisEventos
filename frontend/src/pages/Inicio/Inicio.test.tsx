@@ -35,6 +35,28 @@ test("el título es Próximos eventos y la bajada invita a inscribirse", async (
   expect(screen.queryByRole("heading", { name: "Mis Eventos" })).not.toBeInTheDocument();
 });
 
+describe("portada", () => {
+  test("es una imagen decorativa, en tres anchos, que carga primero y con su tamaño reservado", async () => {
+    server.use(http.get(`${API}/events`, () => responder("/events", "get", 200, pagina([]))));
+    abrir();
+    await screen.findByText("No hay eventos que coincidan");
+
+    // alt="" la saca del árbol de accesibilidad: el rol "presentation" es la forma de encontrarla.
+    const portada = screen.getByRole("presentation");
+    expect(portada).toHaveAttribute("alt", "");
+    expect(portada.tagName).toBe("IMG");
+    const srcset = portada.getAttribute("srcset") ?? "";
+    expect(srcset).toMatch(/portada-480\S*\.webp 480w/);
+    expect(srcset).toMatch(/portada-960\S*\.webp 960w/);
+    expect(srcset).toMatch(/portada-1440\S*\.webp 1440w/);
+    expect(portada).toHaveAttribute("sizes");
+    expect(portada).toHaveAttribute("width", "1440");
+    expect(portada).toHaveAttribute("height", "360");
+    expect(portada).toHaveAttribute("fetchpriority", "high");
+    expect(portada).not.toHaveAttribute("loading", "lazy");
+  });
+});
+
 describe("estados del listado", () => {
   test("muestra el spinner mientras carga y después las tarjetas", async () => {
     server.use(
