@@ -309,7 +309,7 @@ describe("formulario de edición", () => {
     expect(cuerpos).toEqual([{ full_name: "Alberto" }]);
   });
 
-  test("cambiar el correo manda solo email", async () => {
+  test("cambiar el correo pide confirmación, sin confirmar no llama a la API y después manda solo email", async () => {
     entrarComo(admin);
     servirUsuarios();
     const cuerpos = servirPatch();
@@ -321,9 +321,41 @@ describe("formulario de edición", () => {
     await user.clear(campo);
     await user.type(campo, "nuevo@mail.com");
     await user.click(form.getByRole("button", { name: "Guardar" }));
+    const dialogo = screen.getByRole("alertdialog");
+    expect(dialogo).toHaveTextContent("¿Cambiar el correo de Beto?");
+    expect(dialogo).toHaveTextContent("Va a tener que iniciar sesión con el correo nuevo.");
+    await user.click(within(dialogo).getByRole("button", { name: "Volver" }));
+    expect(cuerpos).toHaveLength(0);
+
+    await user.click(form.getByRole("button", { name: "Guardar" }));
+    await user.click(confirmacion().getByRole("button", { name: "Sí, cambiar el correo" }));
 
     await screen.findByText("Guardaste los cambios de Beto");
     expect(cuerpos).toEqual([{ email: "nuevo@mail.com" }]);
+  });
+
+  test("si cambian el correo y el rol, un solo diálogo menciona los dos", async () => {
+    entrarComo(admin);
+    servirUsuarios();
+    const cuerpos = servirPatch();
+    const user = userEvent.setup();
+    montarAdmin();
+
+    const form = await abrir(user);
+    const campo = form.getByRole("textbox", { name: "Correo" });
+    await user.clear(campo);
+    await user.type(campo, "nuevo@mail.com");
+    await user.selectOptions(form.getByRole("combobox", { name: "Rol" }), "ORGANIZER");
+    await user.click(form.getByRole("button", { name: "Guardar" }));
+
+    const dialogo = screen.getByRole("alertdialog");
+    expect(dialogo).toHaveTextContent("Va a tener que iniciar sesión con el correo nuevo.");
+    expect(dialogo).toHaveTextContent("Va a pasar a ser organizador.");
+    expect(cuerpos).toHaveLength(0);
+    await user.click(within(dialogo).getByRole("button", { name: /^Sí, / }));
+
+    await screen.findByText("Guardaste los cambios de Beto");
+    expect(cuerpos).toEqual([{ email: "nuevo@mail.com", role: "ORGANIZER" }]);
   });
 
   test("un nombre vacío marca el campo con aria-invalid y no llama a la API", async () => {
@@ -466,7 +498,7 @@ describe("formulario de edición", () => {
     await user.click(form.getByRole("button", { name: "Guardar" }));
     const dialogo = screen.getByRole("alertdialog");
     expect(dialogo).toHaveTextContent("¿Desactivar a Beto?");
-    expect(dialogo).toHaveTextContent("No va a poder iniciar sesión.");
+    expect(dialogo).toHaveTextContent("Se va a cerrar su sesión y no va a poder volver a entrar.");
     await user.click(within(dialogo).getByRole("button", { name: "Volver" }));
     expect(cuerpos).toHaveLength(0);
 
