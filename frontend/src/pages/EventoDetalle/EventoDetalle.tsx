@@ -9,6 +9,7 @@ import { Spinner } from "../../components/ui/Spinner";
 import { formatearFecha } from "../../lib/fechas";
 import { SeccionSesiones } from "../../components/SeccionSesiones";
 import { Toast, type ToastProps } from "../../components/ui/Toast";
+import { PanelInscripciones } from "../../components/PanelInscripciones";
 import { AccionInscripcion } from "../../components/AccionInscripcion";
 import { useEvento } from "../../lib/useEvento";
 import { useSesiones } from "../../lib/useSesiones";
@@ -133,6 +134,7 @@ export default function EventoDetalle() {
               </Button>
             </div>
           )}
+          {puede && <PanelInscripciones eventoId={evento.id} />}
           <SeccionSesiones
             cargando={sesiones.cargando}
             sesiones={sesiones.sesiones}

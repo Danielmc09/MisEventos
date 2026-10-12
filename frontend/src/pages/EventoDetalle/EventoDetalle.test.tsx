@@ -2,6 +2,7 @@ import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { delay, http } from "msw";
 import { setupServer } from "msw/node";
+import type { components } from "../../api/schema";
 import { useEventos } from "../../stores/eventos";
 import { useSession } from "../../stores/session";
 import { API, evento, montar, sesion, usuario } from "../../test/helpers";
@@ -36,10 +37,10 @@ const estadisticas = {
   available_spots: 75,
   occupancy_pct: 25,
 };
-const inscritoFila = {
+const inscritoFila: components["schemas"]["Inscrito"] = {
   full_name: "Luisa Pérez",
   email: "luisa@mail.com",
-  status: "ACTIVE" as const,
+  status: "ACTIVE",
   created_at: "2026-10-11T01:30:00Z",
 };
 const paginaDe = (items: (typeof inscritoFila)[], extra = {}) => ({
