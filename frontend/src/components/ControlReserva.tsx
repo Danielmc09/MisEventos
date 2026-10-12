@@ -1,11 +1,12 @@
 import type { Sesion } from "../lib/useSesiones";
 import { quedan } from "../lib/plural";
+import { ChipDisponibilidad } from "./ChipDisponibilidad";
 import { Button } from "./ui/Button";
 import { Chip } from "./ui/Chip";
 import { TextoSecundario } from "./ui/TextoSecundario";
 
 interface Props {
-  sesion: Pick<Sesion, "start_at" | "is_reserved" | "available_spots">;
+  sesion: Pick<Sesion, "start_at" | "is_reserved" | "available_spots" | "reserved_count">;
   /** Hay una sesión iniciada y la persona está inscrita al evento. */
   inscrito: boolean;
   eventoPublicado: boolean;
@@ -29,6 +30,14 @@ export function ControlReserva({
     return <TextoSecundario>Inscribite al evento para reservar sesiones</TextoSecundario>;
   }
 
+  // La capacidad efectiva (la propia o la heredada del evento) es lo reservado más lo que queda.
+  const chip = (
+    <ChipDisponibilidad
+      capacidad={sesion.reserved_count + sesion.available_spots}
+      libres={sesion.available_spots}
+    />
+  );
+
   if (sesion.is_reserved) {
     return (
       <div className="flex flex-wrap items-center gap-3">
@@ -36,18 +45,27 @@ export function ControlReserva({
         <Button variante="secundario" loading={trabajando} onClick={onCancelar}>
           Cancelar reserva
         </Button>
+        {chip}
         <TextoSecundario>{quedan(sesion.available_spots, "lugar", "lugares")}</TextoSecundario>
       </div>
     );
   }
 
-  if (sesion.available_spots <= 0) return <Button disabled>Sin lugares</Button>;
+  if (sesion.available_spots <= 0) {
+    return (
+      <div className="flex flex-wrap items-center gap-3">
+        <Button disabled>Sin lugares</Button>
+        {chip}
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-wrap items-center gap-3">
       <Button loading={trabajando} onClick={onReservar}>
         Reservar lugar
       </Button>
+      {chip}
       <TextoSecundario>{quedan(sesion.available_spots, "lugar", "lugares")}</TextoSecundario>
     </div>
   );

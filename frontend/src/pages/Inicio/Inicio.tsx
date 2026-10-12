@@ -3,6 +3,7 @@ import { useSearchParams } from "react-router-dom";
 import { ApiError } from "../../api/errors";
 import { EventoCard } from "../../components/EventoCard";
 import { AlertaError } from "../../components/ui/AlertaError";
+import { Button } from "../../components/ui/Button";
 import { Input } from "../../components/ui/Input";
 import { Pagina, TituloPagina } from "../../components/ui/Pagina";
 import { Paginacion } from "../../components/ui/Paginacion";
@@ -47,6 +48,12 @@ export default function Inicio() {
     setTexto(valor);
     clearTimeout(temporizador.current);
     temporizador.current = setTimeout(() => filtrar("q", valor), 300);
+  };
+
+  const quitarFiltros = () => {
+    clearTimeout(temporizador.current);
+    setTexto("");
+    setParams({});
   };
 
   const irAPagina = (pagina: number) =>
@@ -113,7 +120,12 @@ export default function Inicio() {
         )}
         {actual?.error && <AlertaError title={actual.error} />}
         {actual?.pagina && actual.pagina.items.length === 0 && (
-          <TextoSecundario>No hay eventos que coincidan</TextoSecundario>
+          <div className="flex flex-col items-start gap-3">
+            <TextoSecundario>No hay eventos que coincidan</TextoSecundario>
+            <Button variante="secundario" onClick={quitarFiltros}>
+              Quitar filtros
+            </Button>
+          </div>
         )}
         {actual?.pagina && actual.pagina.items.length > 0 && (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">

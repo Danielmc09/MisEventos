@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { api } from "../../api/client";
 import { ApiError } from "../../api/errors";
+import { ChipDisponibilidad } from "../../components/ChipDisponibilidad";
 import { InsigniaEstado } from "../../components/InsigniaEstado";
 import { AlertaError } from "../../components/ui/AlertaError";
 import { Button } from "../../components/ui/Button";
@@ -110,6 +111,7 @@ export default function EventoDetalle() {
               )}
             </div>
             <div className="flex flex-wrap items-center gap-3">
+              <ChipDisponibilidad capacidad={evento.capacity} libres={evento.available_spots} />
               <Chip tono="acento">{quedan(evento.available_spots, "cupo", "cupos")}</Chip>
               <AccionInscripcion
                 evento={evento}

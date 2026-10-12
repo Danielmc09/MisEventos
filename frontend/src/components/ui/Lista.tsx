@@ -13,7 +13,7 @@ export function Lista({ etiqueta, anidada = false, children }: ListaProps) {
     <ul
       aria-label={etiqueta}
       className={`flex flex-col gap-2 text-sm text-texto-suave ${
-        anidada ? "border-l-2 border-acento pl-4" : ""
+        anidada ? "border-l-2 border-acento-decorativo pl-4" : ""
       }`}
     >
       {children}
