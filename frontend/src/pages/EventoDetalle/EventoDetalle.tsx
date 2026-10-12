@@ -115,11 +115,11 @@ export default function EventoDetalle() {
                 </Button>
               )}
               {evento.status !== "CANCELLED" && !evento.is_finished && (
-                <Button className="bg-red-700" onClick={() => setPendiente("cancel")}>
+                <Button variante="peligro" onClick={() => setPendiente("cancel")}>
                   Cancelar
                 </Button>
               )}
-              <Button className="bg-red-700" onClick={() => setPendiente("delete")}>
+              <Button variante="peligro" onClick={() => setPendiente("delete")}>
                 Eliminar
               </Button>
             </div>

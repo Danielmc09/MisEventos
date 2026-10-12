@@ -47,7 +47,7 @@ export function DialogoConfirmacion({
           >
             Volver
           </button>
-          <Button type="button" loading={cargando} onClick={onConfirmar} className="bg-red-700">
+          <Button type="button" loading={cargando} onClick={onConfirmar} variante="peligro">
             {confirmar}
           </Button>
         </div>
