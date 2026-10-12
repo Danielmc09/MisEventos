@@ -351,3 +351,31 @@ def test_cancelar_solo_toca_la_reserva_propia(cliente_db, conexion, usuarios, ev
     assert cancelar_reserva(cliente_db, usuarios["beto"], sesion).status_code == 404
     assert cancelar_reserva(cliente_db, None, sesion).status_code == 401
     assert reservadas(conexion, sesion) == 1
+
+
+# --- Cascada desde la inscripción ---------------------------------------------------------------
+
+
+def test_cancelar_la_inscripcion_cancela_sus_reservas_del_evento_y_ninguna_de_otro(
+    cliente_db, conexion, usuarios, evento, prefijo
+):
+    otro = crear_evento(cliente_db, usuarios["orga"], f"{prefijo} Python Day")
+    manana = crear_sesion(cliente_db, usuarios["orga"], evento, "10:00", "11:00")
+    tarde = crear_sesion(cliente_db, usuarios["orga"], evento, "15:00", "16:00")
+    de_otro = crear_sesion(cliente_db, usuarios["orga"], otro, "10:00", "11:00")
+    for token in (usuarios["ana"], usuarios["beto"]):
+        inscribirse(cliente_db, token, evento)
+    inscribirse(cliente_db, usuarios["ana"], otro)
+    for sesion in (manana, tarde, de_otro):
+        assert reservar(cliente_db, usuarios["ana"], sesion).status_code == 201
+    assert reservar(cliente_db, usuarios["beto"], manana).status_code == 201
+
+    assert cancelar_inscripcion(cliente_db, usuarios["ana"], evento).status_code == 204
+
+    ana = f"{prefijo}ana@mail.com"
+    for sesion in (manana, tarde):
+        [(estado, cancelada_en)] = reservas_de(conexion, ana, sesion)
+        assert estado == "CANCELLED"
+        assert cancelada_en is not None
+    assert reservas_de(conexion, ana, de_otro) == [("ACTIVE", None)]
+    assert reservas_de(conexion, f"{prefijo}beto@mail.com", manana) == [("ACTIVE", None)]

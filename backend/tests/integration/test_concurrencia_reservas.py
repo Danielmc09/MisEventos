@@ -206,3 +206,29 @@ def test_la_misma_persona_a_la_vez_en_dos_sesiones_que_se_cruzan_reserva_una_sol
         " WHERE user_id = :u AND session_id = ANY(:s) AND status = 'ACTIVE'"
     )
     assert activas(engine_de_test, consulta, u=ana, s=datos["paralelas"]) == 1
+
+
+def test_cancelar_la_inscripcion_mientras_se_reserva_no_deja_reservas_colgando(
+    engine_de_test, url_db, datos
+):
+    # Cuál de los dos gana el evento no se controla: valen los dos órdenes, y en ninguno queda
+    # una reserva activa con la inscripción cancelada.
+    ana = datos["asistentes"][0]
+    pedidos = [reservar(ana, datos["paralelas"][0]), cancelar_inscripcion(ana, datos["evento"])]
+
+    respuestas = a_la_vez(engine_de_test, url_db, datos["evento"], pedidos)
+
+    estados = sorted(r.status_code for r in respuestas)
+    assert estados in ([201, 204], [204, 409]), [r.text for r in respuestas]
+    for rechazada in (r for r in respuestas if r.status_code == 409):
+        assert rechazada.json()["type"] == "not-registered"
+    inscripcion = (
+        "SELECT count(*) FROM registrations"
+        " WHERE user_id = :u AND event_id = :e AND status = 'ACTIVE'"
+    )
+    assert activas(engine_de_test, inscripcion, u=ana, e=datos["evento"]) == 0
+    colgando = (
+        "SELECT count(*) FROM session_registrations r JOIN sessions s ON s.id = r.session_id"
+        " WHERE r.user_id = :u AND s.event_id = :e AND r.status = 'ACTIVE'"
+    )
+    assert activas(engine_de_test, colgando, u=ana, e=datos["evento"]) == 0

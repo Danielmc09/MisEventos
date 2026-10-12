@@ -564,3 +564,66 @@ def test_cancelar_sin_token_responde_401(cliente, repos):
 
     assert cancelar(cliente, sesion, {}).status_code == 401
     assert reserva.status == EstadoReserva.ACTIVE
+
+
+# --- Cascada desde la inscripción al evento ---------------------------------------------------
+
+
+def cancelar_inscripcion(cliente, evento: Event, headers: dict):
+    return cliente.delete(f"/events/{evento.id}/registrations/me", headers=headers)
+
+
+def test_cancelar_la_inscripcion_cancela_las_reservas_del_usuario_en_ese_evento(
+    cliente, repos, auth
+):
+    evento = repos.evento()
+    manana = repos.sesion(evento, a_las(10), a_las(11))
+    tarde = repos.sesion(evento, a_las(15), a_las(16))
+    repos.inscribir(ASISTENTE, evento)
+    propias = [repos.reservar(ASISTENTE, manana), repos.reservar(ASISTENTE, tarde)]
+    antes = datetime.now(UTC)
+
+    assert cancelar_inscripcion(cliente, evento, auth(ASISTENTE)).status_code == 204
+
+    assert [r.status for r in propias] == [EstadoReserva.CANCELLED] * 2
+    assert all(r.cancelled_at is not None and r.cancelled_at >= antes for r in propias)
+
+
+def test_la_cascada_no_toca_otros_eventos_ni_otras_personas(cliente, repos, auth):
+    evento = repos.evento()
+    otro = repos.evento(name="Python Day")
+    sesion = repos.sesion(evento)
+    de_otro = repos.sesion(otro)
+    repos.inscribir(ASISTENTE, evento)
+    repos.inscribir(ASISTENTE, otro)
+    repos.inscribir(OTRO_ASISTENTE, evento)
+    propia_de_otro_evento = repos.reservar(ASISTENTE, de_otro)
+    ajena = repos.reservar(OTRO_ASISTENTE, sesion)
+    repos.reservar(ASISTENTE, sesion)
+
+    assert cancelar_inscripcion(cliente, evento, auth(ASISTENTE)).status_code == 204
+
+    assert propia_de_otro_evento.status == EstadoReserva.ACTIVE
+    assert ajena.status == EstadoReserva.ACTIVE
+    assert repos.reservas.activas_en(sesion.id) == 1
+
+
+def test_cancelar_la_inscripcion_bloquea_el_evento_y_despues_la_inscripcion(cliente, repos, auth):
+    evento = repos.evento()
+    inscripcion = repos.inscribir(ASISTENTE, evento)
+
+    assert cancelar_inscripcion(cliente, evento, auth(ASISTENTE)).status_code == 204
+
+    assert repos.eventos.bloqueos == [evento.id, inscripcion.id]
+
+
+def test_sin_cancelar_la_inscripcion_las_reservas_quedan_activas(cliente, repos, auth):
+    ahora = datetime.now(UTC)
+    evento = repos.evento(start_at=ahora - timedelta(hours=1), end_at=ahora + timedelta(hours=6))
+    sesion = repos.sesion(evento, ahora + timedelta(hours=1), ahora + timedelta(hours=2))
+    repos.inscribir(ASISTENTE, evento)
+    reserva = repos.reservar(ASISTENTE, sesion)
+
+    assert_conflicto(cancelar_inscripcion(cliente, evento, auth(ASISTENTE)), "event-started")
+
+    assert reserva.status == EstadoReserva.ACTIVE
