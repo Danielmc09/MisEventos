@@ -14,6 +14,20 @@ def _a_utc(fecha: datetime) -> datetime:
     return fecha.astimezone(UTC)
 
 
+def tiene_caracter_nulo(valor: object) -> bool:
+    """Busca el nulo en un texto o en cualquier texto anidado: listas, tuplas, conjuntos,
+    claves y valores de diccionarios, y campos de submodelos."""
+    if isinstance(valor, str):
+        return CARACTER_NULO in valor
+    if isinstance(valor, BaseModel):
+        return any(tiene_caracter_nulo(getattr(valor, campo)) for campo in type(valor).model_fields)
+    if isinstance(valor, dict):
+        return any(tiene_caracter_nulo(k) or tiene_caracter_nulo(v) for k, v in valor.items())
+    if isinstance(valor, list | tuple | set | frozenset):
+        return any(tiene_caracter_nulo(elemento) for elemento in valor)
+    return False
+
+
 class EntradaBase(BaseModel):
     """Base de todo esquema de entrada: ningún texto del modelo puede traer el carácter nulo."""
 
@@ -22,7 +36,7 @@ class EntradaBase(BaseModel):
     @field_validator("*")
     @classmethod
     def _sin_caracter_nulo(cls, valor: object) -> object:
-        if isinstance(valor, str) and CARACTER_NULO in valor:
+        if tiene_caracter_nulo(valor):
             raise ValueError(MENSAJE_CARACTER_NULO)
         return valor
 
