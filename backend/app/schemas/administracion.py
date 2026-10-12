@@ -1,18 +1,20 @@
 from dataclasses import dataclass
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.core.permisos import Rol
 from app.schemas.comunes import EntradaBase, FechaUTC
 
 
 class UsuarioEdicion(EntradaBase):
-    """Lo que el admin le cambia a otro usuario: el rol y si está activo. Nada más: el nombre,
-    el email o la contraseña (y cualquier otro campo) responden 422."""
+    """Lo que el admin le cambia a un usuario: el nombre, el rol y si está activo. El email, la
+    contraseña y cualquier otro campo responden 422."""
 
     model_config = ConfigDict(extra="forbid")
 
+    # Las mismas reglas que el nombre del registro.
+    full_name: str | None = Field(default=None, max_length=120)
     role: Rol | None = None
     is_active: bool | None = None
 

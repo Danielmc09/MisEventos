@@ -1,4 +1,4 @@
-"""Gestión de usuarios por el administrador: listarlos y cambiarles el rol o el estado.
+"""Gestión de usuarios por el administrador: listarlos y cambiarles el nombre, el rol o el estado.
 
 Lanza excepciones de dominio; no sabe nada de HTTP."""
 
@@ -65,7 +65,7 @@ def _es_admin_activo(role: Rol, activo: bool) -> bool:
 def cambiar(
     repo: Usuarios, actor: User, id_usuario: UUID, datos: UsuarioEdicion
 ) -> ConInscripciones:
-    """Cambia el rol o el estado de otro usuario.
+    """Cambia el nombre, el rol o el estado de un usuario. El propio nombre sí se lo cambia.
 
     El orden importa: primero el permiso (sin él, 403 aunque el usuario no exista), después que
     no se toque a sí mismo, y recién ahí se bloquean, en orden de id, TODOS los admins activos.
@@ -73,7 +73,7 @@ def cambiar(
     la vez, el segundo espera al primero y ve que ya queda uno solo."""
     _exigir_permiso(actor)
     cambios = datos.model_dump(exclude_unset=True)
-    if id_usuario == actor.id and cambios:
+    if id_usuario == actor.id and cambios.keys() & {"role", "is_active"}:
         raise Conflict(
             tipo="cannot-modify-self",
             titulo="No podés cambiarte el rol ni desactivarte a vos mismo",
