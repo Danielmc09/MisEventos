@@ -144,6 +144,54 @@ describe("errores del backend", () => {
     expect(screen.queryByText("Detalle del evento")).not.toBeInTheDocument();
   });
 
+  test("un 422 en la descripción se ve asociado a su campo", async () => {
+    server.use(
+      http.post(`${API}/events`, () =>
+        responder("/events", "post", 422, {
+          type: "validation-error",
+          title: "Los datos enviados no son válidos",
+          status: 422,
+          trace_id: "t-3",
+          errors: [{ field: "description", message: "La descripción es demasiado larga" }],
+        }),
+      ),
+    );
+    const user = userEvent.setup();
+    abrir();
+
+    await completar(user);
+    await crear(user);
+
+    await vi.waitFor(() =>
+      expect(screen.getByLabelText("Descripción")).toHaveAccessibleDescription(
+        "La descripción es demasiado larga",
+      ),
+    );
+  });
+
+  test("un 422 en un campo sin input aparece como mensaje general con su message", async () => {
+    server.use(
+      http.post(`${API}/events`, () =>
+        responder("/events", "post", 422, {
+          type: "validation-error",
+          title: "Los datos enviados no son válidos",
+          status: 422,
+          trace_id: "t-4",
+          errors: [{ field: "organizer_id", message: "El organizador no es válido" }],
+        }),
+      ),
+    );
+    const user = userEvent.setup();
+    abrir();
+
+    await completar(user);
+    await crear(user);
+
+    const alerta = await screen.findByRole("alert");
+    expect(alerta).toHaveTextContent("Los datos enviados no son válidos");
+    expect(alerta).toHaveTextContent("El organizador no es válido");
+  });
+
   test("otro error muestra su title", async () => {
     server.use(
       http.post(`${API}/events`, () =>

@@ -195,7 +195,28 @@ def _exigir_sesiones_adentro(repo: Eventos, evento: Event, inicio: datetime, fin
         )
 
 
+def _exigir_sesiones_que_entren(repo: Eventos, evento: Event, capacidad: int) -> None:
+    """La capacidad nueva no puede quedar por debajo de la de una sesión. Las sesiones sin
+    capacidad propia usan la del evento, así que no cuentan. El evento ya está bloqueado."""
+    encima = sum(
+        1 for s in repo.sesiones_de(evento.id) if s.capacity is not None and s.capacity > capacidad
+    )
+    if encima:
+        detalle = (
+            "1 sesión tiene más capacidad que la nueva"
+            if encima == 1
+            else f"{encima} sesiones tienen más capacidad que la nueva"
+        )
+        raise Conflict(
+            detalle,
+            tipo="sessions-capacity-above",
+            titulo="La capacidad nueva deja sesiones por encima de la del evento",
+        )
+
+
 def editar(repo: Eventos, usuario: User, id_evento: UUID, datos: EventoEdicion) -> ConInscritos:
+    """Las dos reglas de capacidad corren con el evento bloqueado: primero los inscritos, que
+    son personas con lugar tomado; después las sesiones, que se pueden achicar antes."""
     evento = para_escribir(repo, usuario, id_evento)
     if evento.status == EstadoEvento.CANCELLED or finalizado(evento):
         raise Conflict(titulo="Un evento cancelado o finalizado no se edita")
@@ -212,12 +233,14 @@ def editar(repo: Eventos, usuario: User, id_evento: UUID, datos: EventoEdicion) 
             cambios.get("end_at", evento.end_at),
         )
     activas = repo.inscritos([evento.id])[evento.id]
-    if "capacity" in cambios and cambios["capacity"] < activas:
-        raise Conflict(
-            f"El evento ya tiene {activas} inscripciones activas.",
-            tipo="capacity-below-registrations",
-            titulo="La capacidad no puede quedar por debajo de los inscritos",
-        )
+    if "capacity" in cambios:
+        if cambios["capacity"] < activas:
+            raise Conflict(
+                f"El evento ya tiene {activas} inscripciones activas.",
+                tipo="capacity-below-registrations",
+                titulo="La capacidad no puede quedar por debajo de los inscritos",
+            )
+        _exigir_sesiones_que_entren(repo, evento, cambios["capacity"])
     for campo, valor in cambios.items():
         setattr(evento, campo, valor)
     return ConInscritos(repo.guardar(evento), activas)

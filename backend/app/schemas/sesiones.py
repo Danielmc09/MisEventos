@@ -22,6 +22,9 @@ Sala = Annotated[
     AfterValidator(lambda s: s or None),
 ]
 
+# Un tope razonable para una sesión, y para no aceptar listas sin fin.
+MAX_PONENTES = 20
+
 
 class SesionEntrada(EntradaBase):
     # event_id (y cualquier otro campo) no se acepta: lo da la ruta.
@@ -34,7 +37,7 @@ class SesionEntrada(EntradaBase):
     end_at: FechaUTC
     # El tope es la capacidad del evento: lo revisa el servicio.
     capacity: int | None = Field(default=None, ge=1)
-    speaker_ids: list[UUID] = Field(default_factory=list)
+    speaker_ids: list[UUID] = Field(default_factory=list, max_length=MAX_PONENTES)
 
     @field_validator("end_at")
     @classmethod
@@ -57,7 +60,7 @@ class SesionEdicion(EntradaBase):
     start_at: FechaUTC | None = None
     end_at: FechaUTC | None = None
     capacity: int | None = Field(default=None, ge=1)
-    speaker_ids: list[UUID] | None = None
+    speaker_ids: list[UUID] | None = Field(default=None, max_length=MAX_PONENTES)
 
     @field_validator("title", "start_at", "end_at", "speaker_ids")
     @classmethod

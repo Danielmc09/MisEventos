@@ -19,7 +19,7 @@ from sqlmodel import Session
 from app.core.config import Settings
 from app.core.contrasenas import hashear
 from app.core.db import crear_fabrica_de_sesiones, sesion_transaccional
-from app.core.excepciones import Conflict
+from app.core.excepciones import Conflict, DatosInvalidos, DomainError
 from app.core.permisos import Rol
 from app.models.evento import EstadoEvento, Event
 from app.models.inscripcion import EstadoInscripcion, Registration
@@ -336,12 +336,12 @@ def sembrar_sesiones(
         )
         try:
             servicio_sesiones.crear(eventos, sesiones, ponentes, organizador, evento.id, datos)
-        except Conflict as error:
+        except (Conflict, DatosInvalidos) as error:
             logger.warning(
                 "seed: no se creó la sesión «%s» del evento «%s»: %s",
                 demo.titulo,
                 demo.evento,
-                error,
+                _motivo(error),
             )
 
 
@@ -420,6 +420,13 @@ def sembrar_inscripciones(
                 cancelled_at=None if activa else datetime.now(UTC),
             )
         )
+
+
+def _motivo(error: DomainError) -> str:
+    """El porqué legible: el detalle, o el mensaje de cada campo si fue un dato rechazado."""
+    if error.errores:
+        return "; ".join(f"{campo}: {mensaje}" for campo, mensaje in error.errores.items())
+    return str(error)
 
 
 def sembrar(session: Session, credenciales: CredencialesDemo) -> None:

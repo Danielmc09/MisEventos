@@ -13,9 +13,11 @@ const ESPERA_MS = 300;
 interface Props {
   seleccionados: PonenteDeSesion[];
   onChange: (ponentes: PonenteDeSesion[]) => void;
+  /** Error de la API sobre la lista de ponentes (ids borrados, máximo superado). */
+  error?: string;
 }
 
-export function SelectorPonentes({ seleccionados, onChange }: Props) {
+export function SelectorPonentes({ seleccionados, onChange, error }: Props) {
   const [texto, setTexto] = useState("");
   const [resultados, setResultados] = useState<PonenteDeSesion[]>([]);
   const consulta = texto.trim();
@@ -65,6 +67,7 @@ export function SelectorPonentes({ seleccionados, onChange }: Props) {
     <div className="flex flex-col gap-2">
       <Input
         label="Buscar ponente"
+        error={error}
         value={texto}
         onChange={(e) => setTexto(e.target.value)}
         onKeyDown={(e) => e.key === "Enter" && e.preventDefault()}

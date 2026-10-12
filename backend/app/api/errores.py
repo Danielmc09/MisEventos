@@ -69,6 +69,7 @@ MENSAJES_422 = {
     "missing": "Este campo es obligatorio",
     "string_too_short": "Debe tener al menos {min_length} caracteres",
     "string_too_long": "Debe tener como máximo {max_length} caracteres",
+    "too_long": "Debe tener como máximo {max_length} elementos",
     "greater_than_equal": "Debe ser mayor o igual que {ge}",
     "less_than_equal": "Debe ser menor o igual que {le}",
     "greater_than": "Debe ser mayor que {gt}",
