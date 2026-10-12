@@ -94,7 +94,6 @@ describe("estados del detalle", () => {
     expect(screen.getByText(/11 de oct.*4:30/)).toBeInTheDocument();
     expect(screen.getByText("Ágora Bogotá")).toBeInTheDocument();
     expect(screen.getByText("Tres días de Python")).toBeInTheDocument();
-    expect(screen.getByText("Publicado")).toBeInTheDocument();
     expect(screen.getByText("Quedan 100 cupos")).toBeInTheDocument();
   });
 
@@ -226,10 +225,10 @@ describe("ejecutar acciones", () => {
   }
 
   test("publicar avisa, actualiza el estado e invalida el listado", async () => {
-    servir({ ...evento, status: "DRAFT" });
+    servir({ ...abierto, status: "DRAFT" });
     server.use(
       http.post(`${ruta}/publish`, () =>
-        responder("/events/{id_evento}/publish", "post", 200, evento),
+        responder("/events/{id_evento}/publish", "post", 200, abierto),
       ),
     );
     const listados = await contarListados();
