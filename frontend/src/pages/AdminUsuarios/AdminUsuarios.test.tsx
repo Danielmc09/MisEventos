@@ -341,6 +341,26 @@ describe("formulario de edición", () => {
     expect(cuerpos).toHaveLength(0);
   });
 
+  test("un usuario sin nombre cambia de rol sin que se mande full_name", async () => {
+    entrarComo(admin);
+    const sinNombre = fila({ id: "u-2", email: "sin@mail.com", full_name: null });
+    servirUsuarios([adminFila, sinNombre]);
+    const cuerpos = servirPatch(undefined, sinNombre);
+    const user = userEvent.setup();
+    montarAdmin();
+
+    const form = await abrir(user, "sin@mail.com");
+    expect(form.getByRole("textbox", { name: "Nombre" })).toHaveValue("");
+    await user.selectOptions(form.getByRole("combobox", { name: "Rol" }), "ORGANIZER");
+    await user.click(form.getByRole("button", { name: "Guardar" }));
+
+    expect(form.getByRole("textbox", { name: "Nombre" })).not.toHaveAttribute("aria-invalid");
+    await user.click(confirmacion().getByRole("button", { name: "Cambiar rol" }));
+
+    expect(await screen.findByText("Guardaste los cambios de sin@mail.com")).toBeInTheDocument();
+    expect(cuerpos).toEqual([{ role: "ORGANIZER" }]);
+  });
+
   test("en la propia fila rol y estado están deshabilitados y dicen por qué", async () => {
     entrarComo(admin);
     servirUsuarios();
