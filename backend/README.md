@@ -233,7 +233,7 @@ Las reglas del proyecto, ordenadas por el OWASP Top 10 2025:
 | A01 Control de acceso | Los permisos se validan en el servicio con `tiene_permiso()`, nunca comparando el rol | `app/core/permisos.py`, [ADR 0016](../docs/adr/0016-un-rol-por-persona-y-permisos-en-el-codigo.md) |
 | A01 | Un borrador ajeno responde `404`: no se revela que existe | `app/services/eventos.py` |
 | A01 | El registro crea siempre `ATTENDEE`; `role` en el cuerpo es `422`. Los roles los asigna un admin | [ADR 0012](../docs/adr/0012-el-registro-crea-attendee.md) |
-| A01 | Ningún esquema de entrada acepta campos de más: `status`, `organizer_id` o `role` no se asignan desde el cuerpo | `app/schemas/` (`extra="forbid"`) |
+| A01 | Ningún esquema de entrada acepta campos de más: `status` y `organizer_id` nunca se asignan desde el cuerpo, y `role` e `is_active` solo los acepta `PATCH /admin/users/{id}`, que es exclusivo del admin | `app/schemas/` (`extra="forbid"`) |
 | A01 | Solo se cancela la inscripción o la reserva propia: la ruta usa `/me` y el usuario sale del token | `app/api/inscripciones.py`, `app/api/reservas.py` |
 | A01 | La lista de inscritos, con sus emails, la ven solo el dueño del evento y el admin | `app/services/inscripciones.py` |
 | A01 | Un admin no se cambia el rol ni se desactiva a sí mismo, y siempre queda uno activo | `app/services/administracion.py` |
