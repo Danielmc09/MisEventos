@@ -76,6 +76,28 @@ def archivos_de(raiz: Path, carpeta: str) -> list[Path]:
     return sorted((raiz / carpeta).rglob("*.py"))
 
 
+def violaciones_en(raiz: Path) -> tuple[int, list[str]]:
+    """Recorre las capas bajo `raiz` y devuelve `(archivos revisados, violaciones)`."""
+    revisados = 0
+    violaciones = []
+    for carpeta, prohibidos in REGLAS.items():
+        for archivo in archivos_de(raiz, carpeta):
+            revisados += 1
+            if str(archivo.relative_to(raiz)) in EXCEPCIONES:
+                continue
+            violaciones.extend(violaciones_de(archivo, raiz, prohibidos))
+    return revisados, violaciones
+
+
+def _arbol(raiz: Path, archivos: dict[str, str]) -> Path:
+    app = raiz / "app"
+    for ruta, codigo in archivos.items():
+        destino = app / ruta
+        destino.parent.mkdir(parents=True, exist_ok=True)
+        destino.write_text(codigo, encoding="utf-8")
+    return app
+
+
 # El detector
 
 
@@ -122,15 +144,78 @@ def test_cada_capa_tiene_archivos_para_recorrer(carpeta):
     assert archivos_de(APP, carpeta), f"No hay archivos .py en {APP / carpeta}"
 
 
+def test_el_recorrido_reporta_cada_violacion_de_un_servicio_con_su_linea(tmp_path):
+    app = _arbol(
+        tmp_path,
+        {
+            "services/__init__.py": "from .. import api\n",
+            "services/x.py": "import os\nfrom fastapi import Request\n",
+            "services/dinamico.py": (
+                "import importlib\n"
+                "\n"
+                "modulo = importlib.import_module('app.api.errores')\n"
+                "otro = __import__('fastapi')\n"
+            ),
+            "services/limpio.py": "from app.repositories import eventos\n",
+        },
+    )
+
+    revisados, violaciones = violaciones_en(app)
+
+    assert revisados == 4
+    assert sorted(violaciones) == sorted(
+        [
+            "app/services/__init__.py:1 → app.api",
+            "app/services/x.py:2 → fastapi",
+            "app/services/dinamico.py:3 → import dinámico: import_module",
+            "app/services/dinamico.py:4 → import dinámico: __import__",
+        ]
+    )
+
+
+def test_un_repositorio_no_importa_http(tmp_path):
+    app = _arbol(
+        tmp_path,
+        {
+            "repositories/x.py": "from fastapi import HTTPException\n",
+            "repositories/y.py": "\nimport starlette.status\n",
+        },
+    )
+
+    _, violaciones = violaciones_en(app)
+
+    assert sorted(violaciones) == [
+        "app/repositories/x.py:1 → fastapi",
+        "app/repositories/y.py:2 → starlette.status",
+    ]
+
+
+def test_un_router_no_toca_la_base_salvo_las_dependencias(tmp_path):
+    app = _arbol(
+        tmp_path,
+        {
+            "api/rutas.py": (
+                "from app.core.db import SesionDB\nfrom sqlmodel import select\nimport sqlalchemy\n"
+            ),
+            "api/otra.py": "from app.core import db\n",
+            "api/dependencias.py": (
+                "from app.core.db import SesionDB\nfrom sqlmodel import Session\n"
+            ),
+        },
+    )
+
+    _, violaciones = violaciones_en(app)
+
+    assert sorted(violaciones) == [
+        "app/api/otra.py:1 → app.core.db",
+        "app/api/rutas.py:1 → app.core.db",
+        "app/api/rutas.py:2 → sqlmodel",
+        "app/api/rutas.py:3 → sqlalchemy",
+    ]
+
+
 def test_ninguna_capa_importa_de_una_superior():
-    revisados = 0
-    violaciones = []
-    for carpeta, prohibidos in REGLAS.items():
-        for archivo in archivos_de(APP, carpeta):
-            revisados += 1
-            if str(archivo.relative_to(APP)) in EXCEPCIONES:
-                continue
-            violaciones.extend(violaciones_de(archivo, APP, prohibidos))
+    revisados, violaciones = violaciones_en(APP)
 
     assert revisados, "No se recorrió ningún archivo"
     assert violaciones == [], "Imports que cruzan capas:\n" + "\n".join(violaciones)
