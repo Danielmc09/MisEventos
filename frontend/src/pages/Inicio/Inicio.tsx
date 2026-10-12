@@ -2,8 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { ApiError } from "../../api/errors";
 import { EventoCard } from "../../components/EventoCard";
-import { Button } from "../../components/ui/Button";
 import { Input } from "../../components/ui/Input";
+import { Paginacion } from "../../components/ui/Paginacion";
 import { Spinner } from "../../components/ui/Spinner";
 import { useEventos, type PaginaEventos } from "../../stores/eventos";
 
@@ -127,24 +127,12 @@ export default function Inicio() {
             ))}
           </div>
         )}
-        {actual?.pagina && actual.pagina.pages > 1 && (
-          <nav aria-label="Paginación" className="mt-6 flex items-center justify-center gap-4">
-            <Button
-              disabled={actual.pagina.page <= 1}
-              onClick={() => irAPagina(actual.pagina!.page - 1)}
-            >
-              Anterior
-            </Button>
-            <span>
-              Página {actual.pagina.page} de {actual.pagina.pages}
-            </span>
-            <Button
-              disabled={actual.pagina.page >= actual.pagina.pages}
-              onClick={() => irAPagina(actual.pagina!.page + 1)}
-            >
-              Siguiente
-            </Button>
-          </nav>
+        {actual?.pagina && (
+          <Paginacion
+            pagina={actual.pagina.page}
+            paginas={actual.pagina.pages}
+            onCambiar={irAPagina}
+          />
         )}
       </div>
     </main>
