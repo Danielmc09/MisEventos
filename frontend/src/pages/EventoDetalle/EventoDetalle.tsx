@@ -8,9 +8,10 @@ import { DialogoConfirmacion } from "../../components/ui/DialogoConfirmacion";
 import { Spinner } from "../../components/ui/Spinner";
 import { formatearFecha } from "../../lib/fechas";
 import { SeccionSesiones } from "../../components/SeccionSesiones";
-import { Toast, type ToastProps } from "../../components/ui/Toast";
+import { useAvisos } from "../../components/ui/Avisos";
 import { PanelInscripciones } from "../../components/PanelInscripciones";
 import { AccionInscripcion } from "../../components/AccionInscripcion";
+import { quedan } from "../../lib/plural";
 import { useEvento } from "../../lib/useEvento";
 import { useSesiones } from "../../lib/useSesiones";
 import { useEventos, type Evento } from "../../stores/eventos";
@@ -19,10 +20,10 @@ import { useSession, useTienePermiso } from "../../stores/session";
 type Accion = "publish" | "unpublish" | "cancel" | "delete";
 
 const EXITO: Record<Accion, string> = {
-  publish: "Evento publicado",
-  unpublish: "Evento despublicado",
-  cancel: "Evento cancelado",
-  delete: "Evento eliminado",
+  publish: "Publicaste el evento",
+  unpublish: "Despublicaste el evento",
+  cancel: "Cancelaste el evento",
+  delete: "Eliminaste el evento",
 };
 
 const CONFIRMACION = {
@@ -47,10 +48,12 @@ export default function EventoDetalle() {
   const invalidar = useEventos((s) => s.invalidar);
   const [pendiente, setPendiente] = useState<"cancel" | "delete" | null>(null);
   const [trabajando, setTrabajando] = useState(false);
-  const [aviso, setAviso] = useState<Pick<ToastProps, "message" | "tone"> | null>(null);
+  const avisar = useAvisos();
 
   const gestionaTodos = useTienePermiso("evento:gestionar_todos");
   const puede = !!evento && !!user && (gestionaTodos || user.id === evento.organizer_id);
+
+  const reservas = sesiones.sesiones?.filter((s) => s.is_reserved).length ?? 0;
 
   async function ejecutar(accion: Accion) {
     setTrabajando(true);
@@ -58,15 +61,16 @@ export default function EventoDetalle() {
       if (accion === "delete") {
         await api<void>(`/events/${id}`, { method: "DELETE" });
         invalidar();
+        avisar({ message: EXITO.delete, tone: "exito" });
         navigate("/");
         return;
       }
       setEvento(await api<Evento>(`/events/${id}/${accion}`, { method: "POST" }));
       invalidar();
-      setAviso({ message: EXITO[accion], tone: "exito" });
+      avisar({ message: EXITO[accion], tone: "exito" });
     } catch (e) {
       const title = e instanceof ApiError ? e.title : "Ocurrió un error inesperado";
-      setAviso({ message: title, tone: "error" });
+      avisar({ message: title, tone: "error" });
     } finally {
       setTrabajando(false);
       setPendiente(null);
@@ -96,13 +100,14 @@ export default function EventoDetalle() {
           </p>
           {evento.location && <p className="text-gray-600">{evento.location}</p>}
           {evento.description && <p className="whitespace-pre-line">{evento.description}</p>}
-          <p className="font-medium">Quedan {evento.available_spots} cupos</p>
+          <p className="font-medium">{quedan(evento.available_spots, "cupo", "cupos")}</p>
           <div className="flex flex-wrap items-center gap-3">
             <AccionInscripcion
               evento={evento}
               onEvento={setEvento}
               onRefrescar={refrescar}
-              onAviso={setAviso}
+              reservas={reservas}
+              onCancelada={sesiones.refrescar}
             />
           </div>
           {puede && (
@@ -143,8 +148,12 @@ export default function EventoDetalle() {
             evento={evento}
             // Un evento cancelado o finalizado ya no admite cambios en sus sesiones.
             puede={puede && evento.status !== "CANCELLED" && !evento.is_finished}
-            onGuardada={sesiones.guardar}
+            onGuardada={(guardada) => sesiones.guardar(guardada, evento.capacity)}
             onEliminada={sesiones.quitar}
+            inscrito={!!user && evento.is_registered}
+            eventoPublicado={evento.status === "PUBLISHED"}
+            onReserva={sesiones.marcarReserva}
+            onRefrescar={sesiones.refrescar}
           />
         </>
       )}
@@ -155,11 +164,6 @@ export default function EventoDetalle() {
           onConfirmar={() => ejecutar(pendiente)}
           onVolver={() => setPendiente(null)}
         />
-      )}
-      {aviso && (
-        <div className="fixed right-4 bottom-4 z-20">
-          <Toast {...aviso} onClose={() => setAviso(null)} />
-        </div>
       )}
     </main>
   );

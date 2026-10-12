@@ -61,6 +61,12 @@ test("muestra cuántos cupos quedan", () => {
   expect(screen.getByText("Quedan 7 cupos")).toBeInTheDocument();
 });
 
+test("con un solo cupo habla en singular", () => {
+  montar({ ...evento, available_spots: 1 });
+
+  expect(screen.getByText("Queda 1 cupo")).toBeInTheDocument();
+});
+
 describe("con el resumen del evento (sin cupos)", () => {
   const resumen: components["schemas"]["ResumenEvento"] = {
     id: evento.id,

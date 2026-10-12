@@ -5,14 +5,21 @@ from fastapi import APIRouter, status
 from app.api.dependencias import (
     RepoEventos,
     RepoPonentes,
+    RepoReservas,
     RepoSesiones,
     UsuarioActual,
     UsuarioOpcional,
 )
 from app.api.errores import respuestas_de_error
-from app.schemas.sesiones import PonenteDeSesion, SesionEdicion, SesionEntrada, SesionSalida
+from app.schemas.sesiones import (
+    PonenteDeSesion,
+    SesionConCupo,
+    SesionEdicion,
+    SesionEntrada,
+    SesionSalida,
+)
 from app.services import sesiones
-from app.services.sesiones import SesionConPonentes
+from app.services.sesiones import SesionConPonentes, SesionDelListado
 
 router = APIRouter(tags=["sesiones"])
 
@@ -26,19 +33,33 @@ def _salida(sesion_y_ponentes: SesionConPonentes) -> SesionSalida:
     )
 
 
+def _con_cupo(del_listado: SesionDelListado) -> SesionConCupo:
+    return SesionConCupo(
+        **_salida((del_listado.sesion, del_listado.ponentes)).model_dump(),
+        reserved_count=del_listado.reservadas,
+        available_spots=del_listado.lugares,
+        is_reserved=del_listado.reservada,
+    )
+
+
 @router.get(
     "/events/{id_evento}/sessions",
     summary="Ver las sesiones de un evento",
     description=(
         "Público, para quien puede ver el evento (si no, 404). Ordenadas por hora de inicio, "
-        "cada una con sus ponentes, sin el email."
+        "cada una con sus ponentes, sin el email, sus reservas activas, los lugares libres y "
+        "si el usuario autenticado la reservó."
     ),
     responses=respuestas_de_error(404, 422),
 )
 def listar(
-    id_evento: UUID, usuario: UsuarioOpcional, eventos: RepoEventos, repo: RepoSesiones
-) -> list[SesionSalida]:
-    return [_salida(s) for s in sesiones.listar(eventos, repo, usuario, id_evento)]
+    id_evento: UUID,
+    usuario: UsuarioOpcional,
+    eventos: RepoEventos,
+    repo: RepoSesiones,
+    reservas: RepoReservas,
+) -> list[SesionConCupo]:
+    return [_con_cupo(s) for s in sesiones.listar(eventos, repo, reservas, usuario, id_evento)]
 
 
 @router.post(
@@ -67,7 +88,8 @@ def crear(
     summary="Editar una sesión",
     description=(
         "Se manda solo lo que cambia; `speaker_ids`, si viene, reemplaza la lista. "
-        "El dueño del evento o el admin."
+        "Con reservas activas, el horario no cambia (`session-has-reservations`) y la capacidad "
+        "no baja de lo reservado (`capacity-below-reservations`). El dueño del evento o el admin."
     ),
     responses=respuestas_de_error(401, 403, 404, 409, 422),
 )
@@ -78,18 +100,26 @@ def editar(
     eventos: RepoEventos,
     repo: RepoSesiones,
     ponentes: RepoPonentes,
+    reservas: RepoReservas,
 ) -> SesionSalida:
-    return _salida(sesiones.editar(eventos, repo, ponentes, usuario, id_sesion, datos))
+    return _salida(sesiones.editar(eventos, repo, ponentes, reservas, usuario, id_sesion, datos))
 
 
 @router.delete(
     "/sessions/{id_sesion}",
     status_code=status.HTTP_204_NO_CONTENT,
     summary="Eliminar una sesión",
-    description="El dueño del evento o el admin.",
+    description=(
+        "El dueño del evento o el admin. Con reservas activas no se elimina "
+        "(`session-has-reservations`)."
+    ),
     responses=respuestas_de_error(401, 403, 404, 409, 422),
 )
 def eliminar(
-    id_sesion: UUID, usuario: UsuarioActual, eventos: RepoEventos, repo: RepoSesiones
+    id_sesion: UUID,
+    usuario: UsuarioActual,
+    eventos: RepoEventos,
+    repo: RepoSesiones,
+    reservas: RepoReservas,
 ) -> None:
-    sesiones.eliminar(eventos, repo, usuario, id_sesion)
+    sesiones.eliminar(eventos, repo, reservas, usuario, id_sesion)

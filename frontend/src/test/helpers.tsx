@@ -2,6 +2,7 @@ import { render } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { MemoryRouter, Route, Routes, useLocation, type Location } from "react-router-dom";
 import type { components } from "../api/schema";
+import { ProveedorAvisos } from "../components/ui/Avisos";
 
 export const API = "http://localhost:8000";
 
@@ -30,12 +31,14 @@ function Ubicacion() {
 export function montar(inicial: string | Partial<Location>, rutas: [string, ReactNode][]) {
   return render(
     <MemoryRouter initialEntries={[inicial]}>
-      <Routes>
-        {rutas.map(([path, element]) => (
-          <Route key={path} path={path} element={element} />
-        ))}
-      </Routes>
-      <Ubicacion />
+      <ProveedorAvisos>
+        <Routes>
+          {rutas.map(([path, element]) => (
+            <Route key={path} path={path} element={element} />
+          ))}
+        </Routes>
+        <Ubicacion />
+      </ProveedorAvisos>
     </MemoryRouter>,
   );
 }
@@ -58,7 +61,7 @@ export const evento: components["schemas"]["EventoDetalle"] = {
   is_registered: false,
 };
 
-export const sesion: components["schemas"]["SesionSalida"] = {
+export const sesion: components["schemas"]["SesionConCupo"] = {
   id: "a1b2c3d4-0000-4000-8000-000000000001",
   event_id: evento.id,
   title: "Apertura",
@@ -70,4 +73,7 @@ export const sesion: components["schemas"]["SesionSalida"] = {
   speakers: [],
   created_at: "2026-10-01T12:00:00Z",
   updated_at: "2026-10-01T12:00:00Z",
+  reserved_count: 0,
+  available_spots: 50,
+  is_reserved: false,
 };

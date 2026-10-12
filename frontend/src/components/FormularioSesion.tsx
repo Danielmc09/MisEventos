@@ -3,7 +3,7 @@ import { api } from "../api/client";
 import { ApiError } from "../api/errors";
 import { errorDeFormulario } from "../lib/errores";
 import { aInputBogota, aISOBogota } from "../lib/fechas";
-import type { Sesion } from "../lib/useSesiones";
+import type { Sesion, SesionGuardada } from "../lib/useSesiones";
 import type { Evento } from "../stores/eventos";
 import { SelectorPonentes, type PonenteDeSesion } from "./SelectorPonentes";
 import { AlertaError } from "./ui/AlertaError";
@@ -14,7 +14,7 @@ export interface FormularioSesionProps {
   evento: Pick<Evento, "id" | "start_at" | "end_at" | "capacity">;
   /** Si viene, el formulario edita esa sesión; si no, crea una. */
   sesion?: Sesion;
-  onGuardada: (sesion: Sesion) => void;
+  onGuardada: (sesion: SesionGuardada) => void;
   onCancelar: () => void;
 }
 
@@ -119,7 +119,7 @@ export function FormularioSesion({
       const nuevo = aCuerpo(valores, ponentes);
       if (!sesion) {
         onGuardada(
-          await api<Sesion>(`/events/${evento.id}/sessions`, {
+          await api<SesionGuardada>(`/events/${evento.id}/sessions`, {
             method: "POST",
             body: JSON.stringify(nuevo),
           }),
@@ -136,7 +136,7 @@ export function FormularioSesion({
       if (!mismosIds(sesion.speakers, ponentes)) cambios.speaker_ids = nuevo.speaker_ids;
       onGuardada(
         Object.keys(cambios).length
-          ? await api<Sesion>(`/sessions/${sesion.id}`, {
+          ? await api<SesionGuardada>(`/sessions/${sesion.id}`, {
               method: "PATCH",
               body: JSON.stringify(cambios),
             })

@@ -10,6 +10,7 @@ import pytest
 from app.api.dependencias import (
     repositorio_eventos,
     repositorio_ponentes,
+    repositorio_reservas,
     repositorio_sesiones,
     repositorio_usuarios,
 )
@@ -22,6 +23,7 @@ from app.models.usuario import User
 from tests.unit.dobles import (
     RepositorioEventosFalso,
     RepositorioPonentesFalso,
+    RepositorioReservasFalso,
     RepositorioSesionesFalso,
     RepositorioUsuariosFalso,
 )
@@ -83,6 +85,8 @@ def repos(app) -> Repos:
     app.dependency_overrides[repositorio_eventos] = lambda: nuevos.eventos
     app.dependency_overrides[repositorio_ponentes] = lambda: nuevos.ponentes
     app.dependency_overrides[repositorio_sesiones] = lambda: nuevos.sesiones
+    reservas = RepositorioReservasFalso(nuevos.eventos)
+    app.dependency_overrides[repositorio_reservas] = lambda: reservas
     return nuevos
 
 

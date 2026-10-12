@@ -3,7 +3,9 @@ import { api } from "../api/client";
 import { ApiError } from "../api/errors";
 import type { components } from "../api/schema";
 
-export type Sesion = components["schemas"]["SesionSalida"];
+export type Sesion = components["schemas"]["SesionConCupo"];
+/** Lo que devuelven crear y editar una sesión: sin las reservas. */
+export type SesionGuardada = components["schemas"]["SesionSalida"];
 
 interface Carga {
   id: string;
@@ -37,22 +39,53 @@ export function useSesiones(id: string | undefined) {
     };
   }, [id]);
   const actual = carga?.id === id ? carga : null;
+  /** Vuelve a pedir las sesiones: el estado del servidor manda. */
+  async function refrescar() {
+    try {
+      const sesiones = await api<Sesion[]>(`/events/${id}/sessions`);
+      setCarga({ id: id!, sesiones });
+    } catch {
+      // Se conserva lo que ya se mostraba.
+    }
+  }
+  const cambiar = (f: (sesiones: Sesion[]) => Sesion[]) =>
+    setCarga((c) => c && { ...c, sesiones: f(c.sesiones ?? []) });
   return {
     cargando: !actual,
     sesiones: actual?.sesiones,
     error: actual?.error,
-    /** Agrega la sesión, o reemplaza la que tenga el mismo id. */
-    guardar: (sesion: Sesion) =>
-      setCarga(
-        (c) =>
-          c && {
-            ...c,
-            sesiones: c.sesiones?.some((s) => s.id === sesion.id)
-              ? c.sesiones.map((s) => (s.id === sesion.id ? sesion : s))
-              : [...(c.sesiones ?? []), sesion],
-          },
+    refrescar,
+    /**
+     * Agrega la sesión, o actualiza la que tenga el mismo id. El servicio de edición no devuelve
+     * las reservas: se conservan las que ya había y los lugares se recalculan.
+     */
+    guardar: (guardada: SesionGuardada, capacidadEvento: number) =>
+      cambiar((lista) => {
+        const previa = lista.find((s) => s.id === guardada.id);
+        const reservadas = previa?.reserved_count ?? 0;
+        const nueva: Sesion = {
+          is_reserved: false,
+          ...previa,
+          ...guardada,
+          reserved_count: reservadas,
+          available_spots: (guardada.capacity ?? capacidadEvento) - reservadas,
+        };
+        return previa ? lista.map((s) => (s.id === guardada.id ? nueva : s)) : [...lista, nueva];
+      }),
+    quitar: (sesionId: string) => cambiar((lista) => lista.filter((s) => s.id !== sesionId)),
+    /** Refleja una reserva hecha (o cancelada) sin volver a pedir la lista. */
+    marcarReserva: (sesionId: string, reservada: boolean) =>
+      cambiar((lista) =>
+        lista.map((s) =>
+          s.id === sesionId
+            ? {
+                ...s,
+                is_reserved: reservada,
+                reserved_count: s.reserved_count + (reservada ? 1 : -1),
+                available_spots: s.available_spots + (reservada ? -1 : 1),
+              }
+            : s,
+        ),
       ),
-    quitar: (sesionId: string) =>
-      setCarga((c) => c && { ...c, sesiones: c.sesiones?.filter((s) => s.id !== sesionId) }),
   };
 }

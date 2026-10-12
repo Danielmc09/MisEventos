@@ -1,3 +1,5 @@
+import secrets
+
 import jwt
 import pytest
 
@@ -7,8 +9,8 @@ from app.core.tokens import crear_access_token
 from app.models.usuario import User
 from tests.unit.dobles import RepositorioUsuariosFalso
 
-ACTUAL = "Clave-Segura-1"
-NUEVA = "Clave-Nueva-22"
+ACTUAL = secrets.token_urlsafe()
+NUEVA = secrets.token_urlsafe()
 HASH_ACTUAL = hashear(ACTUAL)
 
 
@@ -38,7 +40,9 @@ def campos_con_error(respuesta) -> list[str]:
 
 
 def test_contrasena_actual_incorrecta_responde_422_en_current_password(cliente, token, usuario):
-    respuesta = cambiar(cliente, token, {"current_password": "Otra-Clave-9", "new_password": NUEVA})
+    respuesta = cambiar(
+        cliente, token, {"current_password": secrets.token_urlsafe(), "new_password": NUEVA}
+    )
 
     assert respuesta.status_code == 422
     assert respuesta.headers["content-type"] == "application/problem+json"

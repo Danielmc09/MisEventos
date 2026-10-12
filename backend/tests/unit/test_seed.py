@@ -1,4 +1,5 @@
 import logging
+import secrets
 from datetime import UTC, datetime, timedelta
 
 import pytest
@@ -9,6 +10,7 @@ from app.core.excepciones import DomainError
 from app.core.permisos import Rol
 from app.models.evento import EstadoEvento, Event
 from app.models.inscripcion import EstadoInscripcion
+from app.models.reserva import EstadoReserva
 from app.models.usuario import User
 from app.scripts import seed
 from app.scripts.seed import (
@@ -17,6 +19,7 @@ from app.scripts.seed import (
     sembrar_eventos,
     sembrar_inscripciones,
     sembrar_ponentes,
+    sembrar_reservas,
     sembrar_sesiones,
     sembrar_usuarios,
 )
@@ -24,14 +27,15 @@ from tests.unit.dobles import (
     RepositorioEventosFalso,
     RepositorioInscripcionesFalso,
     RepositorioPonentesFalso,
+    RepositorioReservasFalso,
     RepositorioSesionesFalso,
     RepositorioUsuariosFalso,
 )
 
 CREDENCIALES = {
     "ADMIN_EMAIL": "admin@miseventos.local",
-    "ADMIN_PASSWORD": "Admin-Demo-2026",
-    "DEMO_PASSWORD": "Demo-Local-2026",
+    "ADMIN_PASSWORD": secrets.token_urlsafe(),
+    "DEMO_PASSWORD": secrets.token_urlsafe(),
 }
 BASE = {
     "DATABASE_URL": "postgresql+psycopg://u:p@localhost:5432/x",
@@ -46,8 +50,8 @@ def settings(**valores: str) -> Settings:
 def test_con_las_tres_variables_devuelve_las_credenciales():
     assert credenciales_demo(settings(**CREDENCIALES)) == CredencialesDemo(
         admin_email="admin@miseventos.local",
-        admin_password="Admin-Demo-2026",
-        demo_password="Demo-Local-2026",
+        admin_password=CREDENCIALES["ADMIN_PASSWORD"],
+        demo_password=CREDENCIALES["DEMO_PASSWORD"],
     )
 
 
@@ -157,10 +161,12 @@ def test_al_arrancar_con_seed_demo_siembra(entorno, base_doble):
 
 # --- Usuarios demo -------------------------------------------------------------------------
 
+CLAVE_ADMIN = secrets.token_urlsafe()
+CLAVE_DEMO = secrets.token_urlsafe()
 DEMO = CredencialesDemo(
     admin_email="Admin@MisEventos.local",
-    admin_password="Admin-Test-2026",
-    demo_password="Demo-Test-2026",
+    admin_password=CLAVE_ADMIN,
+    demo_password=CLAVE_DEMO,
 )
 
 
@@ -177,9 +183,9 @@ def test_crea_el_admin_y_los_dos_usuarios_demo_con_sus_roles():
         "asistente@miseventos.local": Rol.ATTENDEE,
     }
     assert all(u.is_active and not u.must_change_password for u in repo.creados)
-    assert verificar(por_email["admin@miseventos.local"].password_hash, "Admin-Test-2026")
-    assert verificar(por_email["organizador@miseventos.local"].password_hash, "Demo-Test-2026")
-    assert verificar(por_email["asistente@miseventos.local"].password_hash, "Demo-Test-2026")
+    assert verificar(por_email["admin@miseventos.local"].password_hash, CLAVE_ADMIN)
+    assert verificar(por_email["organizador@miseventos.local"].password_hash, CLAVE_DEMO)
+    assert verificar(por_email["asistente@miseventos.local"].password_hash, CLAVE_DEMO)
 
 
 def test_crea_a_cada_usuario_demo_con_su_nombre():
@@ -195,7 +201,7 @@ def test_crea_a_cada_usuario_demo_con_su_nombre():
 
 
 def test_no_toca_un_usuario_que_ya_existe_aunque_cambio_su_contrasena():
-    hash_propio = hashear("Clave-Propia-1")
+    hash_propio = hashear(secrets.token_urlsafe())
     admin = User(email="admin@miseventos.local", password_hash=hash_propio, role=Rol.ADMIN)
     asistente = User(
         email="asistente@miseventos.local",
@@ -215,7 +221,7 @@ def test_no_toca_un_usuario_que_ya_existe_aunque_cambio_su_contrasena():
 
 @pytest.mark.parametrize("sin_nombre", [None, ""])
 def test_completa_el_nombre_de_un_usuario_demo_que_existe_sin_nombre(sin_nombre):
-    hash_propio = hashear("Clave-Propia-1")
+    hash_propio = hashear(secrets.token_urlsafe())
     admin = User(
         email="admin@miseventos.local",
         password_hash=hash_propio,
@@ -700,3 +706,143 @@ def test_no_inscribe_mas_alla_del_cupo_si_alguien_achico_el_evento():
     base.sembrar()
 
     assert base.activas_en(CASI_LLENO) == 1
+
+
+# --- Reservas demo ---------------------------------------------------------------------------
+
+PYTHON_DAY = "Python Day Medellín"
+
+
+class DemoConReservas:
+    """Los dobles con todo lo demo sembrado hasta las inscripciones, listos para reservar."""
+
+    def __init__(self) -> None:
+        self.usuarios = RepositorioUsuariosFalso(ORGANIZADOR_DEMO, ASISTENTE_DEMO)
+        self.eventos = RepositorioEventosFalso()
+        self.ponentes = RepositorioPonentesFalso()
+        self.sesiones = RepositorioSesionesFalso(self.eventos, self.ponentes)
+        self.inscripciones = RepositorioInscripcionesFalso(self.eventos, self.usuarios)
+        self.reservas = RepositorioReservasFalso(self.eventos)
+        sembrar_eventos(self.usuarios, self.eventos)
+        sembrar_ponentes(self.usuarios, self.ponentes)
+        sembrar_sesiones(self.usuarios, self.eventos, self.sesiones, self.ponentes)
+        sembrar_inscripciones(self.usuarios, self.eventos, self.inscripciones)
+
+    def sembrar(self) -> None:
+        sembrar_reservas(
+            self.usuarios, self.eventos, self.sesiones, self.inscripciones, self.reservas
+        )
+
+    def python_day(self) -> Event:
+        return next(e for e in self.eventos.eventos.values() if e.name == PYTHON_DAY)
+
+    def sesiones_de_python_day(self) -> list:
+        return self.eventos.sesiones_de(self.python_day().id)
+
+    def activas_de(self, usuario: User) -> list:
+        return [
+            self.eventos.sesiones[r.session_id]
+            for r in self.reservas.reservas.values()
+            if r.user_id == usuario.id and r.status == EstadoReserva.ACTIVE
+        ]
+
+    def foto(self) -> set[tuple]:
+        return {(r.user_id, r.session_id, r.status) for r in self.reservas.reservas.values()}
+
+
+@pytest.fixture
+def con_reservas() -> DemoConReservas:
+    base = DemoConReservas()
+    base.sembrar()
+    return base
+
+
+def _se_cruzan(a, b) -> bool:
+    return a.start_at < b.end_at and b.start_at < a.end_at
+
+
+def test_el_asistente_demo_tiene_dos_reservas_en_python_day_que_no_se_cruzan(con_reservas):
+    propias = con_reservas.activas_de(ASISTENTE_DEMO)
+
+    assert len(propias) == 2
+    assert {s.event_id for s in propias} == {con_reservas.python_day().id}
+    assert not _se_cruzan(*propias)
+
+
+def test_python_day_tiene_una_paralela_libre_a_una_reserva_del_asistente(con_reservas):
+    propias = con_reservas.activas_de(ASISTENTE_DEMO)
+    otras = [s for s in con_reservas.sesiones_de_python_day() if s not in propias]
+
+    assert any(_se_cruzan(otra, propia) for otra in otras for propia in propias)
+
+
+def test_una_sesion_de_python_day_queda_con_un_lugar_que_el_asistente_puede_tomar(con_reservas):
+    evento = con_reservas.python_day()
+    propias = con_reservas.activas_de(ASISTENTE_DEMO)
+
+    def libres(sesion) -> int:
+        capacidad = sesion.capacity if sesion.capacity is not None else evento.capacity
+        return capacidad - con_reservas.reservas.activas_en(sesion.id)
+
+    casi_llenas = [s for s in con_reservas.sesiones_de_python_day() if libres(s) == 1]
+    assert len(casi_llenas) == 1
+    [casi_llena] = casi_llenas
+    assert casi_llena not in propias
+    assert not any(_se_cruzan(casi_llena, propia) for propia in propias)
+
+
+def test_quienes_ocupan_la_casi_llena_estan_inscritos_a_python_day(con_reservas):
+    evento = con_reservas.python_day()
+    otros = {
+        r.user_id for r in con_reservas.reservas.reservas.values() if r.user_id != ASISTENTE_DEMO.id
+    }
+
+    assert otros
+    assert all(con_reservas.inscripciones.activa_de(u, evento.id) for u in otros)
+    assert all(
+        con_reservas.usuarios.usuarios[u].email.endswith("@asistentes.example") for u in otros
+    )
+
+
+def test_correrlo_dos_veces_no_duplica_reservas(con_reservas):
+    foto = con_reservas.foto()
+    assert foto
+
+    con_reservas.sembrar()
+
+    assert con_reservas.foto() == foto
+
+
+def test_no_reactiva_una_reserva_que_el_asistente_cancelo(con_reservas):
+    propias = [r for r in con_reservas.reservas.reservas.values() if r.user_id == ASISTENTE_DEMO.id]
+    assert len(propias) == 2
+    primera = propias[0]
+    primera.status = EstadoReserva.CANCELLED
+
+    con_reservas.sembrar()
+
+    assert primera.status == EstadoReserva.CANCELLED
+    assert len(con_reservas.activas_de(ASISTENTE_DEMO)) == 1
+
+
+def test_una_reserva_que_no_cumple_una_regla_se_saltea_con_un_aviso_y_sigue(caplog):
+    base = DemoConReservas()
+    inscripcion = base.inscripciones.activa_de(ASISTENTE_DEMO.id, base.python_day().id)
+    inscripcion.status = EstadoInscripcion.CANCELLED
+
+    with caplog.at_level(logging.WARNING, logger="miseventos.seed"):
+        try:
+            base.sembrar()
+        except DomainError as error:
+            pytest.fail(f"el seed se cortó con {error!r} en lugar de saltear la reserva")
+
+    assert base.activas_de(ASISTENTE_DEMO) == []
+    assert base.reservas.reservas, "las reservas de los demás se siembran igual"
+    avisos = [
+        r.getMessage()
+        for r in caplog.records
+        if r.name == "miseventos.seed" and r.levelno == logging.WARNING
+    ]
+    assert any(
+        "«Testing en Python»" in m and PYTHON_DAY in m and "inscripción activa" in m for m in avisos
+    ), avisos

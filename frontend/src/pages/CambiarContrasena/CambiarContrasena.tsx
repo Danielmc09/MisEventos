@@ -2,14 +2,16 @@ import { useState, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../../api/client";
 import type { components } from "../../api/schema";
+import { AlertaError } from "../../components/ui/AlertaError";
 import { Button } from "../../components/ui/Button";
 import { Input } from "../../components/ui/Input";
-import { Toast } from "../../components/ui/Toast";
+import { useAvisos } from "../../components/ui/Avisos";
 import { errorDeFormulario, type ErrorDeFormulario } from "../../lib/errores";
 import { useSession } from "../../stores/session";
 
 export default function CambiarContrasena() {
   const navigate = useNavigate();
+  const avisar = useAvisos();
   const [enviando, setEnviando] = useState(false);
   const [error, setError] = useState<ErrorDeFormulario | null>(null);
 
@@ -35,9 +37,11 @@ export default function CambiarContrasena() {
       );
       const { user } = useSession.getState();
       if (user) useSession.getState().iniciarSesion(user, access_token, expires_in);
-      navigate("/perfil", { state: { aviso: "Tu contraseña se cambió" } });
+      avisar({ message: "Cambiaste tu contraseña", tone: "exito" });
+      navigate("/perfil");
     } catch (err) {
-      setError(errorDeFormulario(err));
+      const fallo = errorDeFormulario(err);
+      setError(fallo);
       setEnviando(false);
     }
   }
@@ -46,7 +50,6 @@ export default function CambiarContrasena() {
     <main className="mx-auto max-w-md p-6">
       <h1 className="text-2xl font-bold">Cambiar contraseña</h1>
       <form onSubmit={enviar} className="mt-4 flex flex-col gap-4">
-        {error?.general && <Toast tone="error" message={error.general} />}
         <Input
           label="Contraseña actual"
           name="current_password"
@@ -71,6 +74,7 @@ export default function CambiarContrasena() {
           required
           error={error?.campos.confirmacion}
         />
+        {error?.general && <AlertaError title={error.general} />}
         <Button type="submit" loading={enviando}>
           Cambiar contraseña
         </Button>

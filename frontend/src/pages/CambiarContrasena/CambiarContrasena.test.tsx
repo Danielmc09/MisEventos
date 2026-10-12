@@ -1,4 +1,4 @@
-import { screen } from "@testing-library/react";
+import { act, fireEvent, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { delay, http } from "msw";
 import { setupServer } from "msw/node";
@@ -23,9 +23,12 @@ const montarPantalla = () =>
     ["/perfil", <Perfil />],
   ]);
 
-async function completar(user: ReturnType<typeof userEvent.setup>, confirmacion = "clave nueva") {
-  await user.type(screen.getByLabelText("Contraseña actual"), "clave vieja");
-  await user.type(screen.getByLabelText("Contraseña nueva"), "clave nueva");
+const claveVieja = crypto.randomUUID();
+const claveNueva = crypto.randomUUID();
+
+async function completar(user: ReturnType<typeof userEvent.setup>, confirmacion = claveNueva) {
+  await user.type(screen.getByLabelText("Contraseña actual"), claveVieja);
+  await user.type(screen.getByLabelText("Contraseña nueva"), claveNueva);
   await user.type(screen.getByLabelText("Confirmá la contraseña nueva"), confirmacion);
   await user.click(screen.getByRole("button", { name: /cambiar contraseña/i }));
 }
@@ -50,10 +53,10 @@ test("con éxito guarda el token nuevo, avisa y lleva a /perfil", async () => {
   await completar(user);
 
   expect(await screen.findByRole("heading", { name: "Perfil" })).toBeInTheDocument();
-  expect(screen.getByText("Tu contraseña se cambió")).toBeInTheDocument();
+  expect(screen.getByText("Cambiaste tu contraseña")).toBeInTheDocument();
   expect(useSession.getState().accessToken).toBe("token-nuevo");
   expect(useSession.getState().user).toEqual(usuario);
-  expect(cuerpo).toEqual({ current_password: "clave vieja", new_password: "clave nueva" });
+  expect(cuerpo).toEqual({ current_password: claveVieja, new_password: claveNueva });
 });
 
 test.each([
@@ -91,7 +94,7 @@ test("con una confirmación distinta no llama a la API y lo marca en el campo", 
   const user = userEvent.setup();
   montarPantalla();
 
-  await completar(user, "otra clave");
+  await completar(user, crypto.randomUUID());
 
   expect(screen.getByLabelText("Confirmá la contraseña nueva")).toHaveAccessibleDescription(
     "Las contraseñas no coinciden",
@@ -113,4 +116,48 @@ test("mientras se envía el botón queda deshabilitado", async () => {
 
   expect(screen.getByRole("button", { name: /cambiar contraseña/i })).toBeDisabled();
   await screen.findByRole("heading", { name: "Perfil" });
+});
+
+test("el error general queda en el formulario pasados los 4 s y se borra al reenviar con éxito", async () => {
+  server.use(
+    http.patch(`${API}/auth/me/password`, () =>
+      responder("/auth/me/password", "patch", 422, {
+        type: "validation-error",
+        title: "Los datos enviados no son válidos",
+        status: 401,
+        trace_id: "t-1",
+      }),
+    ),
+  );
+  const user = userEvent.setup();
+  montarPantalla();
+  await user.type(screen.getByLabelText("Contraseña actual"), claveVieja);
+  await user.type(screen.getByLabelText("Contraseña nueva"), claveNueva);
+  await user.type(screen.getByLabelText("Confirmá la contraseña nueva"), claveNueva);
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+  try {
+    fireEvent.click(screen.getByRole("button", { name: /cambiar contraseña/i }));
+    await act(async () => {
+      for (let i = 0; i < 50 && !screen.queryByRole("alert"); i++)
+        await new Promise((r) => setImmediate(r));
+    });
+    expect(screen.getByRole("alert")).toHaveTextContent("Los datos enviados no son válidos");
+    act(() => vi.advanceTimersByTime(5000));
+
+    const alerta = screen.getByRole("alert");
+    expect(alerta).toHaveTextContent("Los datos enviados no son válidos");
+    expect(alerta.closest("form")).not.toBeNull();
+  } finally {
+    vi.useRealTimers();
+  }
+
+  server.use(
+    http.patch(`${API}/auth/me/password`, () =>
+      responder("/auth/me/password", "patch", 200, tokenNuevo),
+    ),
+  );
+  await user.click(screen.getByRole("button", { name: /cambiar contraseña/i }));
+
+  expect(await screen.findByRole("heading", { name: "Perfil" })).toBeInTheDocument();
+  expect(screen.queryByText("Los datos enviados no son válidos")).not.toBeInTheDocument();
 });

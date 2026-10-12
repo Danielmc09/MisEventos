@@ -36,6 +36,7 @@ const estadisticas = {
   capacity: 100,
   available_spots: 75,
   occupancy_pct: 25,
+  sessions: [],
 };
 const inscritoFila: components["schemas"]["Inscrito"] = {
   full_name: "Luisa Pérez",
@@ -255,7 +256,7 @@ describe("ejecutar acciones", () => {
 
     await user.click(await screen.findByRole("button", { name: "Publicar" }));
 
-    expect(await screen.findByText("Evento publicado")).toBeInTheDocument();
+    expect(await screen.findByText("Publicaste el evento")).toBeInTheDocument();
     expect(screen.getByText("Publicado")).toBeInTheDocument();
     await useEventos.getState().listar("");
     expect(listados()).toBe(2);
@@ -284,7 +285,7 @@ describe("ejecutar acciones", () => {
 
     await user.click(screen.getByRole("button", { name: "Cancelar" }));
     await user.click(screen.getByRole("button", { name: "Sí, cancelar el evento" }));
-    expect(await screen.findByText("Evento cancelado")).toBeInTheDocument();
+    expect(await screen.findByText("Cancelaste el evento")).toBeInTheDocument();
     expect(llamadas).toBe(1);
     expect(screen.getByText("Cancelado")).toBeInTheDocument();
   });
@@ -320,8 +321,24 @@ describe("ejecutar acciones", () => {
     await user.click(screen.getByRole("button", { name: "Sí, eliminar el evento" }));
 
     expect(await screen.findByText("Página de inicio")).toBeInTheDocument();
+    expect(screen.getByText("Eliminaste el evento")).toBeInTheDocument();
     await useEventos.getState().listar("");
     expect(listados()).toBe(2);
+  });
+
+  test("despublicar avisa", async () => {
+    servir(abierto);
+    server.use(
+      http.post(`${ruta}/unpublish`, () =>
+        responder("/events/{id_evento}/unpublish", "post", 200, { ...abierto, status: "DRAFT" }),
+      ),
+    );
+    const user = userEvent.setup();
+    abrir();
+
+    await user.click(await screen.findByRole("button", { name: "Despublicar" }));
+
+    expect(await screen.findByText("Despublicaste el evento")).toBeInTheDocument();
   });
 });
 
@@ -456,7 +473,7 @@ describe("sección de sesiones", () => {
       await user.click(screen.getByRole("button", { name: "Eliminar sesión Apertura" }));
       await user.click(screen.getByRole("button", { name: "Sí, eliminar la sesión" }));
 
-      expect(await screen.findByText("Sesión eliminada")).toBeInTheDocument();
+      expect(await screen.findByText("Eliminaste la sesión")).toBeInTheDocument();
       expect(llamadas).toBe(1);
       expect(screen.queryByRole("heading", { name: "Apertura" })).not.toBeInTheDocument();
       expect(screen.getByText("Este evento todavía no tiene sesiones")).toBeInTheDocument();
@@ -512,7 +529,7 @@ describe("agregar y editar sesiones", () => {
     await user.type(within(dialogo).getByLabelText("Fin"), "2026-10-10T23:00");
     await user.click(within(dialogo).getByRole("button", { name: "Crear sesión" }));
 
-    expect(await screen.findByText("Sesión creada")).toBeInTheDocument();
+    expect(await screen.findByText("Creaste la sesión")).toBeInTheDocument();
     expect(cuerpos).toHaveLength(1);
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Charla de pruebas" })).toBeInTheDocument();
@@ -540,7 +557,7 @@ describe("agregar y editar sesiones", () => {
     await user.type(within(dialogo).getByLabelText("Título"), "Apertura general");
     await user.click(within(dialogo).getByRole("button", { name: "Guardar cambios" }));
 
-    expect(await screen.findByText("Sesión actualizada")).toBeInTheDocument();
+    expect(await screen.findByText("Actualizaste la sesión")).toBeInTheDocument();
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Apertura general" })).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Apertura" })).not.toBeInTheDocument();
@@ -952,7 +969,7 @@ describe("panel de inscripciones del dueño", () => {
     await user.click(await screen.findByRole("button", { name: "Inscribirme" }));
 
     expect(await within(panel).findByRole("table")).toHaveTextContent("luisa@mail.com");
-    expect(within(panel).getByText("Inscritos").nextElementSibling).toHaveTextContent("1");
+    expect(within(panel).getByText("Inscrito").nextElementSibling).toHaveTextContent("1");
   });
 
   test("un organizador ajeno con evento:gestionar_todos también ve el panel", async () => {
@@ -1077,5 +1094,326 @@ describe("panel de inscripciones del dueño", () => {
     await user.click(await screen.findByRole("button", { name: "Siguiente" }));
 
     await waitFor(() => expect(pedidos.inscritos.some((p) => p.get("page") === "2")).toBe(true));
+  });
+});
+
+describe("reservas de sesiones", () => {
+  const rutaReservar = (id: string) => `${API}/sessions/${id}/reservations`;
+  const rutaCancelarReserva = (id: string) => `${API}/sessions/${id}/reservations/me`;
+
+  const conLugar = {
+    ...sesion,
+    id: "b1000000-0000-4000-8000-000000000001",
+    title: "Taller de Pytest",
+    start_at: en(25),
+    end_at: en(26),
+    capacity: 5,
+    reserved_count: 2,
+    available_spots: 3,
+  };
+  const reservada = {
+    ...conLugar,
+    id: "b1000000-0000-4000-8000-000000000002",
+    title: "Charla de mocks",
+    reserved_count: 3,
+    available_spots: 2,
+    is_reserved: true,
+  };
+  const llena = {
+    ...conLugar,
+    id: "b1000000-0000-4000-8000-000000000003",
+    title: "Laboratorio",
+    reserved_count: 5,
+    available_spots: 0,
+  };
+  const reservaCreada = (id: string) => ({
+    id: "d1000000-0000-4000-8000-000000000001",
+    session_id: id,
+    status: "ACTIVE" as const,
+    created_at: "2026-10-11T15:30:00Z",
+  });
+
+  /** El `<li>` de la sesión con ese título. */
+  async function fila(titulo: string) {
+    const encabezado = await screen.findByRole("heading", { name: titulo, level: 4 });
+    return within(encabezado.closest("li")!);
+  }
+
+  /** Sirve las sesiones, y desde el segundo pedido las que devuelva `siguiente`. */
+  function servirLista(inicial: (typeof conLugar)[], siguiente?: () => (typeof conLugar)[]) {
+    const pedidos = { n: 0 };
+    server.use(
+      http.get(rutaSesiones, () => {
+        pedidos.n += 1;
+        const lista = pedidos.n > 1 && siguiente ? siguiente() : inicial;
+        return responder("/events/{id_evento}/sessions", "get", 200, lista);
+      }),
+    );
+    return pedidos;
+  }
+
+  const chocaCon = (room: string | null) => ({
+    ...conflicto("session-conflict", "La sesión se cruza con otra reserva tuya"),
+    conflicts: [
+      {
+        session_id: "c0000000-0000-4000-8000-000000000001",
+        title: "Testing en Python",
+        start_at: "2026-10-11T15:00:00Z",
+        end_at: "2026-10-11T16:00:00Z",
+        room,
+      },
+    ],
+  });
+
+  describe("el control de cada sesión según la situación", () => {
+    test("un anónimo ve la invitación a inscribirse, sin botones", async () => {
+      servir(abierto);
+      servirLista([conLugar]);
+      abrir();
+
+      const item = await fila("Taller de Pytest");
+      expect(item.getByText("Inscribite al evento para reservar sesiones")).toBeInTheDocument();
+      expect(item.queryByRole("button")).not.toBeInTheDocument();
+    });
+
+    test("alguien con sesión pero sin inscripción ve la misma invitación", async () => {
+      useSession.getState().iniciarSesion(usuario, "token", 3600);
+      servir(abierto);
+      servirLista([conLugar]);
+      abrir();
+
+      const item = await fila("Taller de Pytest");
+      expect(item.getByText("Inscribite al evento para reservar sesiones")).toBeInTheDocument();
+      expect(item.queryByRole("button")).not.toBeInTheDocument();
+    });
+
+    test("inscrito, con lugar y sin reserva: Reservar lugar y cuántos lugares quedan", async () => {
+      useSession.getState().iniciarSesion(usuario, "token", 3600);
+      servir(inscrito);
+      servirLista([conLugar]);
+      abrir();
+
+      const item = await fila("Taller de Pytest");
+      expect(item.getByRole("button", { name: "Reservar lugar" })).toBeEnabled();
+      expect(item.getByText("Quedan 3 lugares")).toBeInTheDocument();
+      expect(item.queryByText("Reservado")).not.toBeInTheDocument();
+    });
+
+    test("con reserva: Reservado y Cancelar reserva", async () => {
+      useSession.getState().iniciarSesion(usuario, "token", 3600);
+      servir(inscrito);
+      servirLista([reservada]);
+      abrir();
+
+      const item = await fila("Charla de mocks");
+      expect(item.getByText("Reservado")).toBeInTheDocument();
+      expect(item.getByRole("button", { name: "Cancelar reserva" })).toBeEnabled();
+      expect(item.queryByRole("button", { name: "Reservar lugar" })).not.toBeInTheDocument();
+    });
+
+    test("sin lugares: el botón Sin lugares está deshabilitado", async () => {
+      useSession.getState().iniciarSesion(usuario, "token", 3600);
+      servir(inscrito);
+      servirLista([llena]);
+      abrir();
+
+      const item = await fila("Laboratorio");
+      expect(item.getByRole("button", { name: "Sin lugares" })).toBeDisabled();
+      expect(item.queryByRole("button", { name: "Reservar lugar" })).not.toBeInTheDocument();
+    });
+
+    test("una sesión que ya empezó no tiene botón", async () => {
+      useSession.getState().iniciarSesion(usuario, "token", 3600);
+      servir(inscrito);
+      servirLista([{ ...conLugar, start_at: en(-1), end_at: en(1) }]);
+      abrir();
+
+      const item = await fila("Taller de Pytest");
+      expect(item.queryByRole("button")).not.toBeInTheDocument();
+    });
+
+    test("en un evento que no está publicado no hay botón", async () => {
+      useSession.getState().iniciarSesion(usuario, "token", 3600);
+      servir({ ...inscrito, status: "DRAFT" });
+      servirLista([conLugar]);
+      abrir();
+
+      const item = await fila("Taller de Pytest");
+      expect(item.queryByRole("button")).not.toBeInTheDocument();
+    });
+  });
+
+  describe("reservar y cancelar sin recargar", () => {
+    beforeEach(() => useSession.getState().iniciarSesion(usuario, "token", 3600));
+
+    test("reservar muestra Reservado y baja los lugares; cancelar lo vuelve atrás", async () => {
+      servir(inscrito);
+      const pedidos = servirLista([conLugar]);
+      server.use(
+        http.post(rutaReservar(conLugar.id), () =>
+          responder("/sessions/{id_sesion}/reservations", "post", 201, reservaCreada(conLugar.id)),
+        ),
+        http.delete(rutaCancelarReserva(conLugar.id), () => new Response(null, { status: 204 })),
+      );
+      const user = userEvent.setup();
+      abrir();
+
+      const item = await fila("Taller de Pytest");
+      await user.click(item.getByRole("button", { name: "Reservar lugar" }));
+
+      expect(await item.findByText("Reservado")).toBeInTheDocument();
+      expect(screen.getByText("Reservaste «Taller de Pytest»")).toBeInTheDocument();
+      expect(item.getByText("Quedan 2 lugares")).toBeInTheDocument();
+      expect(item.queryByRole("button", { name: "Reservar lugar" })).not.toBeInTheDocument();
+
+      await user.click(item.getByRole("button", { name: "Cancelar reserva" }));
+
+      expect(await item.findByRole("button", { name: "Reservar lugar" })).toBeInTheDocument();
+      expect(screen.getByText("Cancelaste tu reserva")).toBeInTheDocument();
+      expect(item.getByText("Quedan 3 lugares")).toBeInTheDocument();
+      expect(item.queryByText("Reservado")).not.toBeInTheDocument();
+      expect(pedidos.n).toBe(1);
+    });
+
+    test("un session-conflict muestra su title y la sesión que choca, con horario y sala", async () => {
+      servir(inscrito);
+      servirLista([conLugar]);
+      server.use(
+        http.post(rutaReservar(conLugar.id), () =>
+          responder("/sessions/{id_sesion}/reservations", "post", 409, chocaCon("Sala C")),
+        ),
+      );
+      const user = userEvent.setup();
+      abrir();
+
+      const item = await fila("Taller de Pytest");
+      await user.click(item.getByRole("button", { name: "Reservar lugar" }));
+
+      const alerta = await item.findByRole("alert");
+      expect(alerta).toHaveTextContent("La sesión se cruza con otra reserva tuya");
+      expect(alerta).toHaveTextContent("Ya reservaste «Testing en Python», 10:00 a 11:00, Sala C");
+      expect(item.getByText("Quedan 3 lugares")).toBeInTheDocument();
+    });
+
+    test("si la sesión que choca no tiene sala, el texto va sin la sala", async () => {
+      servir(inscrito);
+      servirLista([conLugar]);
+      server.use(
+        http.post(rutaReservar(conLugar.id), () =>
+          responder("/sessions/{id_sesion}/reservations", "post", 409, chocaCon(null)),
+        ),
+      );
+      const user = userEvent.setup();
+      abrir();
+
+      const item = await fila("Taller de Pytest");
+      await user.click(item.getByRole("button", { name: "Reservar lugar" }));
+
+      const alerta = await item.findByRole("alert");
+      expect(alerta).toHaveTextContent("Ya reservaste «Testing en Python», 10:00 a 11:00");
+      expect(alerta).not.toHaveTextContent("10:00 a 11:00,");
+    });
+
+    test.each([
+      ["session-full", "La sesión no tiene lugares"],
+      ["already-reserved", "Ya tenés una reserva en esta sesión"],
+      ["not-registered", "Inscribite al evento para reservar sesiones"],
+      ["session-started", "La sesión ya empezó"],
+      ["event-not-open", "El evento no está abierto"],
+    ])("un %s muestra su title y refresca las sesiones", async (type, title) => {
+      servir(inscrito);
+      const pedidos = servirLista([conLugar], () => [
+        { ...conLugar, reserved_count: 5, available_spots: 0 },
+      ]);
+      server.use(
+        http.post(rutaReservar(conLugar.id), () =>
+          responder("/sessions/{id_sesion}/reservations", "post", 409, conflicto(type, title)),
+        ),
+      );
+      const user = userEvent.setup();
+      abrir();
+
+      const item = await fila("Taller de Pytest");
+      await user.click(item.getByRole("button", { name: "Reservar lugar" }));
+
+      expect(await screen.findByRole("alert")).toHaveTextContent(title);
+      expect(await screen.findByRole("button", { name: "Sin lugares" })).toBeDisabled();
+      expect(pedidos.n).toBe(2);
+    });
+  });
+
+  test("con un solo lugar en una sesión dice Queda 1 lugar", async () => {
+    useSession.getState().iniciarSesion(usuario, "token", 3600);
+    servir(inscrito);
+    servirLista([{ ...conLugar, reserved_count: 4, available_spots: 1 }]);
+    abrir();
+
+    const item = await fila("Taller de Pytest");
+    expect(item.getByText("Queda 1 lugar")).toBeInTheDocument();
+  });
+
+  test("con un solo cupo en el evento dice Queda 1 cupo", async () => {
+    servir({ ...abierto, available_spots: 1 });
+    abrir();
+
+    expect(await screen.findByText("Queda 1 cupo")).toBeInTheDocument();
+  });
+
+  describe("cancelar la inscripción con reservas", () => {
+    beforeEach(() => useSession.getState().iniciarSesion(usuario, "token", 3600));
+
+    test("con una sola reserva el aviso va en singular", async () => {
+      servir(inscrito);
+      servirLista([reservada, conLugar]);
+      const user = userEvent.setup();
+      abrir();
+
+      await fila("Charla de mocks");
+      await user.click(screen.getByRole("button", { name: "Cancelar inscripción" }));
+
+      expect(screen.getByRole("alertdialog")).toHaveTextContent(
+        "También se cancelará tu reserva de sesión",
+      );
+    });
+
+    test("avisa cuántas reservas se cancelan y refresca las sesiones", async () => {
+      servir(inscrito);
+      const otra = { ...reservada, id: "b1000000-0000-4000-8000-000000000009", title: "Otra" };
+      const pedidos = servirLista([reservada, otra, conLugar], () => [
+        { ...reservada, is_reserved: false },
+        { ...otra, is_reserved: false },
+        conLugar,
+      ]);
+      server.use(http.delete(rutaCancelar, () => new Response(null, { status: 204 })));
+      const user = userEvent.setup();
+      abrir();
+
+      await fila("Charla de mocks");
+      await user.click(screen.getByRole("button", { name: "Cancelar inscripción" }));
+
+      expect(screen.getByRole("alertdialog")).toHaveTextContent(
+        "También se cancelarán tus 2 reservas de sesiones",
+      );
+
+      await user.click(screen.getByRole("button", { name: "Sí, cancelar mi inscripción" }));
+
+      expect(await screen.findByText("Cancelaste tu inscripción")).toBeInTheDocument();
+      await waitFor(() => expect(pedidos.n).toBe(2));
+      const item = await fila("Charla de mocks");
+      expect(item.queryByText("Reservado")).not.toBeInTheDocument();
+    });
+
+    test("sin reservas en el evento, el aviso no aparece", async () => {
+      servir(inscrito);
+      servirLista([conLugar, llena]);
+      const user = userEvent.setup();
+      abrir();
+
+      await fila("Taller de Pytest");
+      await user.click(screen.getByRole("button", { name: "Cancelar inscripción" }));
+
+      expect(screen.getByRole("alertdialog")).toBeInTheDocument();
+      expect(screen.queryByText(/También se cancelarán/)).not.toBeInTheDocument();
+    });
   });
 });

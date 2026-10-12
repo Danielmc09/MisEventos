@@ -1,4 +1,4 @@
-import { screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { delay, http } from "msw";
 import { setupServer } from "msw/node";
@@ -23,6 +23,8 @@ const rutas: [string, React.ReactNode][] = [
   ["/", <h1>Inicio de prueba</h1>],
 ];
 
+const clave = crypto.randomUUID();
+
 const loginOk = () =>
   server.use(
     http.post(`${API}/auth/login`, () =>
@@ -37,7 +39,7 @@ const loginOk = () =>
 
 async function ingresar(user: ReturnType<typeof userEvent.setup>) {
   await user.type(screen.getByLabelText("Correo electrónico"), "ana@mail.com");
-  await user.type(screen.getByLabelText("Contraseña"), "clave de prueba");
+  await user.type(screen.getByLabelText("Contraseña"), clave);
   await user.click(screen.getByRole("button", { name: /iniciar sesión/i }));
 }
 
@@ -119,7 +121,7 @@ test("un login exitoso guarda el usuario y el token, y vuelve a la ruta de orige
   expect(useSession.getState().user).toEqual(usuario);
   expect(useSession.getState().accessToken).toBe("token-abc");
   expect(formulario?.get("username")).toBe("ana@mail.com");
-  expect(formulario?.get("password")).toBe("clave de prueba");
+  expect(formulario?.get("password")).toBe(clave);
   expect(autorizacion).toBe("Bearer token-abc");
 });
 
@@ -157,7 +159,7 @@ test("registro, login y vuelta al next original", async () => {
   montar("/registro?next=%2Feventos%2Fabc", rutas);
 
   await user.type(screen.getByLabelText("Correo electrónico"), "ana@mail.com");
-  await user.type(screen.getByLabelText("Contraseña"), "clave de prueba");
+  await user.type(screen.getByLabelText("Contraseña"), clave);
   await user.click(screen.getByRole("button", { name: /crear cuenta/i }));
   await screen.findByRole("heading", { name: "Iniciar sesión" });
   await ingresar(user);
@@ -246,21 +248,29 @@ test.each(["//evil.com", "https://evil.com", "javascript:alert(1)"])(
   },
 );
 
-const conAviso = {
-  pathname: "/login",
-  search: "?next=%2Feventos%2Fabc",
-  state: { aviso: "Registro recibido" },
-};
+async function registrarse(user: ReturnType<typeof userEvent.setup>) {
+  server.use(
+    http.post(`${API}/auth/register`, () =>
+      responder("/auth/register", "post", 201, { message: "Registro recibido" }),
+    ),
+  );
+  await user.type(screen.getByLabelText("Correo electrónico"), "ana@mail.com");
+  await user.type(screen.getByLabelText("Contraseña"), clave);
+  await user.click(screen.getByRole("button", { name: /crear cuenta/i }));
+  await screen.findByRole("heading", { name: "Iniciar sesión" });
+}
 
-test("el aviso de registro se muestra una vez: se limpia el state y el next sigue en la URL", async () => {
-  montar(conAviso, rutas);
+test("tras registrarse, el aviso se ve en el login y el next sigue en la URL", async () => {
+  const user = userEvent.setup();
+  montar("/registro?next=%2Feventos%2Fabc", rutas);
+
+  await registrarse(user);
 
   expect(screen.getByText("Registro recibido")).toBeInTheDocument();
-  await waitFor(() => expect(screen.getByLabelText("estado")).toHaveTextContent("null"));
   expect(screen.getByLabelText("ubicación")).toHaveTextContent("/login?next=%2Feventos%2Fabc");
 });
 
-test("tras un login fallido ya no está el aviso de registro y sí el error", async () => {
+test("tras un login fallido aparece el error, con aviso de alerta", async () => {
   server.use(
     http.post(`${API}/auth/login`, () =>
       responder("/auth/login", "post", 401, {
@@ -272,10 +282,49 @@ test("tras un login fallido ya no está el aviso de registro y sí el error", as
     ),
   );
   const user = userEvent.setup();
-  montar(conAviso, rutas);
+  montar("/registro?next=%2Feventos%2Fabc", rutas);
+  await registrarse(user);
 
   await ingresar(user);
 
   expect(await screen.findByRole("alert")).toHaveTextContent("no son correctos");
-  expect(screen.queryByText("Registro recibido")).not.toBeInTheDocument();
+});
+
+test("el error general queda en el formulario pasados los 4 s y se borra al reenviar con éxito", async () => {
+  server.use(
+    http.post(`${API}/auth/login`, () =>
+      responder("/auth/login", "post", 401, {
+        type: "invalid-credentials",
+        title: "El correo o la contraseña no son correctos",
+        status: 401,
+        trace_id: "t-1",
+      }),
+    ),
+  );
+  const user = userEvent.setup();
+  montar("/login", rutas);
+  await user.type(screen.getByLabelText("Correo electrónico"), "ana@mail.com");
+  await user.type(screen.getByLabelText("Contraseña"), clave);
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+  try {
+    fireEvent.click(screen.getByRole("button", { name: /iniciar sesión/i }));
+    await act(async () => {
+      for (let i = 0; i < 50 && !screen.queryByRole("alert"); i++)
+        await new Promise((r) => setImmediate(r));
+    });
+    expect(screen.getByRole("alert")).toHaveTextContent("no son correctos");
+    act(() => vi.advanceTimersByTime(5000));
+
+    const alerta = screen.getByRole("alert");
+    expect(alerta).toHaveTextContent("El correo o la contraseña no son correctos");
+    expect(alerta.closest("form")).not.toBeNull();
+  } finally {
+    vi.useRealTimers();
+  }
+
+  loginOk();
+  await user.click(screen.getByRole("button", { name: /iniciar sesión/i }));
+
+  expect(await screen.findByRole("heading", { name: "Inicio de prueba" })).toBeInTheDocument();
+  expect(screen.queryByText("El correo o la contraseña no son correctos")).not.toBeInTheDocument();
 });

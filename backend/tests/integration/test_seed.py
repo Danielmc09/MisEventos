@@ -1,3 +1,5 @@
+import secrets
+
 import pytest
 from sqlalchemy import text
 from sqlmodel import Session
@@ -6,10 +8,12 @@ from app.scripts.seed import CredencialesDemo, sembrar
 
 pytestmark = pytest.mark.integration
 
+CLAVE_ADMIN = secrets.token_urlsafe()
+CLAVE_DEMO = secrets.token_urlsafe()
 DEMO = CredencialesDemo(
     admin_email="admin@miseventos.local",
-    admin_password="Admin-Test-2026",
-    demo_password="Demo-Test-2026",
+    admin_password=CLAVE_ADMIN,
+    demo_password=CLAVE_DEMO,
 )
 ROLES = {
     "admin@miseventos.local": "ADMIN",
@@ -17,9 +21,9 @@ ROLES = {
     "asistente@miseventos.local": "ATTENDEE",
 }
 CONTRASENAS = {
-    "admin@miseventos.local": "Admin-Test-2026",
-    "organizador@miseventos.local": "Demo-Test-2026",
-    "asistente@miseventos.local": "Demo-Test-2026",
+    "admin@miseventos.local": CLAVE_ADMIN,
+    "organizador@miseventos.local": CLAVE_DEMO,
+    "asistente@miseventos.local": CLAVE_DEMO,
 }
 
 
@@ -111,7 +115,7 @@ def test_completa_el_nombre_del_demo_que_existe_sin_nombre_y_respeta_el_que_tien
 
 def test_el_seed_no_restaura_la_contrasena_que_un_usuario_demo_cambio(cliente_db, conexion):
     correr_seed(conexion)
-    email, vieja, nueva = "asistente@miseventos.local", "Demo-Test-2026", "Clave-Propia-77"
+    email, vieja, nueva = "asistente@miseventos.local", CLAVE_DEMO, secrets.token_urlsafe()
     primer_login = login(cliente_db, email, vieja)
     assert primer_login.status_code == 200
     token = primer_login.json()["access_token"]
@@ -274,3 +278,41 @@ def test_el_asistente_demo_ve_sus_inscripciones_en_el_perfil(cliente_db, conexio
     assert activas.status_code == canceladas.status_code == 200
     assert activas.json()["total"] == 2
     assert canceladas.json()["total"] == 1
+
+
+def test_el_seed_deja_dos_reservas_del_asistente_y_una_sesion_con_un_solo_lugar(
+    cliente_db, conexion
+):
+    correr_seed(conexion)
+    consulta = text(
+        "SELECT user_id, session_id, status FROM session_registrations ORDER BY 1, 2, 3"
+    )
+    primera = conexion.execute(consulta).all()
+
+    correr_seed(conexion)
+
+    assert conexion.execute(consulta).all() == primera
+    (id_evento,) = conexion.execute(
+        text(
+            "SELECT e.id FROM events e JOIN users u ON u.id = e.organizer_id"
+            " WHERE e.name = :nombre AND lower(u.email) = 'organizador@miseventos.local'"
+        ),
+        {"nombre": "Python Day Medellín"},
+    ).one()
+    email = "asistente@miseventos.local"
+    token = login(cliente_db, email, CONTRASENAS[email]).json()["access_token"]
+    headers = {"Authorization": f"Bearer {token}"}
+
+    sesiones = cliente_db.get(f"/events/{id_evento}/sessions", headers=headers).json()
+    perfil = cliente_db.get("/me/registrations", headers=headers).json()
+
+    reservadas = [s for s in sesiones if s["is_reserved"]]
+    assert len(reservadas) == 2
+    a, b = reservadas
+    assert a["end_at"] <= b["start_at"] or b["end_at"] <= a["start_at"], "no se cruzan"
+    casi_llenas = [s for s in sesiones if s["available_spots"] == 1]
+    assert len(casi_llenas) == 1
+    assert casi_llenas[0]["is_reserved"] is False
+    [del_python_day] = [i for i in perfil["items"] if i["event_id"] == str(id_evento)]
+    assert [s["id"] for s in del_python_day["reserved_sessions"]] == [s["id"] for s in reservadas]
+    assert len(usuarios_demo(conexion)) == 3

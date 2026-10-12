@@ -19,22 +19,26 @@ from sqlmodel import Session
 from app.core.config import Settings
 from app.core.contrasenas import hashear
 from app.core.db import crear_fabrica_de_sesiones, sesion_transaccional
-from app.core.excepciones import Conflict, DatosInvalidos, DomainError
+from app.core.excepciones import Conflict, DatosInvalidos, DomainError, NotFound
 from app.core.permisos import Rol
 from app.models.evento import EstadoEvento, Event
 from app.models.inscripcion import EstadoInscripcion, Registration
 from app.models.ponente import Speaker
+from app.models.reserva import SessionRegistration
 from app.models.usuario import User
 from app.repositories.eventos import RepositorioEventos
 from app.repositories.inscripciones import RepositorioInscripciones
 from app.repositories.ponentes import RepositorioPonentes
+from app.repositories.reservas import RepositorioReservas
 from app.repositories.sesiones import RepositorioSesiones
 from app.repositories.usuarios import RepositorioUsuarios
 from app.schemas.sesiones import SesionEntrada
+from app.services import reservas as servicio_reservas
 from app.services import sesiones as servicio_sesiones
 from app.services.autenticacion import Usuarios
 from app.services.eventos import Eventos
 from app.services.ponentes import Ponentes
+from app.services.reservas import InscripcionesParaReservar, Reservas
 from app.services.sesiones import Sesiones
 
 ORGANIZADOR_DEMO = "organizador@miseventos.local"
@@ -238,7 +242,11 @@ PONENTES_DEMO = [
     PonenteDemo("Diego Martínez", DIEGO, "Docente de programación y autor de cursos de APIs."),
 ]
 
-# Python Day Medellín: dos sesiones paralelas en salas distintas y una con dos ponentes.
+PYTHON_DAY = "Python Day Medellín"
+TALLER_DE_APIS = "Tu primera API con FastAPI"
+
+# Python Day Medellín: dos sesiones paralelas en salas distintas, una con dos ponentes y un taller
+# chico, que las reservas demo dejan con un solo lugar.
 # Ana Pérez también habla en PyCon Bogotá, otro día: un ponente en dos eventos, sin cruces.
 SESIONES_DEMO = [
     SesionDemo(
@@ -270,6 +278,16 @@ SESIONES_DEMO = [
         timedelta(minutes=90),
         None,
         (LAURA, DIEGO),
+    ),
+    SesionDemo(
+        "Python Day Medellín",
+        TALLER_DE_APIS,
+        "Taller práctico en grupo chico: se programa en parejas desde el primer minuto.",
+        "Sala C",
+        timedelta(hours=5),
+        timedelta(hours=1),
+        3,
+        (DIEGO,),
     ),
     SesionDemo(
         "PyCon Bogotá",
@@ -360,7 +378,8 @@ INSCRIPCIONES_DEL_ASISTENTE = [
     ("Jornada de seguridad web", EstadoInscripcion.CANCELLED),
 ]
 
-# Asistentes que solo existen para ocupar el casi lleno: dos, sobre una capacidad de tres.
+# Asistentes que solo existen para ocupar lugares: dos en el casi lleno, sobre una capacidad de
+# tres, y dos en el taller de Python Day, también de tres (para eso se inscriben a ese evento).
 INSCRITOS_DEMO = [
     ("Camila Torres", "camila.torres@asistentes.example"),
     ("Julián Herrera", "julian.herrera@asistentes.example"),
@@ -397,7 +416,11 @@ def sembrar_inscripciones(
     if asistente is None:
         raise RuntimeError(f"Falta el usuario {ASISTENTE_DEMO}, el asistente de la demo")
     pendientes = [(asistente, evento, estado) for evento, estado in INSCRIPCIONES_DEL_ASISTENTE]
-    pendientes += [(u, CASI_LLENO, EstadoInscripcion.ACTIVE) for u in _inscritos_demo(usuarios)]
+    for relleno in _inscritos_demo(usuarios):
+        pendientes += [
+            (relleno, CASI_LLENO, EstadoInscripcion.ACTIVE),
+            (relleno, PYTHON_DAY, EstadoInscripcion.ACTIVE),
+        ]
     for usuario, nombre_evento, estado in pendientes:
         evento = eventos.por_nombre_y_organizador(nombre_evento, organizador.id)
         if evento is None or inscripciones.alguna_de(usuario.id, evento.id) is not None:
@@ -415,6 +438,55 @@ def sembrar_inscripciones(
         )
 
 
+class ReservasDemo(Reservas, Protocol):
+    def alguna_de(self, id_usuario: UUID, id_sesion: UUID) -> SessionRegistration | None: ...
+
+
+# Las del asistente demo, en Python Day: dos sesiones que no se cruzan. La paralela a la primera
+# ("Pandas para análisis de datos") queda libre para mostrar el bloqueo por cruce, y el taller,
+# con su último lugar, para que lo tome.
+RESERVAS_DEL_ASISTENTE = ["Testing en Python", "Seguridad en APIs con FastAPI"]
+
+
+def sembrar_reservas(
+    usuarios: Usuarios,
+    eventos: EventosConSesiones,
+    sesiones: Sesiones,
+    inscripciones: InscripcionesParaReservar,
+    reservas: ReservasDemo,
+) -> None:
+    """Crea las reservas demo que falten en Python Day: las dos del asistente demo y las de los
+    inscritos de relleno en el taller, que lo dejan con un solo lugar. Si la persona ya tiene una
+    reserva en esa sesión, activa o cancelada, no se toca: no se reactiva lo que alguien canceló.
+    Van por el servicio, con sus reglas y sus bloqueos; una que no entra (sin inscripción, sin
+    lugar, con un cruce) se saltea con un aviso y la demo sigue."""
+    organizador = _organizador(usuarios)
+    evento = eventos.por_nombre_y_organizador(PYTHON_DAY, organizador.id)
+    if evento is None:
+        return
+    asistente = usuarios.por_email(ASISTENTE_DEMO)
+    if asistente is None:
+        raise RuntimeError(f"Falta el usuario {ASISTENTE_DEMO}, el asistente de la demo")
+    pendientes = [(asistente, titulo) for titulo in RESERVAS_DEL_ASISTENTE]
+    pendientes += [(relleno, TALLER_DE_APIS) for relleno in _inscritos_demo(usuarios)]
+    por_titulo = {s.title: s for s in eventos.sesiones_de(evento.id)}
+    for usuario, titulo in pendientes:
+        sesion = por_titulo.get(titulo)
+        if sesion is None or reservas.alguna_de(usuario.id, sesion.id) is not None:
+            continue
+        try:
+            servicio_reservas.reservar(
+                eventos, sesiones, inscripciones, reservas, usuario, sesion.id
+            )
+        except (Conflict, NotFound) as error:
+            logger.warning(
+                "seed: no se creó una reserva en la sesión «%s» del evento «%s»: %s",
+                titulo,
+                PYTHON_DAY,
+                _motivo(error),
+            )
+
+
 def _motivo(error: DomainError) -> str:
     """El porqué legible: el detalle, o el mensaje de cada campo si fue un dato rechazado."""
     if error.errores:
@@ -426,16 +498,20 @@ def sembrar(session: Session, credenciales: CredencialesDemo) -> None:
     """Crea lo que falte de los datos de demostración, en la transacción recibida.
 
     Cada parte es idempotente. El orden importa: el organizador demo es dueño de los eventos y
-    de los ponentes, las sesiones cuelgan de los dos y las inscripciones, de los eventos.
+    de los ponentes, las sesiones cuelgan de los dos, las inscripciones de los eventos y las
+    reservas, de las sesiones y de las inscripciones.
     """
     usuarios = RepositorioUsuarios(session)
     eventos = RepositorioEventos(session)
     ponentes = RepositorioPonentes(session)
+    sesiones = RepositorioSesiones(session)
+    inscripciones = RepositorioInscripciones(session)
     sembrar_usuarios(usuarios, credenciales)
     sembrar_eventos(usuarios, eventos)
     sembrar_ponentes(usuarios, ponentes)
-    sembrar_sesiones(usuarios, eventos, RepositorioSesiones(session), ponentes)
-    sembrar_inscripciones(usuarios, eventos, RepositorioInscripciones(session))
+    sembrar_sesiones(usuarios, eventos, sesiones, ponentes)
+    sembrar_inscripciones(usuarios, eventos, inscripciones)
+    sembrar_reservas(usuarios, eventos, sesiones, inscripciones, RepositorioReservas(session))
 
 
 def main(argv: Sequence[str] | None = None) -> None:

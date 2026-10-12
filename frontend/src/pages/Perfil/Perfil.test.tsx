@@ -1,4 +1,4 @@
-import { screen, waitFor } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { setupServer } from "msw/node";
@@ -68,15 +68,6 @@ test("si el logout falla por red, igual vacía la sesión", async () => {
   expect(useSession.getState().accessToken).toBeNull();
 });
 
-test("el aviso de contraseña cambiada se muestra una vez: se limpia el state", async () => {
-  montar({ pathname: "/perfil", state: { aviso: "Tu contraseña se cambió" } }, [
-    ["/perfil", <Perfil />],
-  ]);
-
-  expect(screen.getByText("Tu contraseña se cambió")).toBeInTheDocument();
-  await waitFor(() => expect(screen.getByLabelText("estado")).toHaveTextContent("null"));
-});
-
 type Pagina = Parameters<typeof responder<"/me/registrations", "get", 200>>[3];
 type Inscripcion = Pagina["items"][number];
 
@@ -95,6 +86,7 @@ const inscripcion = (nombre: string, extra: Partial<Inscripcion["event"]> = {}):
     is_finished: false,
     ...extra,
   },
+  reserved_sessions: [],
 });
 
 const pagina = (items: Inscripcion[], extra: Partial<Pagina> = {}): Pagina => ({
@@ -135,6 +127,72 @@ describe("Mis inscripciones", () => {
     expect(pedidos[0].get("when")).toBe("upcoming");
   });
 
+  describe("sesiones reservadas", () => {
+    const reservada = (extra: Partial<Inscripcion["reserved_sessions"][number]> = {}) => ({
+      id: "s-1",
+      title: "Testing en Python",
+      start_at: "2026-10-11T15:00:00Z",
+      end_at: "2026-10-11T16:00:00Z",
+      room: "Sala C",
+      ...extra,
+    });
+
+    test("lista debajo de la inscripción próxima cada sesión con horario de Bogotá y sala, en el orden recibido", async () => {
+      servirInscripciones([
+        {
+          ...inscripcion("PyCon Bogotá"),
+          reserved_sessions: [
+            reservada({
+              id: "s-2",
+              title: "Apertura",
+              start_at: "2026-10-11T13:00:00Z",
+              end_at: "2026-10-11T14:00:00Z",
+              room: "Sala A",
+            }),
+            reservada(),
+            reservada({ id: "s-3", title: "Cierre", room: null }),
+          ],
+        },
+      ]);
+      montarPerfil();
+
+      const lista = await screen.findByRole("list", {
+        name: "Sesiones reservadas en PyCon Bogotá",
+      });
+      const items = within(lista).getAllByRole("listitem");
+      expect(items).toHaveLength(3);
+      expect(items[0]).toHaveTextContent("Apertura");
+      expect(items[0]).toHaveTextContent("08:00 a 09:00");
+      expect(items[0]).toHaveTextContent("Sala A");
+      expect(items[1]).toHaveTextContent("Testing en Python");
+      expect(items[1]).toHaveTextContent("10:00 a 11:00");
+      expect(items[1]).toHaveTextContent("Sala C");
+      expect(items[2]).toHaveTextContent("Cierre");
+      expect(items[2]).toHaveTextContent("Sin sala");
+    });
+
+    test("sin reservas no muestra la lista", async () => {
+      servirInscripciones([inscripcion("PyCon Bogotá")]);
+      montarPerfil();
+
+      expect(await screen.findByRole("link", { name: "PyCon Bogotá" })).toBeInTheDocument();
+      expect(screen.queryByRole("list")).not.toBeInTheDocument();
+    });
+
+    test("las inscripciones pasadas no listan sesiones", async () => {
+      servirInscripciones([
+        { ...inscripcion("Evento viejo", { is_finished: true }), reserved_sessions: [reservada()] },
+      ]);
+      const user = userEvent.setup();
+      montarPerfil();
+
+      await user.click(screen.getByRole("tab", { name: "Pasados" }));
+
+      expect(await screen.findByRole("link", { name: "Evento viejo" })).toBeInTheDocument();
+      expect(screen.queryByRole("list")).not.toBeInTheDocument();
+    });
+  });
+
   test("muestra el spinner mientras carga", () => {
     montarPerfil();
 
@@ -171,16 +229,17 @@ describe("Mis inscripciones", () => {
   });
 
   test.each([
-    ["Próximos", "No tenés inscripciones próximas"],
-    ["Pasados", "No tenés inscripciones pasadas"],
-    ["Cancelados", "No tenés inscripciones canceladas"],
-  ])("la pestaña %s vacía muestra su mensaje", async (pestana, mensaje) => {
+    ["Próximos", "Todavía no tenés inscripciones"],
+    ["Pasados", "Todavía no tenés inscripciones pasadas"],
+    ["Cancelados", "Todavía no tenés inscripciones canceladas"],
+  ])("la pestaña %s vacía explica qué va ahí y ofrece Ver eventos", async (pestana, mensaje) => {
     const user = userEvent.setup();
     montarPerfil();
 
     await user.click(screen.getByRole("tab", { name: pestana }));
 
     expect(await screen.findByText(mensaje)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Ver eventos" })).toHaveAttribute("href", "/");
   });
 
   test("un evento cancelado por el organizador se ve con la insignia Evento cancelado", async () => {

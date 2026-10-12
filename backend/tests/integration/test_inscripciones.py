@@ -453,6 +453,7 @@ def test_las_estadisticas_y_la_lista_de_inscritos_reflejan_la_base(
         "capacity": 3,
         "available_spots": 2,
         "occupancy_pct": 33.3,
+        "sessions": [],
     }
     assert lista.status_code == 200, lista.text
     assert lista.json()["total"] == 2

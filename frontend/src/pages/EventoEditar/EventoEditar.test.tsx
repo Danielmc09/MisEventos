@@ -54,6 +54,7 @@ describe("edición", () => {
     await user.click(screen.getByRole("button", { name: "Guardar cambios" }));
 
     expect(await screen.findByText("Detalle del evento")).toBeInTheDocument();
+    expect(screen.getByText("Guardaste los cambios")).toBeInTheDocument();
     expect(cuerpo).toEqual({ capacity: 150 });
   });
 

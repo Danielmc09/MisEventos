@@ -15,6 +15,7 @@ from app.core.excepciones import (
     TransicionInvalida,
 )
 from app.core.permisos import Permiso, tiene_permiso
+from app.core.textos import plural
 from app.models.evento import EstadoEvento, Event
 from app.models.sesion import Session as Sesion
 from app.models.usuario import User
@@ -28,6 +29,7 @@ class Eventos(Protocol):
     def sesiones_de(self, id_evento: UUID) -> list[Sesion]: ...
     def inscritos(self, ids_evento: list[UUID]) -> dict[UUID, int]: ...
     def inscrito(self, id_usuario: UUID, id_evento: UUID) -> bool: ...
+    def max_reservas_sin_capacidad(self, id_evento: UUID) -> int: ...
     def guardar(self, evento: Event) -> Event: ...
     def eliminar(self, evento: Event) -> None: ...
     def buscar(
@@ -183,13 +185,9 @@ def _exigir_sesiones_adentro(repo: Eventos, evento: Event, inicio: datetime, fin
     nadie agrega una sesión mientras tanto."""
     afuera = sum(1 for s in repo.sesiones_de(evento.id) if s.start_at < inicio or s.end_at > fin)
     if afuera:
-        detalle = (
-            "1 sesión queda fuera de las fechas nuevas"
-            if afuera == 1
-            else f"{afuera} sesiones quedan fuera de las fechas nuevas"
-        )
+        quedan = "queda" if afuera == 1 else "quedan"
         raise Conflict(
-            detalle,
+            f"{plural(afuera, 'sesión', 'sesiones')} {quedan} fuera de las fechas nuevas",
             tipo="sessions-outside-range",
             titulo="Las fechas nuevas dejan sesiones fuera del evento",
         )
@@ -202,21 +200,34 @@ def _exigir_sesiones_que_entren(repo: Eventos, evento: Event, capacidad: int) ->
         1 for s in repo.sesiones_de(evento.id) if s.capacity is not None and s.capacity > capacidad
     )
     if encima:
-        detalle = (
-            "1 sesión tiene más capacidad que la nueva"
-            if encima == 1
-            else f"{encima} sesiones tienen más capacidad que la nueva"
-        )
+        tienen = "tiene" if encima == 1 else "tienen"
         raise Conflict(
-            detalle,
+            f"{plural(encima, 'sesión', 'sesiones')} {tienen} más capacidad que la nueva",
             tipo="sessions-capacity-above",
             titulo="La capacidad nueva deja sesiones por encima de la del evento",
         )
 
 
+def _exigir_reservas_que_entren(repo: Eventos, evento: Event, capacidad: int) -> None:
+    """Una sesión sin capacidad propia usa la del evento: la nueva no puede dejarla por debajo
+    de sus reservas activas. El evento ya está bloqueado, así que nadie reserva mientras."""
+    reservadas = repo.max_reservas_sin_capacidad(evento.id)
+    if capacidad < reservadas:
+        raise Conflict(
+            "Una sesión sin capacidad propia tiene"
+            f" {plural(reservadas, 'reserva activa', 'reservas activas')}"
+            f" y la capacidad nueva es {capacidad}.",
+            tipo="capacity-below-reservations",
+            titulo="La capacidad no puede quedar por debajo de las reservas",
+        )
+
+
 def editar(repo: Eventos, usuario: User, id_evento: UUID, datos: EventoEdicion) -> ConInscritos:
-    """Las dos reglas de capacidad corren con el evento bloqueado: primero los inscritos, que
-    son personas con lugar tomado; después las sesiones, que se pueden achicar antes."""
+    """Las reglas de capacidad corren con el evento bloqueado. Primero las reservas de las
+    sesiones: toda reserva activa cuelga de una inscripción activa, así que quedar por debajo
+    de las reservas es también quedar por debajo de los inscritos, y si los inscritos fueran
+    primero ese error no saldría nunca. Después los inscritos, que son personas con lugar
+    tomado, y al final las sesiones, que se pueden achicar antes."""
     evento = para_escribir(repo, usuario, id_evento)
     if evento.status == EstadoEvento.CANCELLED or finalizado(evento):
         raise Conflict(titulo="Un evento cancelado o finalizado no se edita")
@@ -234,9 +245,11 @@ def editar(repo: Eventos, usuario: User, id_evento: UUID, datos: EventoEdicion) 
         )
     activas = repo.inscritos([evento.id])[evento.id]
     if "capacity" in cambios:
+        _exigir_reservas_que_entren(repo, evento, cambios["capacity"])
         if cambios["capacity"] < activas:
             raise Conflict(
-                f"El evento ya tiene {activas} inscripciones activas.",
+                "El evento ya tiene"
+                f" {plural(activas, 'inscripción activa', 'inscripciones activas')}.",
                 tipo="capacity-below-registrations",
                 titulo="La capacidad no puede quedar por debajo de los inscritos",
             )

@@ -1,3 +1,5 @@
+import secrets
+
 import pytest
 from sqlalchemy import text
 from sqlmodel import Session
@@ -22,9 +24,10 @@ def fila(conexion, email: str):
 
 
 def test_un_email_nuevo_crea_un_attendee_activo_con_hash_argon2id(cliente_db, conexion):
+    contrasena = secrets.token_urlsafe()
     respuesta = cliente_db.post(
         "/auth/register",
-        json={"email": "ana@mail.com", "password": "Clave-Segura-1", "full_name": "Ana"},
+        json={"email": "ana@mail.com", "password": contrasena, "full_name": "Ana"},
     )
 
     assert respuesta.status_code == 201
@@ -37,16 +40,18 @@ def test_un_email_nuevo_crea_un_attendee_activo_con_hash_argon2id(cliente_db, co
 
 
 def test_un_email_existente_responde_igual_y_no_cambia_al_usuario(cliente_db, conexion):
+    contrasena = secrets.token_urlsafe()
+    otra_contrasena = secrets.token_urlsafe()
     nuevo = cliente_db.post(
         "/auth/register",
-        json={"email": "ana@mail.com", "password": "Clave-Segura-1", "full_name": "Ana"},
+        json={"email": "ana@mail.com", "password": contrasena, "full_name": "Ana"},
     )
     antes = fila(conexion, "ana@mail.com")
     assert len(antes) == 1
 
     existente = cliente_db.post(
         "/auth/register",
-        json={"email": "Ana@Mail.com ", "password": "Otra-Clave-2", "full_name": "Impostora"},
+        json={"email": "Ana@Mail.com ", "password": otra_contrasena, "full_name": "Impostora"},
     )
 
     assert nuevo.status_code == existente.status_code == 201

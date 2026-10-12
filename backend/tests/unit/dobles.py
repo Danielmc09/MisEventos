@@ -6,6 +6,7 @@ from uuid import UUID
 from app.models.evento import EstadoEvento, Event
 from app.models.inscripcion import EstadoInscripcion, Registration
 from app.models.ponente import Speaker
+from app.models.reserva import EstadoReserva, SessionRegistration
 from app.models.sesion import Session as Sesion
 from app.models.usuario import User
 
@@ -38,10 +39,14 @@ class RepositorioEventosFalso:
         self.busquedas: list[dict] = []
         self.sesiones: dict[UUID, Sesion] = {}
         self.inscripciones: dict[UUID, Registration] = {}
+        # Las guarda el doble de reservas; acá se leen para contar las de cada sesión.
+        self.reservas: dict[UUID, SessionRegistration] = {}
         # Qué filas se bloquearon y en qué orden. Se puede compartir con otro doble.
         self.bloqueos: list[UUID] = []
         # Con qué ids se contó cada vez: el listado cuenta toda la página en una sola llamada.
         self.conteos: list[list[UUID]] = []
+        # Qué filas estaban bloqueadas cada vez que se contaron las reservas del evento.
+        self.bloqueos_al_contar_reservas: list[list[UUID]] = []
 
     def buscar(
         self, filtros, *, ver_todo: bool, borradores_de: UUID | None, offset: int, limite: int
@@ -87,6 +92,17 @@ class RepositorioEventosFalso:
             and i.event_id == id_evento
             and i.status == EstadoInscripcion.ACTIVE
             for i in self.inscripciones.values()
+        )
+
+    def max_reservas_sin_capacidad(self, id_evento: UUID) -> int:
+        """La mayor cantidad de reservas activas de una sesión del evento sin capacidad propia."""
+        self.bloqueos_al_contar_reservas.append(list(self.bloqueos))
+        sin_capacidad = {
+            s.id for s in self.sesiones.values() if s.event_id == id_evento and s.capacity is None
+        }
+        activas = [r for r in self.reservas.values() if r.status == EstadoReserva.ACTIVE]
+        return max(
+            (sum(1 for r in activas if r.session_id == id_) for id_ in sin_capacidad), default=0
         )
 
     def sesiones_de(self, id_evento: UUID) -> list[Sesion]:
@@ -283,6 +299,13 @@ class RepositorioInscripcionesFalso:
             None,
         )
 
+    def activa_para_escribir(self, id_usuario: UUID, id_evento: UUID) -> Registration | None:
+        """Como en la base: bloquea solo si la encuentra."""
+        activa = self.activa_de(id_usuario, id_evento)
+        if activa is not None:
+            self.eventos.bloqueos.append(activa.id)
+        return activa
+
     def crear(self, inscripcion: Registration) -> Registration:
         inscripcion.created_at = datetime.now(UTC)
         return self.guardar(inscripcion)
@@ -291,3 +314,98 @@ class RepositorioInscripcionesFalso:
         inscripcion.updated_at = datetime.now(UTC)
         self.eventos.inscripciones[inscripcion.id] = inscripcion
         return inscripcion
+
+
+class RepositorioReservasFalso:
+    """Guarda las reservas en el doble de eventos, que también las cuenta. A qué evento pertenece
+    cada una sale de sus sesiones."""
+
+    def __init__(self, eventos: RepositorioEventosFalso) -> None:
+        self.eventos = eventos
+        self.reservas = eventos.reservas
+        # Qué filas estaban bloqueadas cada vez que se contaron las reservas de una sesión.
+        self.bloqueos_al_contar: list[list[UUID]] = []
+        # Con qué se pidió cada consulta agregada: se pide una vez para toda la lista.
+        self.consultas_de_ocupacion: list[dict] = []
+        self.consultas_de_reservadas: list[dict] = []
+
+    def _activas(self) -> list[SessionRegistration]:
+        return [r for r in self.reservas.values() if r.status == EstadoReserva.ACTIVE]
+
+    def alguna_de(self, id_usuario: UUID, id_sesion: UUID) -> SessionRegistration | None:
+        """Cualquier reserva del usuario en la sesión, activa o cancelada."""
+        return next(
+            (
+                r
+                for r in self.reservas.values()
+                if r.user_id == id_usuario and r.session_id == id_sesion
+            ),
+            None,
+        )
+
+    def ocupacion(
+        self, ids_sesion: list[UUID], id_usuario: UUID | None
+    ) -> dict[UUID, tuple[int, bool]]:
+        """Por sesión: (reservas activas, si una de ellas es del usuario)."""
+        self.consultas_de_ocupacion.append(
+            {"ids_sesion": list(ids_sesion), "id_usuario": id_usuario}
+        )
+        activas = self._activas()
+        return {
+            id_: (
+                sum(1 for r in activas if r.session_id == id_),
+                any(r.session_id == id_ and r.user_id == id_usuario for r in activas),
+            )
+            for id_ in ids_sesion
+        }
+
+    def reservadas_por_evento(
+        self, id_usuario: UUID, ids_evento: list[UUID]
+    ) -> dict[UUID, list[Sesion]]:
+        """Por evento: las sesiones con reserva activa del usuario, por hora de inicio."""
+        self.consultas_de_reservadas.append(
+            {"id_usuario": id_usuario, "ids_evento": list(ids_evento)}
+        )
+        reservadas = {r.session_id for r in self._activas() if r.user_id == id_usuario}
+        return {
+            id_: [s for s in self.eventos.sesiones_de(id_) if s.id in reservadas]
+            for id_ in ids_evento
+        }
+
+    def activa_de(self, id_usuario: UUID, id_sesion: UUID) -> SessionRegistration | None:
+        return next(
+            (r for r in self._activas() if r.user_id == id_usuario and r.session_id == id_sesion),
+            None,
+        )
+
+    def activas_en(self, id_sesion: UUID) -> int:
+        self.bloqueos_al_contar.append(list(self.eventos.bloqueos))
+        return sum(1 for r in self._activas() if r.session_id == id_sesion)
+
+    def cruces(
+        self, id_usuario: UUID, id_evento: UUID, inicio: datetime, fin: datetime
+    ) -> list[Sesion]:
+        """Las sesiones del evento con reserva activa del usuario que se cruzan con
+        `[inicio, fin)`, por hora de inicio."""
+        reservadas = {r.session_id for r in self._activas() if r.user_id == id_usuario}
+        return [
+            s
+            for s in self.eventos.sesiones_de(id_evento)
+            if s.id in reservadas and s.start_at < fin and inicio < s.end_at
+        ]
+
+    def cancelar_del_evento(self, id_usuario: UUID, id_evento: UUID, cuando: datetime) -> None:
+        del_evento = {s.id for s in self.eventos.sesiones_de(id_evento)}
+        for reserva in self._activas():
+            if reserva.user_id == id_usuario and reserva.session_id in del_evento:
+                reserva.status = EstadoReserva.CANCELLED
+                reserva.cancelled_at = cuando
+
+    def crear(self, reserva: SessionRegistration) -> SessionRegistration:
+        reserva.created_at = datetime.now(UTC)
+        return self.guardar(reserva)
+
+    def guardar(self, reserva: SessionRegistration) -> SessionRegistration:
+        reserva.updated_at = datetime.now(UTC)
+        self.reservas[reserva.id] = reserva
+        return reserva

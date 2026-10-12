@@ -1,4 +1,4 @@
-import { screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { delay, http } from "msw";
 import { setupServer } from "msw/node";
@@ -18,9 +18,11 @@ const montarRegistro = (ruta = "/registro") =>
     ["/login", <Login />],
   ]);
 
+const clave = crypto.randomUUID();
+
 async function completar(user: ReturnType<typeof userEvent.setup>) {
   await user.type(screen.getByLabelText("Correo electrónico"), "ana@mail.com");
-  await user.type(screen.getByLabelText("Contraseña"), "clave de prueba");
+  await user.type(screen.getByLabelText("Contraseña"), clave);
   await user.type(screen.getByLabelText("Nombre (opcional)"), "Ana");
 }
 
@@ -113,7 +115,7 @@ test("al registrarse muestra el mensaje del backend y lleva a /login conservando
     screen.getByText("Si el correo es válido, te enviamos las instrucciones"),
   ).toBeInTheDocument();
   expect(screen.getByLabelText("ubicación")).toHaveTextContent("/login?next=%2Feventos%2Fabc");
-  expect(cuerpo).toEqual({ email: "ana@mail.com", password: "clave de prueba", full_name: "Ana" });
+  expect(cuerpo).toEqual({ email: "ana@mail.com", password: clave, full_name: "Ana" });
 });
 
 test("el enlace a iniciar sesión conserva next", () => {
@@ -151,4 +153,46 @@ test("al registrarse con un next hostil, va a /login sin next", async () => {
 
   await screen.findByRole("heading", { name: "Iniciar sesión" });
   expect(screen.getByLabelText("ubicación")).toHaveTextContent(/^\/login$/);
+});
+
+test("el error general queda en el formulario pasados los 4 s y se borra al reenviar con éxito", async () => {
+  server.use(
+    http.post(`${API}/auth/register`, () =>
+      responder("/auth/register", "post", 422, {
+        type: "validation-error",
+        title: "Los datos enviados no son válidos",
+        status: 422,
+        trace_id: "t-1",
+      }),
+    ),
+  );
+  const user = userEvent.setup();
+  montarRegistro();
+  await completar(user);
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+  try {
+    fireEvent.click(screen.getByRole("button", { name: /crear cuenta/i }));
+    await act(async () => {
+      for (let i = 0; i < 50 && !screen.queryByRole("alert"); i++)
+        await new Promise((r) => setImmediate(r));
+    });
+    expect(screen.getByRole("alert")).toHaveTextContent("Los datos enviados no son válidos");
+    act(() => vi.advanceTimersByTime(5000));
+
+    const alerta = screen.getByRole("alert");
+    expect(alerta).toHaveTextContent("Los datos enviados no son válidos");
+    expect(alerta.closest("form")).not.toBeNull();
+  } finally {
+    vi.useRealTimers();
+  }
+
+  server.use(
+    http.post(`${API}/auth/register`, () =>
+      responder("/auth/register", "post", 201, { message: "Listo" }),
+    ),
+  );
+  await user.click(screen.getByRole("button", { name: /crear cuenta/i }));
+
+  await screen.findByRole("heading", { name: "Iniciar sesión" });
+  expect(screen.queryByText("Los datos enviados no son válidos")).not.toBeInTheDocument();
 });

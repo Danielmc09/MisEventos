@@ -1,15 +1,17 @@
 import { useState } from "react";
 import { api } from "../api/client";
-import { ApiError } from "../api/errors";
+import { ApiError, type SesionEnConflicto } from "../api/errors";
 import { diaBogota, etiquetaDia, horaBogota } from "../lib/fechas";
-import type { Sesion } from "../lib/useSesiones";
+import type { Sesion, SesionGuardada } from "../lib/useSesiones";
 import type { Evento } from "../stores/eventos";
+import { ControlReserva } from "./ControlReserva";
 import { FormularioSesion } from "./FormularioSesion";
+import { AlertaError } from "./ui/AlertaError";
+import { useAvisos } from "./ui/Avisos";
 import { Button } from "./ui/Button";
 import { DialogoConfirmacion } from "./ui/DialogoConfirmacion";
 import { Modal } from "./ui/Modal";
 import { Spinner } from "./ui/Spinner";
-import { Toast, type ToastProps } from "./ui/Toast";
 
 interface Props {
   cargando: boolean;
@@ -19,10 +21,28 @@ interface Props {
   /** El dueño del evento o el admin, y el evento todavía admite cambios. */
   puede: boolean;
   /** Se llama con la sesión que el servidor creó o actualizó. */
-  onGuardada: (sesion: Sesion) => void;
+  onGuardada: (sesion: SesionGuardada) => void;
   /** Se llama cuando el servidor confirmó el borrado. */
   onEliminada: (id: string) => void;
+  /** Hay una sesión iniciada y la persona está inscrita al evento. */
+  inscrito: boolean;
+  eventoPublicado: boolean;
+  /** Se llama cuando el servidor confirmó que la reserva se hizo (`true`) o se canceló (`false`). */
+  onReserva: (id: string, reservada: boolean) => void;
+  /** Vuelve a pedir las sesiones: el servidor tiene otro estado del que se mostraba. */
+  onRefrescar: () => void;
 }
+
+interface ErrorReserva {
+  id: string;
+  title: string;
+  detalle?: string;
+}
+
+const lineaDeConflicto = (c: SesionEnConflicto) =>
+  `Ya reservaste «${c.title}», ${horaBogota(c.start_at)} a ${horaBogota(c.end_at)}${
+    c.room ? `, ${c.room}` : ""
+  }`;
 
 function agruparPorDia(sesiones: Sesion[]) {
   const ordenadas = [...sesiones].sort((a, b) => a.start_at.localeCompare(b.start_at));
@@ -45,24 +65,56 @@ export function SeccionSesiones({
   puede,
   onGuardada,
   onEliminada,
+  inscrito,
+  eventoPublicado,
+  onReserva,
+  onRefrescar,
 }: Props) {
   const [formulario, setFormulario] = useState<Formulario>(null);
   const [pendiente, setPendiente] = useState<Sesion | null>(null);
   const [trabajando, setTrabajando] = useState(false);
-  const [aviso, setAviso] = useState<Pick<ToastProps, "message" | "tone"> | null>(null);
+  const [reservando, setReservando] = useState<string | null>(null);
+  const [errorReserva, setErrorReserva] = useState<ErrorReserva | null>(null);
+  const avisar = useAvisos();
 
   async function eliminar(sesion: Sesion) {
     setTrabajando(true);
     try {
       await api<void>(`/sessions/${sesion.id}`, { method: "DELETE" });
       onEliminada(sesion.id);
-      setAviso({ message: "Sesión eliminada", tone: "exito" });
+      avisar({ message: "Eliminaste la sesión", tone: "exito" });
     } catch (e) {
       const title = e instanceof ApiError ? e.title : "Ocurrió un error inesperado";
-      setAviso({ message: title, tone: "error" });
+      avisar({ message: title, tone: "error" });
     } finally {
       setTrabajando(false);
       setPendiente(null);
+    }
+  }
+
+  async function cambiarReserva(sesion: Sesion, reservar: boolean) {
+    setReservando(sesion.id);
+    setErrorReserva(null);
+    try {
+      if (reservar) await api(`/sessions/${sesion.id}/reservations`, { method: "POST" });
+      else await api<void>(`/sessions/${sesion.id}/reservations/me`, { method: "DELETE" });
+      onReserva(sesion.id, reservar);
+      avisar({
+        message: reservar ? `Reservaste «${sesion.title}»` : "Cancelaste tu reserva",
+        tone: "exito",
+      });
+    } catch (e) {
+      const error = e instanceof ApiError ? e : null;
+      const choque = error?.type === "session-conflict";
+      setErrorReserva({
+        id: sesion.id,
+        title: error?.title ?? "Ocurrió un error inesperado",
+        detalle: choque ? error.conflicts.map(lineaDeConflicto).join(". ") : undefined,
+      });
+      // Un choque de horario no cambia lo que se ve; cualquier otro 409 sí.
+      if (error?.status === 409 && !choque) onRefrescar();
+    } finally {
+      setReservando(null);
     }
   }
 
@@ -83,11 +135,7 @@ export function SeccionSesiones({
           <Spinner />
         </div>
       )}
-      {error && (
-        <p role="alert" className="text-red-700">
-          {error.title}
-        </p>
-      )}
+      {error && <AlertaError title={error.title} />}
       {sesiones?.length === 0 && (
         <p className="text-gray-600">Este evento todavía no tiene sesiones</p>
       )}
@@ -106,6 +154,17 @@ export function SeccionSesiones({
                   {s.capacity !== null && <p className="text-gray-600">Capacidad: {s.capacity}</p>}
                   {s.speakers.length > 0 && (
                     <p className="text-gray-600">{s.speakers.map((p) => p.full_name).join(", ")}</p>
+                  )}
+                  <ControlReserva
+                    sesion={s}
+                    inscrito={inscrito}
+                    eventoPublicado={eventoPublicado}
+                    trabajando={reservando === s.id}
+                    onReservar={() => cambiarReserva(s, true)}
+                    onCancelar={() => cambiarReserva(s, false)}
+                  />
+                  {errorReserva?.id === s.id && (
+                    <AlertaError title={errorReserva.title} detail={errorReserva.detalle} />
                   )}
                   {puede && (
                     <div className="mt-2 flex flex-wrap gap-3">
@@ -142,8 +201,8 @@ export function SeccionSesiones({
             sesion={formulario === "nueva" ? undefined : formulario}
             onGuardada={(guardada) => {
               onGuardada(guardada);
-              setAviso({
-                message: formulario === "nueva" ? "Sesión creada" : "Sesión actualizada",
+              avisar({
+                message: formulario === "nueva" ? "Creaste la sesión" : "Actualizaste la sesión",
                 tone: "exito",
               });
               setFormulario(null);
@@ -161,11 +220,6 @@ export function SeccionSesiones({
           onConfirmar={() => eliminar(pendiente)}
           onVolver={() => setPendiente(null)}
         />
-      )}
-      {aviso && (
-        <div className="fixed right-4 bottom-4 z-20">
-          <Toast {...aviso} onClose={() => setAviso(null)} />
-        </div>
       )}
     </section>
   );

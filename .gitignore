@@ -27,6 +27,7 @@ dist/
 # ── Cobertura ───────────────────────────────────────
 .coverage
 .coverage.*
+.coverage *
 coverage.xml
 htmlcov/
 coverage/

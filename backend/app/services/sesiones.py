@@ -2,12 +2,14 @@
 
 Lanza excepciones de dominio; no sabe nada de HTTP."""
 
+from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Protocol
 from uuid import UUID
 
 from app.core.excepciones import Conflict, DatosInvalidos, NotFound
 from app.core.horarios import se_cruzan
+from app.core.textos import plural
 from app.models.evento import EstadoEvento, Event
 from app.models.ponente import Speaker
 from app.models.sesion import Session as Sesion
@@ -34,14 +36,62 @@ class Sesiones(Protocol):
     def eliminar(self, sesion: Sesion) -> None: ...
 
 
+class OcupacionDeSesiones(Protocol):
+    def ocupacion(
+        self, ids_sesion: list[UUID], id_usuario: UUID | None
+    ) -> dict[UUID, tuple[int, bool]]: ...
+
+
+class ReservasDeSesion(Protocol):
+    def activas_en(self, id_sesion: UUID) -> int: ...
+
+
+def _efectiva(propia: int | None, evento: Event) -> int:
+    return propia if propia is not None else evento.capacity
+
+
+def capacidad_efectiva(sesion: Sesion, evento: Event) -> int:
+    """La capacidad propia de la sesión o, si no tiene, la del evento."""
+    return _efectiva(sesion.capacity, evento)
+
+
+@dataclass(frozen=True)
+class SesionDelListado:
+    sesion: Sesion
+    ponentes: list[Speaker]
+    reservadas: int
+    lugares: int
+    reservada: bool  # por quien pregunta; un anónimo no tiene reservas
+
+
 def listar(
-    eventos: Eventos, sesiones: Sesiones, usuario: User | None, id_evento: UUID
-) -> list[SesionConPonentes]:
-    """Las sesiones por hora de inicio. Si no puede ver el evento, NotFound."""
-    servicio_eventos.obtener(eventos, usuario, id_evento)
-    propias = eventos.sesiones_de(id_evento)
-    ponentes = sesiones.ponentes_de([s.id for s in propias])
-    return [(s, ponentes[s.id]) for s in propias]
+    eventos: Eventos,
+    sesiones: Sesiones,
+    reservas: OcupacionDeSesiones,
+    usuario: User | None,
+    id_evento: UUID,
+) -> list[SesionDelListado]:
+    """Las sesiones por hora de inicio, cada una con sus reservas activas y sus lugares libres.
+    Los ponentes y las reservas se piden una sola vez para todas. Si no puede ver el evento,
+    NotFound."""
+    evento = servicio_eventos.obtener(eventos, usuario, id_evento)
+    propias = eventos.sesiones_de(evento.id)
+    ids = [s.id for s in propias]
+    ponentes = sesiones.ponentes_de(ids)
+    ocupacion = reservas.ocupacion(ids, None if usuario is None else usuario.id)
+    listado = []
+    for sesion in propias:
+        reservadas, reservada = ocupacion[sesion.id]
+        listado.append(
+            SesionDelListado(
+                sesion=sesion,
+                ponentes=ponentes[sesion.id],
+                reservadas=reservadas,
+                lugares=capacidad_efectiva(sesion, evento) - reservadas,
+                reservada=reservada,
+            )
+        )
+    return listado
 
 
 def _bloquear_ponentes(ponentes: Ponentes, ids: list[UUID]) -> list[Speaker]:
@@ -167,10 +217,47 @@ def _para_escribir(
     return evento, sesion
 
 
+def _reservas_activas(cuantas: int) -> str:
+    return plural(cuantas, "reserva activa", "reservas activas")
+
+
+def _con_reservas(activas: int, que_no: str) -> Conflict:
+    return Conflict(
+        f"La sesión tiene {_reservas_activas(activas)}: {que_no}.",
+        tipo="session-has-reservations",
+        titulo="La sesión tiene reservas activas",
+    )
+
+
+def _exigir_reservas_que_entren(
+    reservas: ReservasDeSesion,
+    evento: Event,
+    sesion: Sesion,
+    cambios: dict,
+) -> None:
+    """Con reservas activas, la sesión no cambia de horario (habría que avisarle a quien reservó)
+    ni su capacidad efectiva baja de lo reservado. Mandar el mismo horario no es cambiarlo. Se
+    cuenta solo si hace falta, con el evento y la sesión ya bloqueados: nadie reserva mientras."""
+    horario = ("start_at", "end_at")
+    mueve = any(c in cambios and cambios[c] != getattr(sesion, c) for c in horario)
+    if not mueve and "capacity" not in cambios:
+        return
+    activas = reservas.activas_en(sesion.id)
+    if mueve and activas:
+        raise _con_reservas(activas, "su horario no se puede cambiar")
+    if "capacity" in cambios and _efectiva(cambios["capacity"], evento) < activas:
+        raise Conflict(
+            f"La sesión tiene {_reservas_activas(activas)}.",
+            tipo="capacity-below-reservations",
+            titulo="La capacidad no puede quedar por debajo de las reservas",
+        )
+
+
 def editar(
     eventos: Eventos,
     sesiones: Sesiones,
     ponentes: Ponentes,
+    reservas: ReservasDeSesion,
     usuario: User,
     id_sesion: UUID,
     datos: SesionEdicion,
@@ -182,6 +269,7 @@ def editar(
     if cambios.get("end_at", sesion.end_at) <= cambios.get("start_at", sesion.start_at):
         raise DatosInvalidos("end_at", "Tiene que ser posterior al inicio")
     _validar_capacidad(evento, cambios.get("capacity", sesion.capacity))
+    _exigir_reservas_que_entren(reservas, evento, sesion, cambios)
     actuales = [p.id for p in sesiones.ponentes_de([sesion.id])[sesion.id]]
     asignados = _bloquear_ponentes(ponentes, actuales if ids_nuevos is None else ids_nuevos)
     # Se valida antes de tocar la sesión: si algo choca, queda como estaba.
@@ -203,7 +291,18 @@ def editar(
     return guardada, sesiones.ponentes_de([guardada.id])[guardada.id]
 
 
-def eliminar(eventos: Eventos, sesiones: Sesiones, usuario: User, id_sesion: UUID) -> None:
+def eliminar(
+    eventos: Eventos,
+    sesiones: Sesiones,
+    reservas: ReservasDeSesion,
+    usuario: User,
+    id_sesion: UUID,
+) -> None:
+    """Con reservas activas no se elimina: se perdería quién tenía su lugar. Se cuentan con el
+    evento y la sesión ya bloqueados."""
     evento, sesion = _para_escribir(eventos, sesiones, usuario, id_sesion)
     _exigir_abierto(evento)
+    activas = reservas.activas_en(sesion.id)
+    if activas:
+        raise _con_reservas(activas, "no se puede eliminar")
     sesiones.eliminar(sesion)

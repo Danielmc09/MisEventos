@@ -8,6 +8,7 @@ import pytest
 from app.api.dependencias import (
     repositorio_eventos,
     repositorio_inscripciones,
+    repositorio_reservas,
     repositorio_usuarios,
 )
 from app.core.permisos import Rol
@@ -19,6 +20,7 @@ from app.services.inscripciones import porcentaje_de_ocupacion
 from tests.unit.dobles import (
     RepositorioEventosFalso,
     RepositorioInscripcionesFalso,
+    RepositorioReservasFalso,
     RepositorioUsuariosFalso,
 )
 
@@ -33,6 +35,7 @@ class Repos:
         self.usuarios = RepositorioUsuariosFalso(ASISTENTE, OTRO_ASISTENTE, ORGANIZADOR, ADMIN)
         self.eventos = RepositorioEventosFalso()
         self.inscripciones = RepositorioInscripcionesFalso(self.eventos, self.usuarios)
+        self.reservas = RepositorioReservasFalso(self.eventos)
 
     def evento(
         self, estado: EstadoEvento = EstadoEvento.PUBLISHED, *, empezado: bool = False, **cambios
@@ -69,6 +72,7 @@ def repos(app) -> Repos:
     app.dependency_overrides[repositorio_usuarios] = lambda: nuevos.usuarios
     app.dependency_overrides[repositorio_eventos] = lambda: nuevos.eventos
     app.dependency_overrides[repositorio_inscripciones] = lambda: nuevos.inscripciones
+    app.dependency_overrides[repositorio_reservas] = lambda: nuevos.reservas
     return nuevos
 
 
@@ -179,6 +183,20 @@ def test_un_evento_lleno_responde_capacity_full_con_la_capacidad_en_el_detalle(
     assert repos.de(ASISTENTE, evento) == []
 
 
+@pytest.mark.parametrize(
+    ("capacidad", "personas"), [(1, "1 persona"), (2, "2 personas")], ids=["una", "dos"]
+)
+def test_el_detalle_de_un_evento_lleno_habla_en_singular_con_una_persona(
+    cliente, repos, auth, capacidad, personas
+):
+    evento = repos.evento(capacity=capacidad)
+    lleno(repos, evento)
+
+    respuesta = inscribirse(cliente, evento, auth(ASISTENTE))
+
+    assert respuesta.json()["detail"] == f"El evento alcanzó su capacidad de {personas}."
+
+
 def test_las_canceladas_no_ocupan_cupo(cliente, repos, auth):
     evento = repos.evento(capacity=1)
     repos.inscribir(OTRO_ASISTENTE, evento, EstadoInscripcion.CANCELLED)
@@ -258,7 +276,8 @@ def test_cancelar_la_propia_responde_204_y_la_deja_cancelada_con_fecha(cliente, 
     assert inscripcion.status == EstadoInscripcion.CANCELLED
     assert inscripcion.cancelled_at is not None
     assert inscripcion.cancelled_at >= antes
-    assert repos.eventos.bloqueos == [evento.id]
+    # Primero el evento y después la inscripción: el orden de todo el sistema.
+    assert repos.eventos.bloqueos == [evento.id, inscripcion.id]
 
 
 def test_cancelar_libera_el_cupo(cliente, repos, auth):
@@ -627,6 +646,7 @@ def test_las_estadisticas_cuentan_activas_canceladas_cupos_y_ocupacion(cliente, 
         "capacity": 3,
         "available_spots": 2,
         "occupancy_pct": 33.3,
+        "sessions": [],
     }
 
 
