@@ -3,7 +3,12 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, status
 from fastapi.security import OAuth2PasswordRequestForm
 
-from app.api.dependencias import ConfigApp, RepoUsuarios, UsuarioActual
+from app.api.dependencias import (
+    ConfigApp,
+    RepoUsuarios,
+    UsuarioActual,
+    formulario_sin_caracter_nulo,
+)
 from app.api.errores import respuestas_de_error
 from app.schemas.auth import (
     CambioContrasenaEntrada,
@@ -37,6 +42,7 @@ def registrar(datos: RegistroEntrada, repo: RepoUsuarios) -> Mensaje:
     summary="Iniciar sesión",
     description="Formulario OAuth2: `username` es el email. Devuelve un access token (Bearer).",
     responses=respuestas_de_error(401, 422),
+    dependencies=[Depends(formulario_sin_caracter_nulo)],
 )
 def login(
     form: Annotated[OAuth2PasswordRequestForm, Depends()],
