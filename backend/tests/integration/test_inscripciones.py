@@ -1,9 +1,11 @@
 """Inscripciones contra PostgreSQL: inscribirse con sus reglas, cancelar y volver a inscribirse."""
 
+from collections.abc import Iterator
+from contextlib import contextmanager
 from uuid import uuid4
 
 import pytest
-from sqlalchemy import text
+from sqlalchemy import event, text
 
 from tests.integration.test_eventos import auth, cuerpo_valido, usuario_con_rol
 
@@ -264,3 +266,69 @@ def test_cancelar_un_evento_con_inscripciones_responde_200_y_las_conserva_activa
     assert respuesta.json()["status"] == "CANCELLED"
     assert respuesta.json()["registered_count"] == 2
     assert inscripciones(conexion, id_evento) == [("ACTIVE", None), ("ACTIVE", None)]
+
+
+# --- Conteos e is_registered ----------------------------------------------------------------
+
+
+def test_el_detalle_dice_is_registered_true_al_inscrito_y_false_a_otro(cliente_db, usuarios):
+    id_evento = crear_evento(cliente_db, usuarios["orga"])
+    assert inscribirse(cliente_db, usuarios["ana"], id_evento).status_code == 201
+
+    def inscrito(token: str | None) -> bool:
+        respuesta = cliente_db.get(f"/events/{id_evento}", headers=auth(token))
+        assert respuesta.status_code == 200, respuesta.text
+        return respuesta.json()["is_registered"]
+
+    assert inscrito(usuarios["ana"]) is True
+    assert inscrito(usuarios["beto"]) is False
+    assert inscrito(None) is False
+
+
+@contextmanager
+def contar_consultas(conexion) -> Iterator[list[str]]:
+    """Junta cada sentencia que pasa por la conexión del test mientras dura el bloque."""
+    sentencias: list[str] = []
+
+    def registrar(_conn, _cursor, sentencia, *_args) -> None:
+        sentencias.append(sentencia)
+
+    event.listen(conexion, "before_cursor_execute", registrar)
+    try:
+        yield sentencias
+    finally:
+        event.remove(conexion, "before_cursor_execute", registrar)
+
+
+def test_el_listado_cuenta_los_inscritos_con_una_cantidad_fija_de_consultas(
+    cliente_db, conexion, usuarios, prefijo
+):
+    ids = []
+    for numero in range(12):
+        cuerpo = cuerpo_valido() | {"name": f"{prefijo} evento {numero:02d}", "capacity": 5}
+        creado = cliente_db.post("/events", json=cuerpo, headers=auth(usuarios["orga"]))
+        assert creado.status_code == 201, creado.text
+        ids.append(creado.json()["id"])
+        publicado = cliente_db.post(f"/events/{ids[-1]}/publish", headers=auth(usuarios["orga"]))
+        assert publicado.status_code == 200, publicado.text
+    for id_evento in ids[:3]:
+        assert inscribirse(cliente_db, usuarios["ana"], id_evento).status_code == 201
+    assert inscribirse(cliente_db, usuarios["beto"], ids[0]).status_code == 201
+
+    def listar(cuantos: int):
+        with contar_consultas(conexion) as sentencias:
+            respuesta = cliente_db.get(
+                "/events", params={"q": prefijo, "page_size": cuantos, "order_by": "name"}
+            )
+        assert respuesta.status_code == 200, respuesta.text
+        assert len(respuesta.json()["items"]) == cuantos
+        return respuesta.json()["items"], len(sentencias)
+
+    doce, consultas_con_doce = listar(12)
+    _, consultas_con_dos = listar(2)
+
+    assert consultas_con_doce == consultas_con_dos
+    conteos = {e["id"]: (e["registered_count"], e["available_spots"]) for e in doce}
+    assert conteos[ids[0]] == (2, 3)
+    assert conteos[ids[1]] == conteos[ids[2]] == (1, 4)
+    assert all(conteos[id_evento] == (0, 5) for id_evento in ids[3:])

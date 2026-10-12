@@ -433,3 +433,82 @@ def test_eliminar_con_solo_inscripciones_canceladas_se_acepta(cliente, repos, au
 
     assert respuesta.status_code == 204, respuesta.text
     assert evento.id not in repos.eventos.eventos
+
+
+# --- Toda respuesta con un evento trae su conteo real ---------------------------------------
+
+
+def test_el_listado_cuenta_los_inscritos_de_toda_la_pagina_en_una_sola_llamada(cliente, repos):
+    eventos = [repos.evento(capacity=5) for _ in range(3)]
+    repos.inscribir(ASISTENTE, eventos[0])
+    repos.inscribir(OTRO_ASISTENTE, eventos[0])
+    repos.inscribir(ASISTENTE, eventos[2])
+    repos.inscribir(OTRO_ASISTENTE, eventos[2], EstadoInscripcion.CANCELLED)
+
+    respuesta = cliente.get("/events")
+
+    assert respuesta.status_code == 200, respuesta.text
+    por_id = {
+        e["id"]: (e["registered_count"], e["available_spots"]) for e in respuesta.json()["items"]
+    }
+    assert por_id == {
+        str(eventos[0].id): (2, 3),
+        str(eventos[1].id): (0, 5),
+        str(eventos[2].id): (1, 4),
+    }
+    assert [sorted(ids) for ids in repos.eventos.conteos] == [sorted(e.id for e in eventos)]
+
+
+def test_editar_responde_con_el_conteo_real(cliente, repos, auth):
+    evento = repos.evento(capacity=5)
+    repos.inscribir(ASISTENTE, evento)
+
+    respuesta = editar_evento(cliente, evento, {"name": "PyCon Medellín"}, auth(ORGANIZADOR))
+
+    assert respuesta.status_code == 200, respuesta.text
+    assert (respuesta.json()["registered_count"], respuesta.json()["available_spots"]) == (1, 4)
+
+
+@pytest.mark.parametrize(
+    ("estado", "accion"),
+    [(EstadoEvento.DRAFT, "publish"), (EstadoEvento.PUBLISHED, "cancel")],
+    ids=["publicar", "cancelar"],
+)
+def test_cambiar_el_estado_responde_con_el_conteo_real(cliente, repos, auth, estado, accion):
+    evento = repos.evento(estado, capacity=5)
+    repos.inscribir(ASISTENTE, evento)
+    repos.inscribir(OTRO_ASISTENTE, evento)
+
+    respuesta = cliente.post(f"/events/{evento.id}/{accion}", headers=auth(ORGANIZADOR))
+
+    assert respuesta.status_code == 200, respuesta.text
+    assert (respuesta.json()["registered_count"], respuesta.json()["available_spots"]) == (2, 3)
+
+
+# --- is_registered en el detalle -------------------------------------------------------------
+
+
+def test_el_detalle_dice_si_el_usuario_esta_inscrito(cliente, repos, auth):
+    evento = repos.evento()
+    repos.inscribir(ASISTENTE, evento)
+    repos.inscribir(OTRO_ASISTENTE, evento, EstadoInscripcion.CANCELLED)
+
+    def inscrito(usuario: User | None) -> bool:
+        respuesta = cliente.get(f"/events/{evento.id}", headers=auth(usuario))
+        assert respuesta.status_code == 200, respuesta.text
+        return respuesta.json().get("is_registered")
+
+    assert inscrito(ASISTENTE) is True
+    assert inscrito(OTRO_ASISTENTE) is False  # su inscripción está cancelada
+    assert inscrito(ORGANIZADOR) is False
+    assert inscrito(None) is False
+
+
+def test_estar_inscrito_en_otro_evento_no_cuenta(cliente, repos, auth):
+    evento = repos.evento()
+    otro = repos.evento()
+    repos.inscribir(ASISTENTE, otro)
+
+    respuesta = cliente.get(f"/events/{evento.id}", headers=auth(ASISTENTE))
+
+    assert respuesta.json().get("is_registered") is False

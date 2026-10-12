@@ -40,6 +40,8 @@ class RepositorioEventosFalso:
         self.inscripciones: dict[UUID, Registration] = {}
         # Qué filas se bloquearon y en qué orden. Se puede compartir con otro doble.
         self.bloqueos: list[UUID] = []
+        # Con qué ids se contó cada vez: el listado cuenta toda la página en una sola llamada.
+        self.conteos: list[list[UUID]] = []
 
     def buscar(
         self, filtros, *, ver_todo: bool, borradores_de: UUID | None, offset: int, limite: int
@@ -75,6 +77,7 @@ class RepositorioEventosFalso:
         return self.eventos.get(id_)
 
     def inscritos(self, ids_evento: list[UUID]) -> dict[UUID, int]:
+        self.conteos.append(list(ids_evento))
         activas = [i for i in self.inscripciones.values() if i.status == EstadoInscripcion.ACTIVE]
         return {id_: sum(1 for i in activas if i.event_id == id_) for id_ in ids_evento}
 
