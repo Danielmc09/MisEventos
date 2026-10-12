@@ -16,6 +16,7 @@ export function Encabezado() {
 
   const itemsCuenta: ItemMenu[] = [
     ...(puedeCrear ? [{ texto: "Crear evento", to: "/eventos/nuevo" }] : []),
+    ...(puedeAdministrar ? [{ texto: "Administración", to: "/admin/usuarios" }] : []),
     { texto: "Mi perfil", to: "/perfil" },
     { texto: "Cerrar sesión", onSelect: cerrarSesion },
   ];
