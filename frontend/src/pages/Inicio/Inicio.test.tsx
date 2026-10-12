@@ -66,6 +66,25 @@ describe("estados del listado", () => {
     expect(screen.getByRole("combobox", { name: "Estado" })).toHaveValue("");
   });
 
+  test("el vacío sin filtros solo explica, sin Quitar filtros", async () => {
+    server.use(http.get(`${API}/events`, () => responder("/events", "get", 200, pagina([]))));
+    abrir();
+
+    await screen.findByText("No hay eventos que coincidan");
+    expect(screen.queryByRole("button", { name: "Quitar filtros" })).not.toBeInTheDocument();
+  });
+
+  test.each([["/?q=zzz"], ["/?status=DRAFT"]])(
+    "el vacío con un solo filtro (%s) ofrece Quitar filtros",
+    async (ruta) => {
+      server.use(http.get(`${API}/events`, () => responder("/events", "get", 200, pagina([]))));
+      abrir(ruta);
+
+      await screen.findByText("No hay eventos que coincidan");
+      expect(screen.getByRole("button", { name: "Quitar filtros" })).toBeInTheDocument();
+    },
+  );
+
   test("si la API falla muestra el title del error", async () => {
     server.use(
       http.get(`${API}/events`, () =>
