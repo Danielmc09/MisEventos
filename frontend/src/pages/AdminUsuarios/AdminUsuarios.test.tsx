@@ -615,6 +615,107 @@ describe("formulario de edición", () => {
   });
 });
 
+describe("restablecer contraseña", () => {
+  const clave = crypto.randomUUID();
+  const RESTABLECER = "Restablecer la contraseña de";
+  const inactivo = fila({ id: "u-3", email: "ines@mail.com", full_name: "Inés", is_active: false });
+
+  function servirRestablecer(error?: "user-inactive") {
+    const ids: string[] = [];
+    server.use(
+      http.post(`${API}/admin/users/:id/reset-password`, ({ params }) => {
+        ids.push(String(params.id));
+        if (error)
+          return responder("/admin/users/{id_usuario}/reset-password", "post", 409, {
+            type: error,
+            title: "No se puede restablecer la contraseña de un usuario desactivado",
+            status: 409,
+            trace_id: "t-1",
+          });
+        return responder("/admin/users/{id_usuario}/reset-password", "post", 200, {
+          temporary_password: clave,
+        });
+      }),
+    );
+    return ids;
+  }
+
+  test("cada fila ajena ofrece Restablecer; la propia y las desactivadas, no", async () => {
+    entrarComo(admin);
+    servirUsuarios([adminFila, beto, inactivo]);
+    montarAdmin();
+    const filaBeto = (await screen.findByText("beto@mail.com")).closest("tr") as HTMLElement;
+    const propia = screen.getByText("admin@mail.com").closest("tr") as HTMLElement;
+    const filaInes = screen.getByText("ines@mail.com").closest("tr") as HTMLElement;
+
+    expect(
+      within(filaBeto).getByRole("button", { name: `${RESTABLECER} Beto` }),
+    ).toBeInTheDocument();
+    expect(within(propia).queryByRole("button", { name: new RegExp(RESTABLECER) })).toBeNull();
+    expect(within(filaInes).queryByRole("button", { name: new RegExp(RESTABLECER) })).toBeNull();
+  });
+
+  test("pide confirmación con su texto y, sin confirmar, no llama a la API", async () => {
+    entrarComo(admin);
+    servirUsuarios();
+    const ids = servirRestablecer();
+    const user = userEvent.setup();
+    montarAdmin();
+
+    await user.click(await screen.findByRole("button", { name: `${RESTABLECER} Beto` }));
+
+    const dialogo = screen.getByRole("alertdialog");
+    expect(dialogo).toHaveTextContent("¿Restablecer la contraseña de Beto?");
+    expect(dialogo).toHaveTextContent("Va a tener que elegir una nueva la próxima vez que entre.");
+    await user.click(within(dialogo).getByRole("button", { name: "Volver" }));
+    expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+    expect(ids).toHaveLength(0);
+  });
+
+  test("al confirmar muestra la contraseña temporal, y al cerrar desaparece", async () => {
+    entrarComo(admin);
+    servirUsuarios();
+    const ids = servirRestablecer();
+    const user = userEvent.setup();
+    montarAdmin();
+
+    await user.click(await screen.findByRole("button", { name: `${RESTABLECER} Beto` }));
+    await user.click(
+      within(screen.getByRole("alertdialog")).getByRole("button", { name: "Sí, restablecer" }),
+    );
+
+    const dialogo = within(
+      await screen.findByRole("dialog", { name: "Contraseña temporal de Beto" }),
+    );
+    expect(dialogo.getByText(clave)).toBeVisible();
+    expect(dialogo.getByText("No se va a volver a mostrar")).toBeVisible();
+    expect(ids).toEqual(["u-1"]);
+
+    await user.click(dialogo.getByRole("button", { name: "Cerrar" }));
+    expect(screen.queryByText(clave)).not.toBeInTheDocument();
+    expect(JSON.stringify(useSession.getState())).not.toContain(clave);
+    expect(JSON.stringify(localStorage)).not.toContain(clave);
+  });
+
+  test("un 409 muestra su title", async () => {
+    entrarComo(admin);
+    servirUsuarios();
+    servirRestablecer("user-inactive");
+    const user = userEvent.setup();
+    montarAdmin();
+
+    await user.click(await screen.findByRole("button", { name: `${RESTABLECER} Beto` }));
+    await user.click(
+      within(screen.getByRole("alertdialog")).getByRole("button", { name: "Sí, restablecer" }),
+    );
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "No se puede restablecer la contraseña de un usuario desactivado",
+    );
+    expect(screen.queryByRole("dialog", { name: /Contraseña temporal/ })).not.toBeInTheDocument();
+  });
+});
+
 describe("nuevo usuario", () => {
   const clave = crypto.randomUUID();
   const creado = {
