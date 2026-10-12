@@ -52,6 +52,8 @@ export default function EventoDetalle() {
   const gestionaTodos = useTienePermiso("evento:gestionar_todos");
   const puede = !!evento && !!user && (gestionaTodos || user.id === evento.organizer_id);
 
+  const reservas = sesiones.sesiones?.filter((s) => s.is_reserved).length ?? 0;
+
   async function ejecutar(accion: Accion) {
     setTrabajando(true);
     try {
@@ -103,6 +105,8 @@ export default function EventoDetalle() {
               onEvento={setEvento}
               onRefrescar={refrescar}
               onAviso={setAviso}
+              reservas={reservas}
+              onCancelada={sesiones.refrescar}
             />
           </div>
           {puede && (
@@ -143,8 +147,12 @@ export default function EventoDetalle() {
             evento={evento}
             // Un evento cancelado o finalizado ya no admite cambios en sus sesiones.
             puede={puede && evento.status !== "CANCELLED" && !evento.is_finished}
-            onGuardada={sesiones.guardar}
+            onGuardada={(guardada) => sesiones.guardar(guardada, evento.capacity)}
             onEliminada={sesiones.quitar}
+            inscrito={!!user && evento.is_registered}
+            eventoPublicado={evento.status === "PUBLISHED"}
+            onReserva={sesiones.marcarReserva}
+            onRefrescar={sesiones.refrescar}
           />
         </>
       )}

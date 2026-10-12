@@ -293,7 +293,7 @@ export interface paths {
     };
     /**
      * Ver las sesiones de un evento
-     * @description Público, para quien puede ver el evento (si no, 404). Ordenadas por hora de inicio, cada una con sus ponentes, sin el email.
+     * @description Público, para quien puede ver el evento (si no, 404). Ordenadas por hora de inicio, cada una con sus ponentes, sin el email, sus reservas activas, los lugares libres y si el usuario autenticado la reservó.
      */
     get: operations["listar_events__id_evento__sessions_get"];
     put?: never;
@@ -368,7 +368,7 @@ export interface paths {
     post?: never;
     /**
      * Cancelar mi inscripción
-     * @description Cancela la inscripción activa del usuario actual, que sale del token. Solo antes de que el evento empiece (409 `event-started`); sin inscripción activa, 404. Libera el cupo.
+     * @description Cancela la inscripción activa del usuario actual, que sale del token. Solo antes de que el evento empiece (409 `event-started`); sin inscripción activa, 404. Libera el cupo y cancela sus reservas de sesiones en ese evento.
      */
     delete: operations["cancelar_events__id_evento__registrations_me_delete"];
     options?: never;
@@ -385,7 +385,7 @@ export interface paths {
     };
     /**
      * Mis inscripciones
-     * @description Las inscripciones del usuario actual, cada una con el resumen de su evento. Por defecto, las activas de eventos que no terminaron.
+     * @description Las inscripciones del usuario actual, cada una con el resumen de su evento y las sesiones que tiene reservadas en él. Por defecto, las activas de eventos que no terminaron.
      */
     get: operations["mias_me_registrations_get"];
     put?: never;
@@ -405,12 +405,52 @@ export interface paths {
     };
     /**
      * Estadísticas de un evento
-     * @description Inscripciones activas y canceladas, cupos libres y porcentaje de ocupación (un decimal). Solo el dueño del evento o el admin.
+     * @description Inscripciones activas y canceladas, cupos libres y porcentaje de ocupación (un decimal), y la ocupación de cada sesión. Solo el dueño del evento o el admin.
      */
     get: operations["estadisticas_events__id_evento__stats_get"];
     put?: never;
     post?: never;
     delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/sessions/{id_sesion}/reservations": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Reservar un lugar en una sesión
+     * @description El usuario actual, inscrito al evento, reserva un lugar en una sesión que todavía no empezó. 409 con `event-not-open`, `session-started`, `not-registered`, `already-reserved`, `session-full` o `session-conflict`, en ese orden. `session-conflict` trae en `conflicts` las sesiones propias del mismo evento que se cruzan: es un bloqueo, no se confirma.
+     */
+    post: operations["reservar_sessions__id_sesion__reservations_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/sessions/{id_sesion}/reservations/me": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    /**
+     * Cancelar mi reserva
+     * @description Cancela la reserva activa del usuario actual, que sale del token, y libera el lugar. Sin reserva activa, 404; con la sesión ya empezada, 409 `session-started`.
+     */
+    delete: operations["cancelar_sessions__id_sesion__reservations_me_delete"];
     options?: never;
     head?: never;
     patch?: never;
@@ -475,6 +515,11 @@ export interface components {
       available_spots: number;
       /** Occupancy Pct */
       occupancy_pct: number;
+      /**
+       * Sessions
+       * @description Por hora de inicio
+       */
+      sessions: components["schemas"]["OcupacionSesionSalida"][];
     };
     /**
      * EstadoEvento
@@ -486,6 +531,11 @@ export interface components {
      * @enum {string}
      */
     EstadoInscripcion: "ACTIVE" | "CANCELLED";
+    /**
+     * EstadoReserva
+     * @enum {string}
+     */
+    EstadoReserva: "ACTIVE" | "CANCELLED";
     /** EventoDetalle */
     EventoDetalle: {
       /**
@@ -659,6 +709,11 @@ export interface components {
       /** Cancelled At */
       cancelled_at: string | null;
       event: components["schemas"]["ResumenEvento"];
+      /**
+       * Reserved Sessions
+       * @description Las reservas activas en ese evento, por hora de inicio. Vacía si la inscripción está cancelada
+       */
+      reserved_sessions: components["schemas"]["SesionReservada"][];
     };
     /** InscripcionSalida */
     InscripcionSalida: {
@@ -699,6 +754,25 @@ export interface components {
     Mensaje: {
       /** Message */
       message: string;
+    };
+    /** OcupacionSesionSalida */
+    OcupacionSesionSalida: {
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string;
+      /** Title */
+      title: string;
+      /** Reserved */
+      reserved: number;
+      /**
+       * Capacity
+       * @description La capacidad de la sesión o, si no tiene, la del evento
+       */
+      capacity: number;
+      /** Occupancy Pct */
+      occupancy_pct: number;
     };
     /**
      * OrdenEventos
@@ -862,7 +936,8 @@ export interface components {
     };
     /**
      * Problema
-     * @description Cuerpo de error según RFC 9457 (application/problem+json).
+     * @description Cuerpo de error según RFC 9457 (application/problem+json). Acepta miembros de extensión:
+     *     un error de dominio puede sumar los suyos (por ejemplo, `conflicts`).
      */
     Problema: {
       /** Type */
@@ -877,6 +952,8 @@ export interface components {
       trace_id: string;
       /** Errors */
       errors?: components["schemas"]["ErrorDeCampo"][] | null;
+    } & {
+      [key: string]: unknown;
     };
     /** RegistroEntrada */
     RegistroEntrada: {
@@ -886,6 +963,32 @@ export interface components {
       password: string;
       /** Full Name */
       full_name?: string | null;
+    };
+    /**
+     * ReservaEntrada
+     * @description Sin campos: quién reserva sale del token y qué sesión, de la ruta. Cualquier campo que
+     *     llegue se rechaza; en particular `confirm_overlap`: un cruce dentro del evento no se confirma,
+     *     se bloquea.
+     */
+    ReservaEntrada: Record<string, never>;
+    /** ReservaSalida */
+    ReservaSalida: {
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string;
+      /**
+       * Session Id
+       * Format: uuid
+       */
+      session_id: string;
+      status: components["schemas"]["EstadoReserva"];
+      /**
+       * Created At
+       * Format: date-time
+       */
+      created_at: string;
     };
     /**
      * ResumenEvento
@@ -915,6 +1018,67 @@ export interface components {
      * @enum {string}
      */
     Rol: "ATTENDEE" | "ORGANIZER" | "ADMIN";
+    /**
+     * SesionConCupo
+     * @description Una sesión del listado del evento, con sus reservas.
+     */
+    SesionConCupo: {
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string;
+      /**
+       * Event Id
+       * Format: uuid
+       */
+      event_id: string;
+      /** Title */
+      title: string;
+      /** Description */
+      description: string | null;
+      /** Room */
+      room: string | null;
+      /**
+       * Start At
+       * Format: date-time
+       */
+      start_at: string;
+      /**
+       * End At
+       * Format: date-time
+       */
+      end_at: string;
+      /** Capacity */
+      capacity: number | null;
+      /** Speakers */
+      speakers: components["schemas"]["PonenteDeSesion"][];
+      /**
+       * Created At
+       * Format: date-time
+       */
+      created_at: string;
+      /**
+       * Updated At
+       * Format: date-time
+       */
+      updated_at: string;
+      /**
+       * Reserved Count
+       * @description Reservas activas
+       */
+      reserved_count: number;
+      /**
+       * Available Spots
+       * @description Capacidad efectiva menos las reservas activas
+       */
+      available_spots: number;
+      /**
+       * Is Reserved
+       * @description Si el usuario autenticado tiene una reserva activa; false para anónimos
+       */
+      is_reserved: boolean;
+    };
     /**
      * SesionEdicion
      * @description Solo lo que cambia. Las fechas se comparan con lo guardado en el servicio; `speaker_ids`,
@@ -958,6 +1122,31 @@ export interface components {
       capacity?: number | null;
       /** Speaker Ids */
       speaker_ids?: string[];
+    };
+    /**
+     * SesionReservada
+     * @description Lo que el perfil muestra de cada sesión reservada.
+     */
+    SesionReservada: {
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string;
+      /** Title */
+      title: string;
+      /**
+       * Start At
+       * Format: date-time
+       */
+      start_at: string;
+      /**
+       * End At
+       * Format: date-time
+       */
+      end_at: string;
+      /** Room */
+      room: string | null;
     };
     /** SesionSalida */
     SesionSalida: {
@@ -1995,7 +2184,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["SesionSalida"][];
+          "application/json": components["schemas"]["SesionConCupo"][];
         };
       };
       /** @description No encontramos lo que buscás */
@@ -2526,6 +2715,132 @@ export interface operations {
       };
       /** @description No encontramos lo que buscás */
       404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problema"];
+          "application/json": components["schemas"]["Problema"];
+        };
+      };
+      /** @description Los datos enviados no son válidos */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problema"];
+          "application/json": components["schemas"]["Problema"];
+        };
+      };
+    };
+  };
+  reservar_sessions__id_sesion__reservations_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id_sesion: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: {
+      content: {
+        "application/json": components["schemas"]["ReservaEntrada"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ReservaSalida"];
+        };
+      };
+      /** @description Necesitás iniciar sesión */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problema"];
+          "application/json": components["schemas"]["Problema"];
+        };
+      };
+      /** @description No encontramos lo que buscás */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problema"];
+          "application/json": components["schemas"]["Problema"];
+        };
+      };
+      /** @description La operación choca con el estado actual */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problema"];
+          "application/json": components["schemas"]["Problema"];
+        };
+      };
+      /** @description Los datos enviados no son válidos */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problema"];
+          "application/json": components["schemas"]["Problema"];
+        };
+      };
+    };
+  };
+  cancelar_sessions__id_sesion__reservations_me_delete: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id_sesion: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Necesitás iniciar sesión */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problema"];
+          "application/json": components["schemas"]["Problema"];
+        };
+      };
+      /** @description No encontramos lo que buscás */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problema"];
+          "application/json": components["schemas"]["Problema"];
+        };
+      };
+      /** @description La operación choca con el estado actual */
+      409: {
         headers: {
           [name: string]: unknown;
         };
