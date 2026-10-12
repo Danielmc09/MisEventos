@@ -81,6 +81,7 @@ def entrada_valida(campo: CampoDeTexto, email: str, clave: str) -> dict:
         "PonenteEdicion": lambda: {"full_name": "Ana María"},
         "SesionEntrada": cuerpo_de_sesion,
         "SesionEdicion": lambda: {"title": f"Editada {uuid4().hex[:8]}"},
+        "UsuarioEdicion": lambda: {"full_name": "Ana Pérez"},
     }
     assert campo.esquema in validos, f"falta el request válido de {campo.esquema}"
     return validos[campo.esquema]()
@@ -100,14 +101,22 @@ def test_el_caracter_nulo_en_cualquier_campo_de_texto_nunca_da_500(cliente_db, c
         f"/events/{id_evento}/sessions", json=cuerpo_de_sesion(), headers=dueno
     )
     assert sesion.status_code == 201
+    # Un usuario que no es el admin del request: cambiarse a sí mismo es otra regla.
+    otro, _, _ = admin(cliente_db, conexion)
+    id_otro = conexion.execute(
+        text("SELECT id FROM users WHERE email = :e"), {"e": otro}
+    ).scalar_one()
     parametros_de_ruta = {
         "id_evento": id_evento,
         "id_ponente": ponente.json()["id"],
         "id_sesion": sesion.json()["id"],
+        "id_usuario": str(id_otro),
     }
 
     revisados: dict[str, list[str]] = {"body": [], "form": [], "query": []}
     fallas: list[str] = []
+    # En la gestión de usuarios el nulo se corta en la entrada: 422, no solo "no 500".
+    de_admin_usuarios: dict[str, int] = {}
     for campo in campos_de_texto(cliente_db.app.openapi()):
         # Un admin por campo: si el nulo llegara a cambiarle la contraseña, no arrastra al resto.
         email, clave, token = admin(cliente_db, conexion)
@@ -124,8 +133,13 @@ def test_el_caracter_nulo_en_cualquier_campo_de_texto_nunca_da_500(cliente_db, c
         )
 
         revisados[campo.ubicacion].append(str(campo))
+        if campo.ruta.startswith("/admin/users"):
+            de_admin_usuarios[str(campo)] = respuesta.status_code
         if respuesta.status_code >= 500:
             fallas.append(f"{campo} → {respuesta.status_code}")
 
     assert all(revisados.values()), f"faltó recorrer algún tipo de campo: {revisados}"
     assert fallas == []
+    assert de_admin_usuarios["PATCH /admin/users/{id_usuario} [body] full_name"] == 422
+    assert de_admin_usuarios["GET /admin/users [query] q"] == 422
+    assert set(de_admin_usuarios.values()) == {422}, de_admin_usuarios
