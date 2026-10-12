@@ -89,14 +89,10 @@ test("el menú de la cuenta tiene el nombre y el email como encabezado, y las tr
   expect(nav.queryByRole("menuitem", { name: /Oscar Organizador/ })).not.toBeInTheDocument();
   expect(nav.getAllByRole("menuitem").map((i) => i.textContent)).toEqual([
     "Mi perfil",
-    "Cambiar contraseña",
     "Cerrar sesión",
   ]);
+  expect(nav.queryByRole("menuitem", { name: "Cambiar contraseña" })).not.toBeInTheDocument();
   expect(nav.getByRole("menuitem", { name: "Mi perfil" })).toHaveAttribute("href", "/perfil");
-  expect(nav.getByRole("menuitem", { name: "Cambiar contraseña" })).toHaveAttribute(
-    "href",
-    "/cambiar-contrasena",
-  );
   expect(nav.getByRole("separator")).toBeInTheDocument();
 });
 
