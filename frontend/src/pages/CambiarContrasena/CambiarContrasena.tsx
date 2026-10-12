@@ -2,6 +2,7 @@ import { useState, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../../api/client";
 import type { components } from "../../api/schema";
+import { AlertaError } from "../../components/ui/AlertaError";
 import { Button } from "../../components/ui/Button";
 import { Input } from "../../components/ui/Input";
 import { useAvisos } from "../../components/ui/Avisos";
@@ -41,7 +42,6 @@ export default function CambiarContrasena() {
     } catch (err) {
       const fallo = errorDeFormulario(err);
       setError(fallo);
-      if (fallo.general) avisar({ message: fallo.general, tone: "error" });
       setEnviando(false);
     }
   }
@@ -74,6 +74,7 @@ export default function CambiarContrasena() {
           required
           error={error?.campos.confirmacion}
         />
+        {error?.general && <AlertaError title={error.general} />}
         <Button type="submit" loading={enviando}>
           Cambiar contraseña
         </Button>

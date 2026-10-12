@@ -2,9 +2,9 @@ import { useState, type FormEvent } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { api } from "../../api/client";
 import type { components } from "../../api/schema";
+import { AlertaError } from "../../components/ui/AlertaError";
 import { Button } from "../../components/ui/Button";
 import { Input } from "../../components/ui/Input";
-import { useAvisos } from "../../components/ui/Avisos";
 import { errorDeFormulario, type ErrorDeFormulario } from "../../lib/errores";
 import { conservarNext, rutaSegura } from "../../lib/next";
 import { useSession } from "../../stores/session";
@@ -13,7 +13,6 @@ export default function Login() {
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const next = params.get("next");
-  const avisar = useAvisos();
   const [enviando, setEnviando] = useState(false);
   const [error, setError] = useState<ErrorDeFormulario | null>(null);
 
@@ -42,7 +41,6 @@ export default function Login() {
     } catch (err) {
       const fallo = errorDeFormulario(err);
       setError(fallo);
-      if (fallo.general) avisar({ message: fallo.general, tone: "error" });
       setEnviando(false);
     }
   }
@@ -67,6 +65,7 @@ export default function Login() {
           required
           error={error?.campos.password}
         />
+        {error?.general && <AlertaError title={error.general} />}
         <Button type="submit" loading={enviando}>
           Iniciar sesión
         </Button>
