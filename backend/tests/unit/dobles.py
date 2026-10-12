@@ -259,6 +259,16 @@ class RepositorioInscripcionesFalso:
         del_evento = [i for i in self.eventos.inscripciones.values() if i.event_id == id_evento]
         return {e: sum(1 for i in del_evento if i.status == e) for e in EstadoInscripcion}
 
+    def alguna_de(self, id_usuario: UUID, id_evento: UUID) -> Registration | None:
+        return next(
+            (
+                i
+                for i in self.eventos.inscripciones.values()
+                if i.user_id == id_usuario and i.event_id == id_evento
+            ),
+            None,
+        )
+
     def activa_de(self, id_usuario: UUID, id_evento: UUID) -> Registration | None:
         return next(
             (

@@ -7,18 +7,21 @@ from app.core.config import Settings
 from app.core.contrasenas import hashear, verificar
 from app.core.permisos import Rol
 from app.models.evento import EstadoEvento, Event
+from app.models.inscripcion import EstadoInscripcion
 from app.models.usuario import User
 from app.scripts import seed
 from app.scripts.seed import (
     CredencialesDemo,
     credenciales_demo,
     sembrar_eventos,
+    sembrar_inscripciones,
     sembrar_ponentes,
     sembrar_sesiones,
     sembrar_usuarios,
 )
 from tests.unit.dobles import (
     RepositorioEventosFalso,
+    RepositorioInscripcionesFalso,
     RepositorioPonentesFalso,
     RepositorioSesionesFalso,
     RepositorioUsuariosFalso,
@@ -523,3 +526,125 @@ def test_una_sesion_salteada_deja_un_aviso_que_nombra_la_sesion_y_el_evento(capl
         if r.name == "miseventos.seed" and r.levelno == logging.WARNING
     ]
     assert any("Testing en Python" in m and "Python Day Medellín" in m for m in avisos), avisos
+
+
+# --- Inscripciones demo ----------------------------------------------------------------------
+
+ASISTENTE_DEMO = User(
+    email="asistente@miseventos.local", password_hash="$argon2id$x", role=Rol.ATTENDEE
+)
+CASI_LLENO = "Taller de python para principiantes"
+
+
+class DemoConInscripciones:
+    """Los dobles con los usuarios y los eventos demo ya sembrados, listos para inscribir."""
+
+    def __init__(self) -> None:
+        self.usuarios = RepositorioUsuariosFalso(ORGANIZADOR_DEMO, ASISTENTE_DEMO)
+        self.eventos = RepositorioEventosFalso()
+        self.inscripciones = RepositorioInscripcionesFalso(self.eventos, self.usuarios)
+        sembrar_eventos(self.usuarios, self.eventos)
+
+    def sembrar(self) -> None:
+        sembrar_inscripciones(self.usuarios, self.eventos, self.inscripciones)
+
+    def evento(self, nombre: str) -> Event:
+        return next(e for e in self.eventos.eventos.values() if e.name == nombre)
+
+    def de(self, usuario: User) -> list:
+        return [i for i in self.eventos.inscripciones.values() if i.user_id == usuario.id]
+
+    def activas_en(self, nombre: str) -> int:
+        evento = self.evento(nombre)
+        return self.eventos.inscritos([evento.id])[evento.id]
+
+    def foto(self) -> set[tuple]:
+        return {(i.user_id, i.event_id, i.status) for i in self.eventos.inscripciones.values()}
+
+
+@pytest.fixture
+def con_inscripciones() -> DemoConInscripciones:
+    base = DemoConInscripciones()
+    base.sembrar()
+    return base
+
+
+def test_el_asistente_demo_tiene_dos_inscripciones_activas_y_una_cancelada(con_inscripciones):
+    propias = con_inscripciones.de(ASISTENTE_DEMO)
+
+    assert sorted(i.status for i in propias) == [
+        EstadoInscripcion.ACTIVE,
+        EstadoInscripcion.ACTIVE,
+        EstadoInscripcion.CANCELLED,
+    ]
+    assert len({i.event_id for i in propias}) == 3
+    [cancelada] = [i for i in propias if i.status == EstadoInscripcion.CANCELLED]
+    assert cancelada.cancelled_at is not None
+
+
+def test_el_asistente_demo_no_esta_en_el_casi_lleno_para_poder_tomar_el_ultimo_cupo(
+    con_inscripciones,
+):
+    casi_lleno = con_inscripciones.evento(CASI_LLENO)
+    propias = con_inscripciones.de(ASISTENTE_DEMO)
+
+    assert propias
+    assert all(i.event_id != casi_lleno.id for i in propias)
+
+
+def test_el_casi_lleno_queda_con_un_solo_cupo_libre(con_inscripciones):
+    casi_lleno = con_inscripciones.evento(CASI_LLENO)
+
+    assert casi_lleno.capacity == 10
+    assert con_inscripciones.activas_en(CASI_LLENO) == 9
+
+
+def test_los_inscritos_extra_son_asistentes_con_una_contrasena_que_nadie_conoce(
+    con_inscripciones,
+):
+    extra = [
+        u
+        for u in con_inscripciones.usuarios.usuarios.values()
+        if u.id not in {ORGANIZADOR_DEMO.id, ASISTENTE_DEMO.id}
+    ]
+
+    assert len(extra) >= 9
+    assert all(u.role == Rol.ATTENDEE for u in extra)
+    assert all(u.full_name for u in extra)
+    assert all(u.password_hash.startswith("$argon2id$") for u in extra)
+    assert len({u.password_hash for u in extra}) == len(extra)
+    assert len({u.email for u in extra}) == len(extra)
+
+
+def test_correrlo_dos_veces_no_duplica_inscripciones_ni_usuarios(con_inscripciones):
+    inscripciones = con_inscripciones.foto()
+    usuarios = set(con_inscripciones.usuarios.usuarios)
+    assert inscripciones
+
+    con_inscripciones.sembrar()
+
+    assert con_inscripciones.foto() == inscripciones
+    assert set(con_inscripciones.usuarios.usuarios) == usuarios
+
+
+def test_no_reactiva_una_inscripcion_que_el_asistente_cancelo(con_inscripciones):
+    activas = [
+        i for i in con_inscripciones.de(ASISTENTE_DEMO) if i.status == EstadoInscripcion.ACTIVE
+    ]
+    assert activas
+    activa = activas[0]
+    activa.status = EstadoInscripcion.CANCELLED
+
+    con_inscripciones.sembrar()
+
+    assert activa.status == EstadoInscripcion.CANCELLED
+    assert len(con_inscripciones.de(ASISTENTE_DEMO)) == 3
+
+
+def test_no_inscribe_mas_alla_del_cupo_si_alguien_achico_el_evento():
+    base = DemoConInscripciones()
+    base.evento(CASI_LLENO).capacity = 4
+
+    base.sembrar()
+
+    assert base.activas_en(CASI_LLENO) == 4

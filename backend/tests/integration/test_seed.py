@@ -220,3 +220,57 @@ def test_un_anonimo_ve_las_sesiones_demo_de_python_day_con_sus_ponentes_sin_emai
     assert all("email" not in p for s in sesiones for p in s["speakers"])
     salas = {s["room"] for s in sesiones if s["room"]}
     assert len(salas) >= 2
+
+
+def inscripciones_del_asistente_demo(conexion) -> list[tuple[str, str]]:
+    return sorted(
+        (str(nombre), str(estado))
+        for nombre, estado in conexion.execute(
+            text(
+                "SELECT e.name, r.status FROM registrations r"
+                " JOIN users u ON u.id = r.user_id JOIN events e ON e.id = r.event_id"
+                " WHERE lower(u.email) = 'asistente@miseventos.local'"
+            )
+        ).all()
+    )
+
+
+def test_el_seed_deja_al_asistente_con_dos_activas_y_una_cancelada_y_el_casi_lleno_con_un_cupo(
+    cliente_db, conexion
+):
+    correr_seed(conexion)
+    primera = inscripciones_del_asistente_demo(conexion)
+    total = conexion.execute(text("SELECT count(*) FROM registrations")).scalar_one()
+
+    correr_seed(conexion)
+
+    assert inscripciones_del_asistente_demo(conexion) == primera
+    assert conexion.execute(text("SELECT count(*) FROM registrations")).scalar_one() == total
+    assert sorted(estado for _, estado in primera) == ["ACTIVE", "ACTIVE", "CANCELLED"]
+    assert "Taller de python para principiantes" not in {nombre for nombre, _ in primera}
+    (id_casi_lleno,) = conexion.execute(
+        text(
+            "SELECT e.id FROM events e JOIN users u ON u.id = e.organizer_id"
+            " WHERE e.name = :nombre AND lower(u.email) = 'organizador@miseventos.local'"
+        ),
+        {"nombre": "Taller de python para principiantes"},
+    ).one()
+    detalle = cliente_db.get(f"/events/{id_casi_lleno}").json()
+    assert (detalle["capacity"], detalle["available_spots"]) == (10, 1)
+    assert len(usuarios_demo(conexion)) == 3
+
+
+def test_el_asistente_demo_ve_sus_inscripciones_en_el_perfil(cliente_db, conexion):
+    correr_seed(conexion)
+    email = "asistente@miseventos.local"
+    token = login(cliente_db, email, CONTRASENAS[email]).json()["access_token"]
+    headers = {"Authorization": f"Bearer {token}"}
+
+    activas = cliente_db.get("/me/registrations", headers=headers)
+    canceladas = cliente_db.get(
+        "/me/registrations", params={"status": "CANCELLED"}, headers=headers
+    )
+
+    assert activas.status_code == canceladas.status_code == 200
+    assert activas.json()["total"] == 2
+    assert canceladas.json()["total"] == 1

@@ -342,6 +342,10 @@ def sembrar_sesiones(
             )
 
 
+def sembrar_inscripciones(usuarios: Usuarios, eventos: Eventos, inscripciones) -> None:
+    pass
+
+
 def sembrar(session: Session, credenciales: CredencialesDemo) -> None:
     """Crea lo que falte de los datos de demostración, en la transacción recibida.
 
