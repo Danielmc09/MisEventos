@@ -1,13 +1,16 @@
+import secrets
+
 import pytest
 from pydantic import ValidationError
 
-from app.core.config import Settings
+from app.core.config import VALORES_DE_DEMO, Settings
 
 # Valores de demostración de .env.example: válidos en desarrollo, prohibidos en producción.
-DEMO_DB_URL = "postgresql+psycopg://miseventos:demo_local_db@db:5432/miseventos"
-DEMO_JWT_SECRET = "demo-local-jwt-secret-solo-para-desarrollo-0001"
-DEMO_ADMIN_PASSWORD = "Admin-Demo-2026"
-DEMO_PASSWORD = "Demo-Local-2026"
+DEMO_DB_CLAVE = VALORES_DE_DEMO["DATABASE_URL"]
+DEMO_DB_URL = f"postgresql+psycopg://miseventos:{DEMO_DB_CLAVE}@db:5432/miseventos"
+DEMO_JWT_SECRET = VALORES_DE_DEMO["JWT_SECRET"]
+DEMO_ADMIN_PASSWORD = VALORES_DE_DEMO["ADMIN_PASSWORD"]
+DEMO_PASSWORD = VALORES_DE_DEMO["DEMO_PASSWORD"]
 
 DESARROLLO = {
     "ENV": "development",
@@ -26,11 +29,11 @@ DESARROLLO = {
 PRODUCCION = {
     **DESARROLLO,
     "ENV": "production",
-    "DATABASE_URL": "postgresql+psycopg://miseventos:Otra-Clave-Real-91@db:5432/miseventos",
+    "DATABASE_URL": f"postgresql+psycopg://miseventos:{secrets.token_urlsafe()}@db:5432/miseventos",
     "JWT_SECRET": "x9Q2-secreto-real-de-produccion-con-mas-de-32",
     "SEED_DEMO": "false",
-    "ADMIN_PASSWORD": "Admin-Real-Prod-2026!",
-    "DEMO_PASSWORD": "Demo-Real-Prod-2026!",
+    "ADMIN_PASSWORD": secrets.token_urlsafe(),
+    "DEMO_PASSWORD": secrets.token_urlsafe(),
 }
 
 
@@ -156,6 +159,6 @@ def test_produccion_rechaza_valores_de_demo(entorno, variable, valor_de_demo):
 
 
 def test_produccion_rechaza_la_contrasena_de_demo_de_la_base(entorno):
-    otra_url_misma_clave = "postgresql+psycopg://otro_usuario:demo_local_db@prod-db:5432/eventos"
+    otra_url_misma_clave = f"postgresql+psycopg://otro_usuario:{DEMO_DB_CLAVE}@prod-db:5432/eventos"
 
     falla_nombrando(entorno, {**PRODUCCION, "DATABASE_URL": otra_url_misma_clave}, "DATABASE_URL")
