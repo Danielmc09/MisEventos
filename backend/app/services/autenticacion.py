@@ -5,7 +5,7 @@ from typing import Protocol
 from uuid import UUID
 
 from app.core.contrasenas import hashear, verificar
-from app.core.excepciones import DatosInvalidos, Unauthorized
+from app.core.excepciones import DatosInvalidos, Forbidden, Unauthorized
 from app.core.permisos import Rol
 from app.core.tokens import crear_access_token, leer_access_token
 from app.models.usuario import User
@@ -22,6 +22,7 @@ class Usuarios(Protocol):
     def por_email(self, email: str) -> User | None: ...
     def por_id(self, id_usuario: UUID) -> User | None: ...
     def crear(self, usuario: User) -> bool: ...
+    def por_id_para_escribir(self, id_usuario: UUID) -> User | None: ...
 
 
 def registrar(repo: Usuarios, email: str, password: str, full_name: str | None) -> None:
@@ -68,9 +69,29 @@ def usuario_del_token(repo: Usuarios, token: str, secreto: str) -> User:
     return usuario
 
 
-def cambiar_contrasena(usuario: User, actual: str, nueva: str, secreto: str, minutos: int) -> str:
+def exigir_contrasena_definitiva(usuario: User) -> None:
+    """Con la contraseña temporal que le dio el admin, el usuario solo puede cambiarla: el admin
+    la vio, así que todavía no es solo suya."""
+    if usuario.must_change_password:
+        raise Forbidden(
+            tipo="password-change-required",
+            titulo="Tenés que cambiar tu contraseña temporal para continuar",
+        )
+
+
+def cambiar_contrasena(
+    repo: Usuarios, usuario: User, actual: str, nueva: str, secreto: str, minutos: int
+) -> str:
     """Guarda la nueva contraseña y devuelve un access token nuevo. El cambio lo persiste la
-    transacción del request, que ya tiene cargado al usuario."""
+    transacción del request.
+
+    Antes de verificar la actual, bloquea la fila del usuario y la relee: si un admin le
+    restableció la contraseña mientras tanto, la vigente es la temporal, la actual que llegó ya
+    no sirve (422) y la temporal no se pisa. Sin el bloqueo, el cambio verificaría contra lo
+    leído al empezar el request y escribiría encima del reset ya confirmado."""
+    usuario = repo.por_id_para_escribir(usuario.id)
+    if usuario is None:  # lo borraron entre la lectura del token y el bloqueo
+        raise Unauthorized()
     if not verificar(usuario.password_hash, actual):
         raise DatosInvalidos("current_password", "La contraseña actual no es correcta")
     if nueva == actual:

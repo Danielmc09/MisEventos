@@ -93,7 +93,7 @@ export interface paths {
     };
     /**
      * Usuario actual
-     * @description Los datos del usuario dueño del access token y los permisos de su rol.
+     * @description Los datos del usuario dueño del access token y los permisos de su rol. Responde también con la contraseña temporal pendiente de cambio (`must_change_password`).
      */
     get: operations["me_auth_me_get"];
     put?: never;
@@ -119,7 +119,7 @@ export interface paths {
     head?: never;
     /**
      * Cambiar la contraseña
-     * @description Pide la contraseña actual. Devuelve un access token nuevo, como el login.
+     * @description Pide la contraseña actual. Devuelve un access token nuevo, como el login. Es lo único, junto con ver el perfil y salir, que puede hacer quien tiene una contraseña temporal: el resto responde 403 `password-change-required` hasta que la cambia.
      */
     patch: operations["cambiar_contrasena_auth_me_password_patch"];
     trace?: never;
@@ -469,7 +469,11 @@ export interface paths {
      */
     get: operations["listar_admin_users_get"];
     put?: never;
-    post?: never;
+    /**
+     * Crear un usuario con una contraseña temporal
+     * @description Solo el admin. Acepta solo `email`, `full_name` y `role` (cualquiera, también `ADMIN`): la contraseña la genera el sistema, y mandarla responde 422. La respuesta trae `temporary_password`, que no se vuelve a mostrar, y no se guarda en caché. El usuario tiene que cambiarla en su primer login. Email ya registrado: 409 `email-taken`.
+     */
+    post: operations["crear_admin_users_post"];
     delete?: never;
     options?: never;
     head?: never;
@@ -494,6 +498,26 @@ export interface paths {
      * @description Solo el admin. Acepta solo `full_name`, `email`, `role` e `is_active`: la contraseña no se cambia por acá (422). El email se guarda en minúsculas y sin espacios; si ya lo usa otro usuario, 409 `email-taken`. El admin no puede cambiarse el rol ni desactivarse a sí mismo (409 `cannot-modify-self`), y siempre queda al menos un admin activo (409 `last-admin`). Desactivar corta la sesión en el siguiente request.
      */
     patch: operations["cambiar_admin_users__id_usuario__patch"];
+    trace?: never;
+  };
+  "/admin/users/{id_usuario}/reset-password": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Restablecer la contraseña de un usuario
+     * @description Solo el admin. Genera una contraseña temporal nueva, que se devuelve una sola vez y no se guarda en caché; la anterior deja de servir y el usuario tiene que cambiarla en su próximo login. El admin no se la restablece a sí mismo (409 `cannot-modify-self`), y a un usuario desactivado tampoco (409 `user-inactive`).
+     */
+    post: operations["restablecer_contrasena_admin_users__id_usuario__reset_password_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
     trace?: never;
   };
 }
@@ -530,6 +554,14 @@ export interface components {
       current_password: string;
       /** New Password */
       new_password: string;
+    };
+    /**
+     * ContrasenaTemporal
+     * @description La contraseña temporal que se acaba de generar: es la única vez que se ve.
+     */
+    ContrasenaTemporal: {
+      /** Temporary Password */
+      temporary_password: string;
     };
     /**
      * Cuando
@@ -721,6 +753,11 @@ export interface components {
       readonly available_spots: number;
       /** Is Finished */
       readonly is_finished: boolean;
+    };
+    /** HTTPValidationError */
+    HTTPValidationError: {
+      /** Detail */
+      detail?: components["schemas"]["ValidationError"][];
     };
     /**
      * InscripcionEntrada
@@ -1287,6 +1324,52 @@ export interface components {
       active_registrations: number;
     };
     /**
+     * UsuarioAlta
+     * @description El usuario que crea el admin. La contraseña la genera el sistema: mandarla, o cualquier
+     *     otro campo, responde 422.
+     */
+    UsuarioAlta: {
+      /** Email */
+      email: string;
+      /** Full Name */
+      full_name?: string | null;
+      role: components["schemas"]["Rol"];
+    };
+    /**
+     * UsuarioCreado
+     * @description El usuario recién creado y su contraseña temporal: es la única vez que se ve.
+     */
+    UsuarioCreado: {
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string;
+      /** Email */
+      email: string;
+      /** Full Name */
+      full_name: string | null;
+      role: components["schemas"]["Rol"];
+      /** Is Active */
+      is_active: boolean;
+      /** Must Change Password */
+      must_change_password: boolean;
+      /**
+       * Created At
+       * Format: date-time
+       */
+      created_at: string;
+      /**
+       * Updated At
+       * Format: date-time
+       */
+      updated_at: string;
+      /** Active Registrations */
+      active_registrations: number;
+      /** Temporary Password */
+      temporary_password: string;
+    };
+    /**
      * UsuarioEdicion
      * @description Lo que el admin le cambia a un usuario: el nombre, el email, el rol y si está activo. La
      *     contraseña y cualquier otro campo responden 422.
@@ -1299,6 +1382,19 @@ export interface components {
       role?: components["schemas"]["Rol"] | null;
       /** Is Active */
       is_active?: boolean | null;
+    };
+    /** ValidationError */
+    ValidationError: {
+      /** Location */
+      loc: (string | number)[];
+      /** Message */
+      msg: string;
+      /** Error Type */
+      type: string;
+      /** Input */
+      input?: unknown;
+      /** Context */
+      ctx?: Record<string, never>;
     };
   };
   responses: never;
@@ -3018,6 +3114,70 @@ export interface operations {
       };
     };
   };
+  crear_admin_users_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["UsuarioAlta"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["UsuarioCreado"];
+        };
+      };
+      /** @description Necesitás iniciar sesión */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problema"];
+          "application/json": components["schemas"]["Problema"];
+        };
+      };
+      /** @description No tenés permiso para hacer esto */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problema"];
+          "application/json": components["schemas"]["Problema"];
+        };
+      };
+      /** @description La operación choca con el estado actual */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problema"];
+          "application/json": components["schemas"]["Problema"];
+        };
+      };
+      /** @description Los datos enviados no son válidos */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problema"];
+          "application/json": components["schemas"]["Problema"];
+        };
+      };
+    };
+  };
   cambiar_admin_users__id_usuario__patch: {
     parameters: {
       query?: never;
@@ -3090,6 +3250,77 @@ export interface operations {
         content: {
           "application/problem+json": components["schemas"]["Problema"];
           "application/json": components["schemas"]["Problema"];
+        };
+      };
+    };
+  };
+  restablecer_contrasena_admin_users__id_usuario__reset_password_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id_usuario: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ContrasenaTemporal"];
+        };
+      };
+      /** @description Necesitás iniciar sesión */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problema"];
+          "application/json": components["schemas"]["Problema"];
+        };
+      };
+      /** @description No tenés permiso para hacer esto */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problema"];
+          "application/json": components["schemas"]["Problema"];
+        };
+      };
+      /** @description No encontramos lo que buscás */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problema"];
+          "application/json": components["schemas"]["Problema"];
+        };
+      };
+      /** @description La operación choca con el estado actual */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problema"];
+          "application/json": components["schemas"]["Problema"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
         };
       };
     };

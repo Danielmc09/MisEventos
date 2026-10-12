@@ -41,7 +41,10 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
       useSession.getState().cerrarSesion();
       irALogin();
     }
-    throw await toApiError(response);
+    const error = await toApiError(response);
+    // Contraseña temporal sin cambiar: la sesión pasa a pendiente y la app lleva a la pantalla de cambio.
+    if (error.type === "password-change-required") useSession.getState().exigirCambioDeContrasena();
+    throw error;
   }
   return response.status === 204 ? (undefined as T) : response.json();
 }

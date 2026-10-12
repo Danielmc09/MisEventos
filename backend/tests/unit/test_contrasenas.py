@@ -1,4 +1,5 @@
-from app.core.contrasenas import hashear, verificar
+from app.core import contrasenas
+from app.core.contrasenas import generar_contrasena_temporal, hashear, verificar
 
 
 def test_el_hash_es_argon2id_y_no_contiene_la_contrasena():
@@ -22,3 +23,38 @@ def test_rechaza_una_contrasena_incorrecta():
 
 def test_un_hash_que_no_es_argon2_no_verifica():
     assert verificar("no-es-un-hash", "una-clave-larga") is False
+
+
+def test_la_contrasena_temporal_tiene_16_caracteres_y_cambia_cada_vez():
+    primera = generar_contrasena_temporal()
+    segunda = generar_contrasena_temporal()
+
+    assert len(primera) == len(segunda) == 16
+    assert primera != segunda
+
+
+def test_la_contrasena_temporal_se_puede_copiar_y_escribir_sin_ambiguedades():
+    """Solo letras y dígitos, sin los que se confunden al leerlos (0/O, 1/l/I)."""
+    generadas = "".join(generar_contrasena_temporal() for _ in range(50))
+
+    assert generadas.isascii() and generadas.isalnum()
+    assert not set(generadas) & set("0O1lI")
+
+
+def test_la_contrasena_temporal_sale_del_generador_criptografico(monkeypatch):
+    """`random` es predecible: quien vea algunas salidas puede adivinar las siguientes. La
+    temporal tiene que salir de `secrets`."""
+    elegidos: list[str] = []
+
+    class SecretsQueAnota:
+        @staticmethod
+        def choice(alfabeto: str) -> str:
+            elegidos.append(alfabeto)
+            return alfabeto[len(elegidos) % len(alfabeto)]
+
+    monkeypatch.setattr(contrasenas, "secrets", SecretsQueAnota)
+
+    temporal = contrasenas.generar_contrasena_temporal()
+
+    assert len(elegidos) == 16
+    assert temporal == "".join(a[(i + 1) % len(a)] for i, a in enumerate(elegidos))

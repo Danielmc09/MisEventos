@@ -47,6 +47,9 @@ test("con éxito guarda el token nuevo, avisa y lleva a /perfil", async () => {
       return responder("/auth/me/password", "patch", 200, tokenNuevo);
     }),
   );
+  useSession
+    .getState()
+    .iniciarSesion({ ...usuario, must_change_password: true }, "token-viejo", 60);
   const user = userEvent.setup();
   montarPantalla();
 

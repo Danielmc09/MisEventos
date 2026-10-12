@@ -6,7 +6,7 @@ from fastapi.security import OAuth2PasswordRequestForm
 from app.api.dependencias import (
     ConfigApp,
     RepoUsuarios,
-    UsuarioActual,
+    UsuarioConCambioPendiente,
     formulario_sin_caracter_nulo,
 )
 from app.api.errores import respuestas_de_error
@@ -71,10 +71,13 @@ def logout() -> None:
 @router.get(
     "/me",
     summary="Usuario actual",
-    description="Los datos del usuario dueño del access token y los permisos de su rol.",
+    description=(
+        "Los datos del usuario dueño del access token y los permisos de su rol. Responde también "
+        "con la contraseña temporal pendiente de cambio (`must_change_password`)."
+    ),
     responses=respuestas_de_error(401),
 )
-def me(usuario: UsuarioActual) -> PerfilConPermisos:
+def me(usuario: UsuarioConCambioPendiente) -> PerfilConPermisos:
     datos = UsuarioSalida.model_validate(usuario, from_attributes=True)
     return PerfilConPermisos(**datos.model_dump(), permisos=permisos_de(usuario))
 
@@ -82,13 +85,21 @@ def me(usuario: UsuarioActual) -> PerfilConPermisos:
 @router.patch(
     "/me/password",
     summary="Cambiar la contraseña",
-    description="Pide la contraseña actual. Devuelve un access token nuevo, como el login.",
+    description=(
+        "Pide la contraseña actual. Devuelve un access token nuevo, como el login. Es lo único, "
+        "junto con ver el perfil y salir, que puede hacer quien tiene una contraseña temporal: "
+        "el resto responde 403 `password-change-required` hasta que la cambia."
+    ),
     responses=respuestas_de_error(401, 422),
 )
 def cambiar_contrasena(
-    datos: CambioContrasenaEntrada, usuario: UsuarioActual, settings: ConfigApp
+    datos: CambioContrasenaEntrada,
+    usuario: UsuarioConCambioPendiente,
+    repo: RepoUsuarios,
+    settings: ConfigApp,
 ) -> TokenAcceso:
     token = autenticacion.cambiar_contrasena(
+        repo,
         usuario,
         datos.current_password,
         datos.new_password,

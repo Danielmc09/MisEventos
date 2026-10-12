@@ -17,6 +17,8 @@ interface SessionState {
   cerrarSesion: () => void;
   /** Actualiza el nombre del usuario de la sesión, sin tocar el token. */
   actualizarNombre: (nombre: string | null) => void;
+  /** La API exigió cambiar la contraseña temporal: la sesión pasa a pendiente. */
+  exigirCambioDeContrasena: () => void;
   salir: () => void;
 }
 
@@ -32,6 +34,8 @@ export const useSession = create<SessionState>()(
       cerrarSesion: () => set({ user: null, accessToken: null, expiresAt: null, saliendo: false }),
       actualizarNombre: (nombre) =>
         set((s) => (s.user ? { user: { ...s.user, full_name: nombre } } : {})),
+      exigirCambioDeContrasena: () =>
+        set((s) => (s.user ? { user: { ...s.user, must_change_password: true } } : {})),
       salir: () => set({ user: null, accessToken: null, expiresAt: null, saliendo: true }),
     }),
     {
@@ -55,3 +59,10 @@ export function useSesionVigente() {
   }, [hayToken, vigente]);
   return vigente;
 }
+
+// Otra pestaña cambió la sesión guardada (por ejemplo, la persona cambió la contraseña temporal):
+// esta toma lo nuevo en vez de seguir con el estado viejo en memoria.
+if (typeof window !== "undefined")
+  window.addEventListener("storage", (e) => {
+    if (e.key === "sesion") void useSession.persist.rehydrate();
+  });
