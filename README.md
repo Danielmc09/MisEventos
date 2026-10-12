@@ -41,8 +41,7 @@ encuentra estas contraseñas, el secreto JWT de `.env.example` o `SEED_DEMO=true
   ([ADR 0004](docs/adr/0004-contrasenas-con-argon2id.md)). El registro crea siempre un asistente
   ([ADR 0012](docs/adr/0012-el-registro-crea-attendee.md)).
 - Eventos en borrador, publicados o cancelados (en curso y finalizado salen de las fechas), con
-  búsqueda y paginación. La búsqueda
-  usa parámetros ligados ([ADR 0005](docs/adr/0005-parametros-ligados-y-escape-de-comodines.md)).
+  búsqueda y paginación. La búsqueda usa parámetros ligados ([ADR 0005](docs/adr/0005-parametros-ligados-y-escape-de-comodines.md)).
 - Sesiones dentro del evento y ponentes, sin cruces de sala ni de ponente.
 - Inscripciones con control de cupo y reservas de lugar en sesiones, a salvo de la concurrencia
   ([ADR 0008](docs/adr/0008-concurrencia-for-update-en-orden-fijo.md)).
@@ -50,12 +49,12 @@ encuentra estas contraseñas, el secreto JWT de `.env.example` o `SEED_DEMO=true
   ([ADR 0016](docs/adr/0016-un-rol-por-persona-y-permisos-en-el-codigo.md)).
 - Errores en formato problem+json con `trace_id` ([ADR 0003](docs/adr/0003-errores-rfc-9457.md)) y
   documentación OpenAPI en `/docs`.
+- Docker Compose con la base, la API y el frontend; contenedores sin root y la API con
+  healthcheck.
 
 **Bonus**
 
 - Portada del inicio en WebP, a tres anchos con `srcset` ([frontend/README.md](frontend/README.md#rendimiento)).
-- Docker Compose con la base, la API y el frontend; contenedores sin root y la API con
-  healthcheck.
 - CI en GitHub Actions: lint, tipos, tests con cobertura publicada como artefacto, auditoría de
   dependencias y escaneo de las imágenes ([ci.yml](.github/workflows/ci.yml)).
 - pre-commit con detección de secretos (gitleaks y claves privadas), ruff, ESLint, Prettier y tests
