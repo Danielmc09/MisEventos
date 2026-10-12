@@ -20,6 +20,8 @@ from app.services.ponentes import Ponentes
 SesionConPonentes = tuple[Sesion, list[Speaker]]
 # Bogotá no tiene horario de verano: un desfase fijo alcanza y no depende de tzdata.
 BOGOTA = timezone(timedelta(hours=-5))
+# El detail de un choque con una sesión que quien pregunta no puede ver.
+SIN_SESION = "La ponente ya tiene otra sesión en ese horario"
 
 
 class Sesiones(Protocol):
@@ -28,7 +30,7 @@ class Sesiones(Protocol):
     def ponentes_de(self, ids_sesion: list[UUID]) -> dict[UUID, list[Speaker]]: ...
     def choque_de_ponentes(
         self, ids_ponente: list[UUID], inicio: datetime, fin: datetime, excluir: UUID | None
-    ) -> tuple[Speaker, Sesion] | None: ...
+    ) -> tuple[Speaker, Sesion, Event] | None: ...
     def crear(self, sesion: Sesion, ids_ponente: list[UUID]) -> Sesion: ...
     def guardar(self, sesion: Sesion, ids_ponente: list[UUID] | None) -> Sesion: ...
     def eliminar(self, sesion: Sesion) -> None: ...
@@ -71,6 +73,7 @@ def _sala(sala: str | None) -> str:
 def _validar_horario(
     eventos: Eventos,
     sesiones: Sesiones,
+    usuario: User,
     evento: Event,
     inicio: datetime,
     fin: datetime,
@@ -79,7 +82,10 @@ def _validar_horario(
     excluir: UUID | None = None,
 ) -> None:
     """Dentro del evento, sin cruces de sus ponentes (en cualquier evento no cancelado) ni de su
-    sala (en el mismo evento). `excluir` es la propia sesión al editar: no choca consigo misma."""
+    sala (en el mismo evento). `excluir` es la propia sesión al editar: no choca consigo misma.
+
+    El choque de ponente nombra la otra sesión solo si quien pregunta puede ver su evento: un
+    borrador ajeno no revela ni su título ni su horario."""
     if inicio < evento.start_at or fin > evento.end_at:
         con_dia = "%d/%m %H:%M"
         raise Conflict(
@@ -91,10 +97,15 @@ def _validar_horario(
     # La base devuelve solo la sesión que choca, no la agenda entera de los ponentes.
     choque = sesiones.choque_de_ponentes([p.id for p in asignados], inicio, fin, excluir)
     if choque is not None:
-        ponente, otra = choque
+        ponente, otra, su_evento = choque
+        detalle = SIN_SESION
+        if servicio_eventos.puede_ver(usuario, su_evento):
+            detalle = (
+                f"{ponente.full_name} ya está en «{otra.title}», "
+                f"{_hora(otra.start_at)} a {_hora(otra.end_at)}"
+            )
         raise Conflict(
-            f"{ponente.full_name} ya está en «{otra.title}», "
-            f"{_hora(otra.start_at)} a {_hora(otra.end_at)}",
+            detalle,
             tipo="speaker-conflict",
             titulo="El ponente ya tiene otra sesión en ese horario",
         )
@@ -134,7 +145,7 @@ def crear(
     asignados = _bloquear_ponentes(ponentes, datos.speaker_ids)
     sesion = Sesion(**datos.model_dump(exclude={"speaker_ids"}), event_id=evento.id)
     _validar_horario(
-        eventos, sesiones, evento, sesion.start_at, sesion.end_at, sesion.room, asignados
+        eventos, sesiones, usuario, evento, sesion.start_at, sesion.end_at, sesion.room, asignados
     )
     creada = sesiones.crear(sesion, [p.id for p in asignados])
     return creada, sesiones.ponentes_de([creada.id])[creada.id]
@@ -176,6 +187,7 @@ def editar(
     _validar_horario(
         eventos,
         sesiones,
+        usuario,
         evento,
         cambios.get("start_at", sesion.start_at),
         cambios.get("end_at", sesion.end_at),

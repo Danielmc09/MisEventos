@@ -43,13 +43,14 @@ class RepositorioSesiones:
 
     def choque_de_ponentes(
         self, ids_ponente: list[UUID], inicio: datetime, fin: datetime, excluir: UUID | None
-    ) -> tuple[Speaker, Sesion] | None:
+    ) -> tuple[Speaker, Sesion, Event] | None:
         """La primera sesión de esos ponentes que se cruza con `[inicio, fin)`, en cualquier evento
-        no cancelado, sin contar `excluir`. Terminar cuando la otra empieza no es cruce."""
+        no cancelado, sin contar `excluir`, junto con su evento (en la misma consulta). Terminar
+        cuando la otra empieza no es cruce."""
         if not ids_ponente:
             return None
         consulta = (
-            select(Speaker, Sesion)
+            select(Speaker, Sesion, Event)
             .join(SessionSpeaker, col(SessionSpeaker.speaker_id) == col(Speaker.id))
             .join(Sesion, col(Sesion.id) == col(SessionSpeaker.session_id))
             .join(Event, col(Event.id) == col(Sesion.event_id))
@@ -65,7 +66,7 @@ class RepositorioSesiones:
         if excluir is not None:
             consulta = consulta.where(col(Sesion.id) != excluir)
         fila = self.session.exec(consulta).first()
-        return None if fila is None else (fila[0], fila[1])
+        return None if fila is None else (fila[0], fila[1], fila[2])
 
     def crear(self, sesion: Sesion, ids_ponente: list[UUID]) -> Sesion:
         return self.guardar(sesion, ids_ponente)

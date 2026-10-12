@@ -159,7 +159,7 @@ class RepositorioSesionesFalso:
 
     def choque_de_ponentes(
         self, ids_ponente: list[UUID], inicio: datetime, fin: datetime, excluir: UUID | None
-    ) -> tuple[Speaker, Sesion] | None:
+    ) -> tuple[Speaker, Sesion, Event] | None:
         self.consultas_de_choque.append(
             {"ids_ponente": list(ids_ponente), "inicio": inicio, "fin": fin, "excluir": excluir}
         )
@@ -174,7 +174,7 @@ class RepositorioSesionesFalso:
                 continue
             for id_ponente in self.vinculos.get(sesion.id, []):
                 if id_ponente in ids_ponente:
-                    return self.ponentes.ponentes[id_ponente], sesion
+                    return self.ponentes.ponentes[id_ponente], sesion, evento
         return None
 
     def por_id(self, id_: UUID) -> Sesion | None:
