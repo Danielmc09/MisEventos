@@ -49,13 +49,26 @@ def test_health_responde_503_si_la_base_no_responde(con_base, cliente):
     assert "db:5432" not in respuesta.text
 
 
-def test_un_origen_permitido_recibe_cors_con_credenciales(con_base, cliente):
+def test_un_origen_permitido_recibe_cors_sin_credenciales(con_base, cliente):
+    # El token viaja en Authorization y el front no manda cookies: no hay credenciales
+    # que habilitar entre orígenes.
     con_base(SesionQueResponde())
 
-    respuesta = cliente.get("/health", headers={"Origin": ORIGEN_PERMITIDO})
+    simple = cliente.get("/health", headers={"Origin": ORIGEN_PERMITIDO})
+    preflight = cliente.options(
+        "/health",
+        headers={
+            "Origin": ORIGEN_PERMITIDO,
+            "Access-Control-Request-Method": "GET",
+            "Access-Control-Request-Headers": "authorization",
+        },
+    )
 
-    assert respuesta.headers.get("access-control-allow-origin") == ORIGEN_PERMITIDO
-    assert respuesta.headers.get("access-control-allow-credentials") == "true"
+    assert preflight.status_code == 200
+    assert preflight.headers.get("access-control-allow-origin") == ORIGEN_PERMITIDO
+    assert simple.headers.get("access-control-allow-origin") == ORIGEN_PERMITIDO
+    assert "access-control-allow-credentials" not in preflight.headers
+    assert "access-control-allow-credentials" not in simple.headers
 
 
 def test_un_origen_fuera_de_cors_origins_no_recibe_allow_origin(con_base, cliente):
