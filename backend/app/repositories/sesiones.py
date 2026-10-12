@@ -1,3 +1,4 @@
+from datetime import datetime
 from uuid import UUID
 
 from sqlmodel import Session, col, delete, select
@@ -53,6 +54,11 @@ class RepositorioSesiones:
             .order_by(col(Sesion.start_at))
         )
         return [tuple(fila) for fila in self.session.exec(consulta).all()]
+
+    def choque_de_ponentes(
+        self, ids_ponente: list[UUID], inicio: datetime, fin: datetime, excluir: UUID | None
+    ) -> tuple[Speaker, Sesion] | None:
+        return None
 
     def crear(self, sesion: Sesion, ids_ponente: list[UUID]) -> Sesion:
         return self.guardar(sesion, ids_ponente)
