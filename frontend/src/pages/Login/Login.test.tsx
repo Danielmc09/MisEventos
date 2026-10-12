@@ -23,6 +23,8 @@ const rutas: [string, React.ReactNode][] = [
   ["/", <h1>Inicio de prueba</h1>],
 ];
 
+const clave = crypto.randomUUID();
+
 const loginOk = () =>
   server.use(
     http.post(`${API}/auth/login`, () =>
@@ -37,7 +39,7 @@ const loginOk = () =>
 
 async function ingresar(user: ReturnType<typeof userEvent.setup>) {
   await user.type(screen.getByLabelText("Correo electrónico"), "ana@mail.com");
-  await user.type(screen.getByLabelText("Contraseña"), "clave de prueba");
+  await user.type(screen.getByLabelText("Contraseña"), clave);
   await user.click(screen.getByRole("button", { name: /iniciar sesión/i }));
 }
 
@@ -119,7 +121,7 @@ test("un login exitoso guarda el usuario y el token, y vuelve a la ruta de orige
   expect(useSession.getState().user).toEqual(usuario);
   expect(useSession.getState().accessToken).toBe("token-abc");
   expect(formulario?.get("username")).toBe("ana@mail.com");
-  expect(formulario?.get("password")).toBe("clave de prueba");
+  expect(formulario?.get("password")).toBe(clave);
   expect(autorizacion).toBe("Bearer token-abc");
 });
 
@@ -157,7 +159,7 @@ test("registro, login y vuelta al next original", async () => {
   montar("/registro?next=%2Feventos%2Fabc", rutas);
 
   await user.type(screen.getByLabelText("Correo electrónico"), "ana@mail.com");
-  await user.type(screen.getByLabelText("Contraseña"), "clave de prueba");
+  await user.type(screen.getByLabelText("Contraseña"), clave);
   await user.click(screen.getByRole("button", { name: /crear cuenta/i }));
   await screen.findByRole("heading", { name: "Iniciar sesión" });
   await ingresar(user);
