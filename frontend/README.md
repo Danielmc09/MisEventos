@@ -100,7 +100,7 @@ Las pantallas no escriben estilos sueltos: todo color, espaciado y tipografía s
 |---|---|---|
 | `Button` | Botón de acción | `variante` (`primario`, `secundario`, `peligro`), `loading`, `ancho` |
 | `EnlaceBoton` | Navega, pero con aspecto de botón | `to`, `variante`, `ancho` |
-| `Enlace`, `BotonEnlace` | Enlace de texto, de navegación, de tarjeta o de marca; una acción con aspecto de enlace | `to`, `variante` |
+| `Enlace` | Enlace de texto, de navegación, de tarjeta o de marca | `to`, `variante` |
 | `BotonIcono` | Acción por fila: ícono con tooltip (en angosto, ícono y texto) | `etiqueta` (nombre accesible), `texto`, `icono`, `variante`, `soloIcono` |
 | `MenuAcciones` | Menú de botón con teclado completo (flechas, Inicio, Fin, Escape) | `etiqueta`, `items` (`texto`, `onSelect` o `to`, `peligro`, `separado`), `titulo`, `subtitulo`, `variante`, `alinear`, `ocupado` |
 | `Input`, `Textarea`, `Select` | Campos con label visible y `aria-invalid` | `label`, `error` y los atributos nativos |
@@ -111,7 +111,8 @@ Las pantallas no escriben estilos sueltos: todo color, espaciado y tipografía s
 | `AlertaError` | Error de una pantalla con `role="alert"` | `title`, `detail` |
 | `EstadoVacio` | Mensaje de lista vacía con una acción | `mensaje`, `accion`, `onAccion` |
 | `Chip` | Estado o etiqueta corta, siempre con texto | `tono`, `onQuitar`, `etiquetaQuitar` |
-| `DialogoConfirmacion` | Confirma una acción; el foco arranca en "Volver" | `titulo`, `mensaje`, `confirmar`, `variante`, `cargando`, `onConfirmar`, `onVolver` |
+| `DialogoConfirmacion` | Confirma una acción; el foco arranca en "Volver" | `titulo`, `mensaje`, `confirmar`, `variante` (`primario` o `peligro`, por defecto `peligro`), `cargando`, `onConfirmar`, `onVolver` |
+| `ImagenPortada` | Ilustración decorativa de la cabecera del inicio, con `srcset` y tamaño fijo | — |
 | `Modal` | Diálogo para un formulario; Escape cierra | `titulo`, `onCerrar` |
 | `Paginacion` | Anterior, "Página N de M" y Siguiente; no se muestra con una sola página | `pagina`, `paginas`, `onCambiar` |
 | `Pestanas` | Pestañas con flechas del teclado | `etiqueta`, `pestanas`, `activa`, `onCambiar` |
@@ -120,7 +121,7 @@ Las pantallas no escriben estilos sueltos: todo color, espaciado y tipografía s
 | `FranjaFecha` | Cabecera de tarjeta con día y mes | `dia`, `mes`, `gradiente` |
 | `Pagina`, `TituloPagina` | Contenedor de cada pantalla y su `h1` | `ancho` (`angosto`, `medio`, `ancho`) |
 | `TituloSeccion`, `TextoSecundario` | Títulos y texto de apoyo | `nivel`, `estilo`; `pequeno` |
-| `Lista`, `ListaDatos`, `Cifra`, `BarraProgreso`, `Tooltip` | Listas con nombre accesible, pares etiqueta y valor, dato destacado, barra de ocupación y rótulo corto | ver el archivo de cada uno |
+| `Lista`, `ListaDatos`, `Cifra`, `BarraProgreso`, `Tooltip` | Listas con nombre accesible, pares etiqueta y valor, dato destacado, barra de ocupación y rótulo corto. El `Tooltip` se dibuja en un portal sobre el `body`, así ninguna tabla con overflow lo recorta | ver el archivo de cada uno |
 
 ### De dominio (`components/`)
 
@@ -155,6 +156,11 @@ Hay dos stores de Zustand (`src/stores/`).
 
 Se persiste en `localStorage` con la clave `sesion`: `user`, `accessToken` y `expiresAt`. `saliendo` no se persiste. `useSesionVigente` vacía la sesión si el token ya venció.
 
+Al cargar la app, si hay una sesión guardada vigente, `useRefrescarSesion` (`src/lib/useRefrescarSesion.ts`) pide `/auth/me` y esos datos mandan sobre lo guardado. Si la sesión cambió mientras llegaba la respuesta (otro token), esos datos no la pisan. Ante un error de red se queda lo guardado.
+
+Decisión: lo que se guarda en `localStorage` (usuario, permisos y vencimiento) no es secreto.
+Los permisos de la interfaz solo ocultan opciones: la seguridad la decide siempre el backend, y un 403 manda.
+
 **`eventos`** es una caché del listado de la pantalla de inicio:
 
 - Guarda cada página pedida, por combinación de filtros (la query string), con la hora en que llegó.
@@ -175,7 +181,7 @@ Todas las llamadas pasan por `api()` en `src/api/client.ts`. Ningún componente 
 - **Errores de la API:** una respuesta que no es 2xx se traduce a `ApiError` desde el `problem+json` (RFC 9457): `status`, `type`, `title`, `detail`, `errors` (por campo), `conflicts` y `traceId`. Si el cuerpo no es JSON, queda `unknown-error` con el título "Ocurrió un error inesperado".
 - **Qué hace la pantalla:** decide por el `type` del error y muestra su `title`. Los errores por campo se muestran junto al campo.
 - **`204`:** devuelve `undefined`.
-- **`401`:** hoy no hay refresh token. El token dura 60 minutos. Un `401` vacía la sesión y lleva a `/login?next=<ruta actual>`, salvo que ya estés en `/login` o `/registro`. Antes de eso, `RutaProtegida` y `useSesionVigente` ya cierran la sesión si el token venció según `expiresAt`.
+- **`401`:** hoy no hay refresh token. El token dura 60 minutos. Un `401` vacía la sesión y lleva a `/login?next=<ruta actual>`, salvo que ya estés en `/login` o `/registro`, y solo si el token que se mandó sigue siendo el vigente: si ya hay otra sesión, no se toca. Antes de eso, `RutaProtegida` y `useSesionVigente` ya cierran la sesión si el token venció según `expiresAt`.
 - **Error de red:** si `fetch` falla (API caída, sin conexión), lanza un `ApiError` con `status: 0`, `type: "network-error"` y el título "No se pudo conectar con el servidor".
 - **Cerrar sesión:** avisa a la API (`POST /auth/logout`) y, falle o no, vacía la sesión y va a `/login`.
 
@@ -213,7 +219,7 @@ Para recorrerlo, levantá todo con `docker compose up --build`. Con `SEED_DEMO=t
 1. Ingresar. El menú de la cuenta (círculo con la inicial) ofrece "Administración", "Mi perfil" y "Cerrar sesión".
 2. En el inicio, el filtro "Estado" ofrece Publicados, Cancelados, Borradores y Todos.
 3. Abrir un evento ajeno. Ver "Editar" y "Más acciones" (publicar, despublicar, cancelar, eliminar), y las pestañas Sesiones e Inscripciones.
-4. Entrar a "Administración" (`/admin/usuarios`). Filtrar por pestaña, rol, estado y texto. Editar un usuario: nombre, correo, rol y estado. En la propia cuenta no se puede cambiar el rol ni el estado.
+4. Entrar a "Administración" (`/admin/usuarios`). Filtrar por pestaña, rol, estado y texto. Editar un usuario: nombre, correo, rol y estado. Cambiar el correo, cambiar el rol y desactivar (o reactivar) piden confirmación en un diálogo. En la propia cuenta no se puede cambiar el rol ni el estado.
 5. Cambiar la contraseña desde "Mi perfil".
 
 ### Organizador
