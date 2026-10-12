@@ -1,4 +1,4 @@
-import { act, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useRef } from "react";
 import { ProveedorAvisos, useAvisos } from "./Avisos";
@@ -50,16 +50,15 @@ describe("aviso de éxito", () => {
     expect(screen.getByRole("img", { name: "Éxito" })).toBeInTheDocument();
   });
 
-  test("se cierra solo a los 4 segundos", async () => {
-    vi.useFakeTimers({ shouldAdvanceTime: true });
-    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+  test("se cierra solo a los 4 segundos", () => {
+    vi.useFakeTimers();
     montar();
 
-    await user.click(screen.getByRole("button", { name: "Avisar éxito" }));
-    act(() => vi.advanceTimersByTime(3900));
+    fireEvent.click(screen.getByRole("button", { name: "Avisar éxito" }));
+    act(() => vi.advanceTimersByTime(3999));
     expect(screen.getByRole("status")).toBeInTheDocument();
 
-    act(() => vi.advanceTimersByTime(200));
+    act(() => vi.advanceTimersByTime(1));
     expect(screen.queryByRole("status")).not.toBeInTheDocument();
   });
 

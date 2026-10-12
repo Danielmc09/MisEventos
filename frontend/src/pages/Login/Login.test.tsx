@@ -1,4 +1,4 @@
-import { screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { delay, http } from "msw";
 import { setupServer } from "msw/node";
@@ -288,4 +288,43 @@ test("tras un login fallido aparece el error, con aviso de alerta", async () => 
   await ingresar(user);
 
   expect(await screen.findByRole("alert")).toHaveTextContent("no son correctos");
+});
+
+test("el error general queda en el formulario pasados los 4 s y se borra al reenviar con éxito", async () => {
+  server.use(
+    http.post(`${API}/auth/login`, () =>
+      responder("/auth/login", "post", 401, {
+        type: "invalid-credentials",
+        title: "El correo o la contraseña no son correctos",
+        status: 401,
+        trace_id: "t-1",
+      }),
+    ),
+  );
+  const user = userEvent.setup();
+  montar("/login", rutas);
+  await user.type(screen.getByLabelText("Correo electrónico"), "ana@mail.com");
+  await user.type(screen.getByLabelText("Contraseña"), clave);
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+  try {
+    fireEvent.click(screen.getByRole("button", { name: /iniciar sesión/i }));
+    await act(async () => {
+      for (let i = 0; i < 50 && !screen.queryByRole("alert"); i++)
+        await new Promise((r) => setImmediate(r));
+    });
+    expect(screen.getByRole("alert")).toHaveTextContent("no son correctos");
+    act(() => vi.advanceTimersByTime(5000));
+
+    const alerta = screen.getByRole("alert");
+    expect(alerta).toHaveTextContent("El correo o la contraseña no son correctos");
+    expect(alerta.closest("form")).not.toBeNull();
+  } finally {
+    vi.useRealTimers();
+  }
+
+  loginOk();
+  await user.click(screen.getByRole("button", { name: /iniciar sesión/i }));
+
+  expect(await screen.findByRole("heading", { name: "Inicio de prueba" })).toBeInTheDocument();
+  expect(screen.queryByText("El correo o la contraseña no son correctos")).not.toBeInTheDocument();
 });

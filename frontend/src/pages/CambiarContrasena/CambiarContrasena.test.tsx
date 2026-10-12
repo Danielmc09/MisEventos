@@ -1,4 +1,4 @@
-import { screen } from "@testing-library/react";
+import { act, fireEvent, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { delay, http } from "msw";
 import { setupServer } from "msw/node";
@@ -116,4 +116,48 @@ test("mientras se envía el botón queda deshabilitado", async () => {
 
   expect(screen.getByRole("button", { name: /cambiar contraseña/i })).toBeDisabled();
   await screen.findByRole("heading", { name: "Perfil" });
+});
+
+test("el error general queda en el formulario pasados los 4 s y se borra al reenviar con éxito", async () => {
+  server.use(
+    http.patch(`${API}/auth/me/password`, () =>
+      responder("/auth/me/password", "patch", 422, {
+        type: "validation-error",
+        title: "Los datos enviados no son válidos",
+        status: 401,
+        trace_id: "t-1",
+      }),
+    ),
+  );
+  const user = userEvent.setup();
+  montarPantalla();
+  await user.type(screen.getByLabelText("Contraseña actual"), claveVieja);
+  await user.type(screen.getByLabelText("Contraseña nueva"), claveNueva);
+  await user.type(screen.getByLabelText("Confirmá la contraseña nueva"), claveNueva);
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+  try {
+    fireEvent.click(screen.getByRole("button", { name: /cambiar contraseña/i }));
+    await act(async () => {
+      for (let i = 0; i < 50 && !screen.queryByRole("alert"); i++)
+        await new Promise((r) => setImmediate(r));
+    });
+    expect(screen.getByRole("alert")).toHaveTextContent("Los datos enviados no son válidos");
+    act(() => vi.advanceTimersByTime(5000));
+
+    const alerta = screen.getByRole("alert");
+    expect(alerta).toHaveTextContent("Los datos enviados no son válidos");
+    expect(alerta.closest("form")).not.toBeNull();
+  } finally {
+    vi.useRealTimers();
+  }
+
+  server.use(
+    http.patch(`${API}/auth/me/password`, () =>
+      responder("/auth/me/password", "patch", 200, tokenNuevo),
+    ),
+  );
+  await user.click(screen.getByRole("button", { name: /cambiar contraseña/i }));
+
+  expect(await screen.findByRole("heading", { name: "Perfil" })).toBeInTheDocument();
+  expect(screen.queryByText("Los datos enviados no son válidos")).not.toBeInTheDocument();
 });
