@@ -96,3 +96,29 @@ describe("validación en el cliente", () => {
     expect(llamadas).toHaveLength(0);
   });
 });
+
+describe("crear una sesión", () => {
+  test("envía los valores con las fechas en hora de Bogotá y avisa con la sesión creada", async () => {
+    const llamadas = espiarPost();
+    const user = userEvent.setup();
+    const { onGuardada } = abrir();
+
+    await completar(user);
+    await user.type(screen.getByLabelText("Sala"), "Sala A");
+    await user.type(screen.getByLabelText("Capacidad"), "50");
+    await guardar(user);
+
+    await vi.waitFor(() => expect(onGuardada).toHaveBeenCalledWith(sesion));
+    expect(llamadas).toEqual([
+      {
+        title: "Testing en Python",
+        description: null,
+        room: "Sala A",
+        start_at: "2026-10-10T21:00:00-05:00",
+        end_at: "2026-10-10T22:00:00-05:00",
+        capacity: 50,
+        speaker_ids: [],
+      },
+    ]);
+  });
+});
