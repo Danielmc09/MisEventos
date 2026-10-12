@@ -72,6 +72,7 @@ const usuario = (id: string, role: Usuario["role"]): Usuario => ({
   is_active: true,
   must_change_password: false,
   created_at: "2026-10-11T15:30:00Z",
+  permisos: [],
 });
 
 test("al cerrar la sesión el listado se vuelve a pedir", async () => {

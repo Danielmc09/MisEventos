@@ -125,10 +125,10 @@ test("con sesión, /cambiar-contrasena muestra el formulario", async () => {
 });
 
 test.each([
-  ["organizador", { ...usuario, role: "ORGANIZER" as const }],
-  ["admin", { ...usuario, role: "ADMIN" as const }],
-])("un %s ve Crear evento hacia /eventos/nuevo", (_rol, quien) => {
-  useSession.getState().iniciarSesion(quien, "token-abc", 3600);
+  ["un asistente con el permiso", { ...usuario, role: "ATTENDEE" as const }],
+  ["un organizador con el permiso", { ...usuario, role: "ORGANIZER" as const }],
+])("%s ve Crear evento hacia /eventos/nuevo", (_caso, quien) => {
+  useSession.getState().iniciarSesion({ ...quien, permisos: ["evento:crear"] }, "token-abc", 3600);
   montar("/");
 
   expect(within(encabezado()).getByRole("link", { name: "Crear evento" })).toHaveAttribute(
@@ -137,8 +137,12 @@ test.each([
   );
 });
 
-test("un asistente no ve Crear evento", () => {
-  useSession.getState().iniciarSesion(usuario, "token-abc", 3600);
+test.each([
+  ["un organizador", "ORGANIZER" as const],
+  ["un admin", "ADMIN" as const],
+  ["un asistente", "ATTENDEE" as const],
+])("%s sin el permiso evento:crear no ve Crear evento", (_caso, role) => {
+  useSession.getState().iniciarSesion({ ...usuario, role, permisos: [] }, "token-abc", 3600);
   montar("/");
 
   expect(within(encabezado()).getByRole("button", { name: "Cerrar sesión" })).toBeInTheDocument();
