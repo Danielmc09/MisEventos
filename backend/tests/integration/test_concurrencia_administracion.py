@@ -1,5 +1,5 @@
-"""Cambios de rol concurrentes entre admins: siempre queda un admin activo, y quien perdió el
-permiso mientras esperaba no lo sigue usando.
+"""Cambios concurrentes entre admins: siempre queda un admin activo, quien perdió el permiso
+mientras esperaba no lo sigue usando, y dos usuarios nunca terminan con el mismo email.
 
 Corre fuera de la transacción del fixture (cada request hace commit de verdad), con datos propios
 que se borran al final. Para que sea determinista, el test toma primero el bloqueo de las filas
@@ -211,3 +211,45 @@ def test_el_admin_degradado_mientras_esperaba_no_puede_dar_admin_a_otro(
     assert promueve.status_code == 403, promueve.text
     assert promueve.json()["type"] == "forbidden"
     assert sorted(admins_activos(engine_de_test, tres_admins_y_un_asistente)) == sorted([a, c])
+
+
+@pytest.fixture
+def dos_admins_y_dos_asistentes(engine_de_test):
+    """Dos admins (los únicos activos) y dos asistentes, con commit."""
+    with solo_estos_usuarios(engine_de_test, ["ADMIN", "ADMIN", "ATTENDEE", "ATTENDEE"]) as ids:
+        yield ids
+
+
+def test_dos_admins_que_ponen_el_mismo_email_a_dos_usuarios_a_la_vez_un_200_y_un_409(
+    engine_de_test, url_db, dos_admins_y_dos_asistentes
+):
+    """La unicidad la garantiza el índice único de la base: el segundo que guarda choca con el
+    email que el primero ya confirmó, y eso es un 409 email-taken, nunca un 500."""
+    uno, otro, x, y = dos_admins_y_dos_asistentes
+    with engine_de_test.connect() as conexion:
+        antes = dict(
+            conexion.execute(
+                text("SELECT id, email FROM users WHERE id = ANY(:ids)"), {"ids": [x, y]}
+            ).all()
+        )
+    destino = f"ca{uuid4().hex[:8]}destino@mail.com"
+
+    respuestas = cambiar_a_la_vez(
+        engine_de_test,
+        url_db,
+        [(uno, x, {"email": destino}), (otro, y, {"email": destino.upper()})],
+        bloqueados=[uno, otro],
+    )
+
+    assert sorted(r.status_code for r in respuestas) == [200, 409], [r.text for r in respuestas]
+    [rechazada] = [r for r in respuestas if r.status_code == 409]
+    assert rechazada.json()["type"] == "email-taken"
+    with engine_de_test.connect() as conexion:
+        despues = dict(
+            conexion.execute(
+                text("SELECT id, email FROM users WHERE id = ANY(:ids)"), {"ids": [x, y]}
+            ).all()
+        )
+    [ganador] = [i for i, e in despues.items() if e == destino]
+    [perdedor] = [i for i in (x, y) if i != ganador]
+    assert despues[perdedor] == antes[perdedor]

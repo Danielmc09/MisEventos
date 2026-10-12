@@ -51,12 +51,13 @@ def listar(
 
 @router.patch(
     "/users/{id_usuario}",
-    summary="Cambiar el nombre, el rol o el estado de un usuario",
+    summary="Cambiar el nombre, el email, el rol o el estado de un usuario",
     description=(
-        "Solo el admin. Acepta solo `full_name`, `role` e `is_active`: el email y la contraseña "
-        "no se cambian por acá (422). El admin no puede cambiarse el rol "
-        "ni desactivarse a sí mismo (409 `cannot-modify-self`), y siempre queda al menos un "
-        "admin activo (409 `last-admin`). Desactivar corta la sesión en el siguiente request."
+        "Solo el admin. Acepta solo `full_name`, `email`, `role` e `is_active`: la contraseña no "
+        "se cambia por acá (422). El email se guarda en minúsculas y sin espacios; si ya lo usa "
+        "otro usuario, 409 `email-taken`. El admin no puede cambiarse el rol ni desactivarse a "
+        "sí mismo (409 `cannot-modify-self`), y siempre queda al menos un admin activo (409 "
+        "`last-admin`). Desactivar corta la sesión en el siguiente request."
     ),
     responses=respuestas_de_error(401, 403, 404, 409, 422),
 )

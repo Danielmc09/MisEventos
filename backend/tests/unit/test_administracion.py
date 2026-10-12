@@ -1,11 +1,13 @@
 """Gestión de usuarios por el admin: listar, cambiar el rol y activar o desactivar."""
 
+import contextlib
 import secrets
 from datetime import UTC, datetime
 from uuid import uuid4
 
 import pytest
 from sqlalchemy.dialects import postgresql
+from sqlalchemy.exc import IntegrityError
 
 from app.api.dependencias import repositorio_usuarios
 from app.core.contrasenas import hashear
@@ -70,14 +72,13 @@ def patch(cliente, auth, actor: User, id_usuario, cuerpo: dict):
 @pytest.mark.parametrize(
     "cuerpo",
     [
-        {"email": "nuevo@mail.com"},
         {"password": secrets.token_urlsafe()},
-        {"role": "ATTENDEE", "email": "nuevo@mail.com"},
+        {"email": "nuevo@mail.com", "password": secrets.token_urlsafe()},
         {"full_name": "Otro Nombre", "password": secrets.token_urlsafe()},
         {"must_change_password": True},
     ],
 )
-def test_un_patch_con_un_campo_que_no_es_rol_estado_ni_nombre_responde_422(
+def test_un_patch_con_un_campo_que_no_es_nombre_email_rol_ni_estado_responde_422(
     cliente, repo, auth, gente, cuerpo
 ):
     orga = gente["orga"]
@@ -87,7 +88,7 @@ def test_un_patch_con_un_campo_que_no_es_rol_estado_ni_nombre_responde_422(
     assert respuesta.status_code == 422, respuesta.text
     assert respuesta.headers["content-type"] == "application/problem+json"
     rechazados = {e["field"] for e in respuesta.json()["errors"]}
-    assert rechazados == set(cuerpo) - {"role", "full_name"}
+    assert rechazados == set(cuerpo) - {"role", "full_name", "email"}
     assert (orga.role, orga.full_name, orga.email) == (Rol.ORGANIZER, "Orga", "orga@mail.com")
     assert repo.operaciones == []
 
@@ -203,6 +204,152 @@ def test_un_usuario_inexistente_responde_404(cliente, repo, auth, gente):
     assert respuesta.headers["content-type"] == "application/problem+json"
     # El 404 es porque se lo buscó y no está, no porque la ruta no exista.
     assert ("leer para escribir", inexistente) in repo.operaciones
+
+
+# --- PATCH: el email ---------------------------------------------------------------------------
+
+
+def test_el_admin_cambia_el_email_y_se_guarda_normalizado_como_en_el_registro(
+    cliente, repo, auth, gente
+):
+    ana = gente["ana"]
+
+    respuesta = patch(cliente, auth, gente["admin"], ana.id, {"email": "  Ana.Nueva@Mail.COM "})
+
+    assert respuesta.status_code == 200, respuesta.text
+    assert respuesta.json()["email"] == "ana.nueva@mail.com"
+    assert ana.email == "ana.nueva@mail.com"
+    assert ("guardar", ana.id) in repo.operaciones
+
+
+@pytest.mark.parametrize(
+    "valor",
+    [
+        "no-es-un-email",
+        "ana@",
+        "@mail.com",
+        "ana@mail",
+        "a" * 250 + "@mail.com",
+        "",
+        None,
+        "ana\x00@mail.com",
+    ],
+    ids=["sin-arroba", "sin-dominio", "sin-usuario", "sin-tld", "largo", "vacio", "nulo", "nul"],
+)
+def test_un_email_invalido_responde_422_sin_tocar_nada(cliente, repo, auth, gente, valor):
+    ana = gente["ana"]
+
+    respuesta = patch(cliente, auth, gente["admin"], ana.id, {"email": valor})
+
+    assert respuesta.status_code == 422, respuesta.text
+    assert [e["field"] for e in respuesta.json()["errors"]] == ["email"]
+    assert ana.email == "ana@mail.com"
+    assert repo.operaciones == []
+
+
+def test_un_email_que_ya_usa_otro_con_otras_mayusculas_es_409_email_taken(repo, gente):
+    ana, orga = gente["ana"], gente["orga"]
+
+    with pytest.raises(Conflict) as error:
+        administracion.cambiar(repo, gente["admin"], ana.id, UsuarioEdicion(email="ORGA@mail.com"))
+
+    assert error.value.tipo == "email-taken"
+    assert error.value.status == 409
+    assert error.value.titulo == "Ese email ya está registrado"
+    assert orga.email == "orga@mail.com"
+    assert repo.usuarios[orga.id] is orga
+
+
+def test_el_409_email_taken_llega_como_problem_json(cliente, repo, auth, gente):
+    respuesta = patch(cliente, auth, gente["admin"], gente["ana"].id, {"email": "Orga@Mail.com"})
+
+    assert respuesta.status_code == 409, respuesta.text
+    assert respuesta.headers["content-type"] == "application/problem+json"
+    cuerpo = respuesta.json()
+    assert cuerpo["type"] == "email-taken"
+    assert cuerpo["title"] == "Ese email ya está registrado"
+    assert cuerpo["trace_id"]
+
+
+def test_mandar_el_mismo_email_con_otras_mayusculas_no_es_conflicto(cliente, repo, auth, gente):
+    ana = gente["ana"]
+
+    respuesta = patch(cliente, auth, gente["admin"], ana.id, {"email": "ANA@Mail.com"})
+
+    assert respuesta.status_code == 200, respuesta.text
+    assert respuesta.json()["email"] == ana.email == "ana@mail.com"
+
+
+def test_la_unicidad_la_decide_la_base_cuando_otro_gano_la_carrera(gente):
+    """Dos admins ponen el mismo email a dos usuarios a la vez: el índice único rechaza al
+    segundo, y eso es un 409 email-taken, no un 500."""
+    ana = gente["ana"]
+    repo = RepositorioUsuariosFalso(gente["admin"], ana, choca_al_guardar=True)
+
+    with pytest.raises(Conflict) as error:
+        administracion.cambiar(repo, gente["admin"], ana.id, UsuarioEdicion(email="z@mail.com"))
+
+    assert error.value.tipo == "email-taken"
+
+
+def test_el_admin_se_cambia_su_propio_email_y_su_nombre(cliente, repo, auth, gente):
+    admin = gente["admin"]
+
+    respuesta = patch(
+        cliente, auth, admin, admin.id, {"email": " Yo.Admin@Mail.com", "full_name": "Ana"}
+    )
+
+    assert respuesta.status_code == 200, respuesta.text
+    assert respuesta.json()["email"] == "yo.admin@mail.com"
+    assert (admin.email, admin.full_name) == ("yo.admin@mail.com", "Ana")
+    assert (admin.role, admin.is_active) == (Rol.ADMIN, True)
+
+
+def test_el_email_propio_respeta_el_email_tomado(repo, gente):
+    admin = gente["admin"]
+
+    with pytest.raises(Conflict) as error:
+        administracion.cambiar(repo, admin, admin.id, UsuarioEdicion(email="Orga@mail.com"))
+
+    assert error.value.tipo == "email-taken"
+
+
+def test_el_propio_email_junto_con_el_rol_sigue_siendo_cannot_modify_self(repo, gente):
+    admin = gente["admin"]
+
+    with pytest.raises(Conflict) as error:
+        administracion.cambiar(
+            repo, admin, admin.id, UsuarioEdicion(email="yo@mail.com", role=Rol.ATTENDEE)
+        )
+
+    assert error.value.tipo == "cannot-modify-self"
+    assert admin.email == "admin@mail.com"
+    assert repo.operaciones == []
+
+
+def test_sin_permiso_es_403_aunque_el_email_este_tomado(repo, gente):
+    with pytest.raises(Forbidden):
+        administracion.cambiar(
+            repo, gente["orga"], gente["ana"].id, UsuarioEdicion(email="admin@mail.com")
+        )
+
+    assert repo.operaciones == []
+
+
+def test_un_usuario_inexistente_es_404_aunque_el_email_este_tomado(repo, gente):
+    with pytest.raises(NotFound):
+        administracion.cambiar(repo, gente["admin"], uuid4(), UsuarioEdicion(email="orga@mail.com"))
+
+    assert not any(op[0] == "guardar" for op in repo.operaciones)
+
+
+def test_el_email_tomado_se_detecta_al_guardar_con_los_admins_bloqueados(repo, gente):
+    admin, ana = gente["admin"], gente["ana"]
+
+    with pytest.raises(Conflict):
+        administracion.cambiar(repo, admin, ana.id, UsuarioEdicion(email="orga@mail.com"))
+
+    assert [op[0] for op in repo.operaciones] == ["bloquear", "leer para escribir", "guardar"]
 
 
 # --- Permisos ----------------------------------------------------------------------------------
@@ -531,6 +678,43 @@ def test_la_busqueda_por_varios_roles_usa_in_con_parametros_ligados():
         assert "ADMIN" not in sql and "ORGANIZER" not in sql
         [valores] = [v for v in compilada.params.values() if isinstance(v, list | tuple)]
         assert set(valores) == {Rol.ADMIN, Rol.ORGANIZER}
+
+
+class SesionQueChocaAlGuardar:
+    """Una sesión cuyo flush viola una restricción: la que se le indique."""
+
+    def __init__(self, restriccion: str) -> None:
+        self.restriccion = restriccion
+        self.refrescados: list = []
+
+    def begin_nested(self):
+        return contextlib.nullcontext()
+
+    def add(self, _objeto) -> None:
+        pass
+
+    def flush(self) -> None:
+        detalle = f'duplicate key value violates unique constraint "{self.restriccion}"'
+        raise IntegrityError("UPDATE users ...", {}, Exception(detalle))
+
+    def refresh(self, objeto) -> None:
+        self.refrescados.append(objeto)
+
+
+def test_el_repositorio_traduce_el_choque_con_el_indice_del_email_a_none(gente):
+    sesion = SesionQueChocaAlGuardar("uq_users_email")
+
+    guardado = RepositorioUsuarios(sesion).guardar(gente["ana"])
+
+    assert guardado is None
+    assert sesion.refrescados == []
+
+
+def test_el_repositorio_no_se_traga_otra_violacion_de_integridad(gente):
+    sesion = SesionQueChocaAlGuardar("users_pkey")
+
+    with pytest.raises(IntegrityError):
+        RepositorioUsuarios(sesion).guardar(gente["ana"])
 
 
 def test_la_busqueda_sin_roles_no_filtra_por_rol():

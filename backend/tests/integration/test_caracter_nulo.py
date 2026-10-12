@@ -141,5 +141,6 @@ def test_el_caracter_nulo_en_cualquier_campo_de_texto_nunca_da_500(cliente_db, c
     assert all(revisados.values()), f"faltó recorrer algún tipo de campo: {revisados}"
     assert fallas == []
     assert de_admin_usuarios["PATCH /admin/users/{id_usuario} [body] full_name"] == 422
+    assert de_admin_usuarios["PATCH /admin/users/{id_usuario} [body] email"] == 422
     assert de_admin_usuarios["GET /admin/users [query] q"] == 422
     assert set(de_admin_usuarios.values()) == {422}, de_admin_usuarios
