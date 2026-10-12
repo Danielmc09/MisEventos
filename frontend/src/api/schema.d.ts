@@ -93,7 +93,7 @@ export interface paths {
     };
     /**
      * Usuario actual
-     * @description Los datos del usuario dueño del access token.
+     * @description Los datos del usuario dueño del access token y los permisos de su rol.
      */
     get: operations["me_auth_me_get"];
     put?: never;
@@ -758,6 +758,44 @@ export interface components {
       pages: number;
     };
     /**
+     * PerfilConPermisos
+     * @description El usuario dueño del token y lo que puede hacer, para que el cliente no repita el mapa.
+     */
+    PerfilConPermisos: {
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string;
+      /** Email */
+      email: string;
+      /** Full Name */
+      full_name: string | null;
+      role: components["schemas"]["Rol"];
+      /** Is Active */
+      is_active: boolean;
+      /** Must Change Password */
+      must_change_password: boolean;
+      /**
+       * Created At
+       * Format: date-time
+       */
+      created_at: string;
+      /** Permisos */
+      permisos: components["schemas"]["Permiso"][];
+    };
+    /**
+     * Permiso
+     * @enum {string}
+     */
+    Permiso:
+      | "evento:crear"
+      | "evento:gestionar_todos"
+      | "ponente:gestionar"
+      | "ponente:gestionar_todos"
+      | "usuarios:gestionar"
+      | "auditoria:ver";
+    /**
      * PonenteDeSesion
      * @description Lo público de un ponente: sin el email.
      */
@@ -977,28 +1015,6 @@ export interface components {
       /** Expires In */
       expires_in: number;
     };
-    /** UsuarioSalida */
-    UsuarioSalida: {
-      /**
-       * Id
-       * Format: uuid
-       */
-      id: string;
-      /** Email */
-      email: string;
-      /** Full Name */
-      full_name: string | null;
-      role: components["schemas"]["Rol"];
-      /** Is Active */
-      is_active: boolean;
-      /** Must Change Password */
-      must_change_password: boolean;
-      /**
-       * Created At
-       * Format: date-time
-       */
-      created_at: string;
-    };
   };
   responses: never;
   parameters: never;
@@ -1151,7 +1167,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["UsuarioSalida"];
+          "application/json": components["schemas"]["PerfilConPermisos"];
         };
       };
       /** @description Necesitás iniciar sesión */
