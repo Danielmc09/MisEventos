@@ -207,6 +207,12 @@ describe("encabezado y separador", () => {
     expect(within(menu).getAllByRole("menuitem")).toHaveLength(2);
   });
 
+  test("el menú tiene un ancho máximo para que el nombre y el correo largos se corten", async () => {
+    await abrirConEncabezado();
+
+    expect(screen.getByRole("menu")).toHaveClass("max-w-xs");
+  });
+
   test("una opción separada lleva un separador encima y el teclado la sigue alcanzando", async () => {
     const user = await abrirConEncabezado();
 
