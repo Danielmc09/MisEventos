@@ -826,6 +826,44 @@ describe("nuevo usuario", () => {
     expect(screen.getByText("Copiada").closest('[role="status"]')).not.toBeNull();
   });
 
+  describe("si no se puede copiar", () => {
+    const AVISO = "No se pudo copiar: seleccionala y copiala a mano";
+
+    async function abrirTemporal() {
+      entrarComo(admin);
+      servirUsuarios();
+      servirAlta();
+      const user = userEvent.setup();
+      montarAdmin();
+      await llenar(await abrirAlta(user), user);
+      await screen.findByRole("dialog", { name: "Contraseña temporal de Nora" });
+      return user;
+    }
+
+    afterEach(() => vi.restoreAllMocks());
+
+    test("sin navigator.clipboard, avisa con un alert y la contraseña sigue a la vista", async () => {
+      const user = await abrirTemporal();
+      vi.spyOn(navigator, "clipboard", "get").mockReturnValue(undefined as unknown as Clipboard);
+
+      await user.click(screen.getByRole("button", { name: "Copiar" }));
+
+      expect(await screen.findByRole("alert")).toHaveTextContent(AVISO);
+      expect(screen.queryByText("Copiada")).not.toBeInTheDocument();
+      expect(screen.getByText(clave)).toBeVisible();
+    });
+
+    test("si writeText se rechaza, avisa con un alert", async () => {
+      const user = await abrirTemporal();
+      vi.spyOn(navigator.clipboard, "writeText").mockRejectedValue(new Error("denegado"));
+
+      await user.click(screen.getByRole("button", { name: "Copiar" }));
+
+      expect(await screen.findByRole("alert")).toHaveTextContent(AVISO);
+      expect(screen.queryByText("Copiada")).not.toBeInTheDocument();
+    });
+  });
+
   test("con el pedido en curso, Cancelar está deshabilitado y Escape no cierra: la temporal aparece", async () => {
     entrarComo(admin);
     servirUsuarios();
