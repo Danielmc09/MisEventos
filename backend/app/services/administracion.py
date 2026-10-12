@@ -1,4 +1,5 @@
-"""Gestión de usuarios por el administrador: listarlos y cambiarles el nombre, el rol o el estado.
+"""Gestión de usuarios por el administrador: listarlos y cambiarles el nombre, el email, el rol o
+el estado.
 
 Lanza excepciones de dominio; no sabe nada de HTTP."""
 
@@ -26,7 +27,7 @@ class Usuarios(Protocol):
     def inscripciones_activas(self, ids_usuario: list[UUID]) -> dict[UUID, int]: ...
     def activos_para_escribir(self, roles: Collection[Rol]) -> list[User]: ...
     def por_id_para_escribir(self, id_usuario: UUID) -> User | None: ...
-    def guardar(self, usuario: User) -> User: ...
+    def guardar(self, usuario: User) -> User | None: ...
 
 
 @dataclass(frozen=True)
@@ -65,7 +66,8 @@ def _es_admin_activo(role: Rol, activo: bool) -> bool:
 def cambiar(
     repo: Usuarios, actor: User, id_usuario: UUID, datos: UsuarioEdicion
 ) -> ConInscripciones:
-    """Cambia el nombre, el rol o el estado de un usuario. El propio nombre sí se lo cambia.
+    """Cambia el nombre, el email, el rol o el estado de un usuario. El propio nombre y el propio
+    email sí se los cambia.
 
     El orden importa: primero el permiso (sin él, 403 aunque el usuario no exista), después que
     no se toque a sí mismo, y recién ahí se bloquean, en orden de id, TODOS los admins activos.
@@ -74,7 +76,10 @@ def cambiar(
 
     El permiso se vuelve a mirar con los admins bloqueados: si mientras esperaba otro admin lo
     degradó o lo desactivó, el actor ya no está entre ellos y no cambia nada (403). El
-    `last-admin` va antes, porque es lo que explica por qué no se hizo el cambio."""
+    `last-admin` va antes, porque es lo que explica por qué no se hizo el cambio.
+
+    Un email que ya usa otro usuario lo rechaza el índice único al guardar (`email-taken`): así
+    pierde también el segundo de dos cambios simultáneos al mismo email."""
     _exigir_permiso(actor)
     cambios = datos.model_dump(exclude_unset=True)
     if id_usuario == actor.id and cambios.keys() & {"role", "is_active"}:
@@ -100,5 +105,8 @@ def cambiar(
         raise NotFound()
     for campo, valor in cambios.items():
         setattr(usuario, campo, valor)
-    usuario = repo.guardar(usuario)
+    guardado = repo.guardar(usuario)
+    if guardado is None:
+        raise Conflict(tipo="email-taken", titulo="Ese email ya está registrado")
+    usuario = guardado
     return ConInscripciones(usuario, repo.inscripciones_activas([usuario.id])[usuario.id])

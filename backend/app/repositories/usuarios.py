@@ -91,9 +91,17 @@ class RepositorioUsuarios:
         )
         return self.session.exec(consulta).first()
 
-    def guardar(self, usuario: User) -> User:
-        self.session.add(usuario)
-        self.session.flush()
+    def guardar(self, usuario: User) -> User | None:
+        """None si el email ya lo usa otro usuario: lo decide el índice único, así que también
+        pierde quien llegó segundo en una carrera. El savepoint deja la sesión usable."""
+        try:
+            with self.session.begin_nested():
+                self.session.add(usuario)
+                self.session.flush()
+        except IntegrityError as error:
+            if INDICE_EMAIL not in str(error.orig):
+                raise
+            return None
         self.session.refresh(usuario)  # updated_at lo pone el trigger
         return usuario
 

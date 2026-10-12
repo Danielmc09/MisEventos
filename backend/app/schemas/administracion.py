@@ -4,24 +4,27 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.core.permisos import Rol
+from app.schemas.auth import Email
 from app.schemas.comunes import EntradaBase, FechaUTC
 
 
 class UsuarioEdicion(EntradaBase):
-    """Lo que el admin le cambia a un usuario: el nombre, el rol y si está activo. El email, la
+    """Lo que el admin le cambia a un usuario: el nombre, el email, el rol y si está activo. La
     contraseña y cualquier otro campo responden 422."""
 
     model_config = ConfigDict(extra="forbid")
 
     # Las mismas reglas que el nombre del registro.
     full_name: str | None = Field(default=None, max_length=120)
+    # Validado y normalizado igual que en el registro.
+    email: Email | None = None
     role: Rol | None = None
     is_active: bool | None = None
 
-    @field_validator("role", "is_active")
+    @field_validator("email", "role", "is_active")
     @classmethod
     def no_nulo(cls, valor: object) -> object:
-        # Ausente sí (no cambia); null no: los dos son obligatorios en el usuario.
+        # Ausente sí (no cambia); null no: los tres son obligatorios en el usuario.
         if valor is None:
             raise ValueError("No puede ser nulo")
         return valor
