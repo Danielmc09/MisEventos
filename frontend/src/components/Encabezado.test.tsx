@@ -215,10 +215,10 @@ describe("en una pantalla angosta", () => {
       "href",
       "/eventos/nuevo",
     );
-    expect(nav.getByRole("menuitem", { name: "Oscar Organizador" })).toHaveAttribute(
-      "href",
-      "/perfil",
-    );
+    expect(nav.getByRole("menuitem", { name: "Mi perfil" })).toHaveAttribute("href", "/perfil");
+    // El nombre es el encabezado del menú, no un enlace.
+    expect(nav.getByText("Oscar Organizador")).toBeInTheDocument();
+    expect(nav.queryByRole("menuitem", { name: "Oscar Organizador" })).not.toBeInTheDocument();
     expect(nav.getByRole("menuitem", { name: "Cerrar sesión" })).toBeInTheDocument();
   });
 });
