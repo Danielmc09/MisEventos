@@ -75,7 +75,8 @@ export function FormularioUsuario({
     setGeneral(undefined);
     const nombreLimpio = nombre.trim();
     const emailLimpio = email.trim();
-    const faltaNombre = !nombreLimpio ? "Escribí el nombre" : undefined;
+    // Un nombre que existía no se puede borrar; si ya estaba vacío, sigue vacío y no se manda.
+    const faltaNombre = !nombreLimpio && usuario.full_name ? "Escribí el nombre" : undefined;
     const faltaEmail = !emailLimpio ? "Escribí el correo" : undefined;
     setErrorNombre(faltaNombre);
     setErrorEmail(faltaEmail);
