@@ -3,6 +3,7 @@ import { api } from "../api/client";
 import { ApiError } from "../api/errors";
 import type { components } from "../api/schema";
 import { EventoCard } from "./EventoCard";
+import { SesionesReservadas } from "./SesionesReservadas";
 import { AlertaError } from "./ui/AlertaError";
 import { Paginacion } from "./ui/Paginacion";
 import { Pestanas } from "./ui/Pestanas";
@@ -92,7 +93,12 @@ export function MisInscripciones() {
         {actual?.pagina && actual.pagina.items.length > 0 && (
           <div className="grid gap-4 sm:grid-cols-2">
             {actual.pagina.items.map((i) => (
-              <EventoCard key={i.id} evento={i.event} />
+              <div key={i.id} className="flex flex-col gap-2">
+                <EventoCard evento={i.event} />
+                {activa === "proximos" && (
+                  <SesionesReservadas evento={i.event.name} sesiones={i.reserved_sessions} />
+                )}
+              </div>
             ))}
           </div>
         )}
