@@ -148,3 +148,58 @@ def test_el_dueno_puede_inscribirse_a_su_propio_evento(cliente_db, conexion, usu
 
     assert inscribirse(cliente_db, usuarios["orga"], id_evento).status_code == 201
     assert inscripciones(conexion, id_evento, f"{prefijo}orga@mail.com") == [("ACTIVE", None)]
+
+
+# --- Cancelar ------------------------------------------------------------------------------
+
+
+def test_cancelar_responde_204_la_deja_cancelada_y_libera_el_cupo(
+    cliente_db, conexion, usuarios, prefijo
+):
+    id_evento = crear_evento(cliente_db, usuarios["orga"], capacidad=1)
+    assert inscribirse(cliente_db, usuarios["ana"], id_evento).status_code == 201
+    assert_conflicto(inscribirse(cliente_db, usuarios["beto"], id_evento), "capacity-full")
+
+    respuesta = cancelar(cliente_db, usuarios["ana"], id_evento)
+
+    assert respuesta.status_code == 204, respuesta.text
+    [(estado, cancelada_en)] = inscripciones(conexion, id_evento, f"{prefijo}ana@mail.com")
+    assert estado == "CANCELLED"
+    assert cancelada_en is not None
+    detalle = cliente_db.get(f"/events/{id_evento}").json()
+    assert (detalle["registered_count"], detalle["available_spots"]) == (0, 1)
+    assert inscribirse(cliente_db, usuarios["beto"], id_evento).status_code == 201
+
+
+def test_volver_a_inscribirse_despues_de_cancelar_deja_una_activa_y_una_cancelada(
+    cliente_db, conexion, usuarios, prefijo
+):
+    id_evento = crear_evento(cliente_db, usuarios["orga"])
+    assert inscribirse(cliente_db, usuarios["ana"], id_evento).status_code == 201
+    assert cancelar(cliente_db, usuarios["ana"], id_evento).status_code == 204
+
+    respuesta = inscribirse(cliente_db, usuarios["ana"], id_evento)
+
+    assert respuesta.status_code == 201, respuesta.text
+    filas = inscripciones(conexion, id_evento, f"{prefijo}ana@mail.com")
+    assert sorted(estado for estado, _ in filas) == ["ACTIVE", "CANCELLED"]
+
+
+def test_cancelar_sin_inscripcion_activa_responde_404(cliente_db, conexion, usuarios, prefijo):
+    id_evento = crear_evento(cliente_db, usuarios["orga"])
+    assert inscribirse(cliente_db, usuarios["ana"], id_evento).status_code == 201
+
+    respuesta = cancelar(cliente_db, usuarios["beto"], id_evento)
+
+    assert respuesta.status_code == 404
+    # La de otra persona no se toca: el usuario sale del token, no de la ruta.
+    assert inscripciones(conexion, id_evento, f"{prefijo}ana@mail.com") == [("ACTIVE", None)]
+
+
+def test_cancelar_con_el_evento_ya_empezado_responde_409(cliente_db, conexion, usuarios, prefijo):
+    id_evento = crear_evento(cliente_db, usuarios["orga"])
+    assert inscribirse(cliente_db, usuarios["ana"], id_evento).status_code == 201
+    empezar(conexion, id_evento)
+
+    assert_conflicto(cancelar(cliente_db, usuarios["ana"], id_evento), "event-started")
+    assert inscripciones(conexion, id_evento, f"{prefijo}ana@mail.com") == [("ACTIVE", None)]

@@ -233,3 +233,95 @@ def test_un_cuerpo_vacio_se_acepta(cliente, repos, auth):
     evento = repos.evento()
 
     assert inscribirse(cliente, evento, auth(ASISTENTE), json={}).status_code == 201
+
+
+# --- Cancelar ------------------------------------------------------------------------------
+
+
+def cancelar(cliente, evento: Event, headers: dict):
+    return cliente.delete(f"/events/{evento.id}/registrations/me", headers=headers)
+
+
+def test_cancelar_la_propia_responde_204_y_la_deja_cancelada_con_fecha(cliente, repos, auth):
+    evento = repos.evento()
+    inscripcion = repos.inscribir(ASISTENTE, evento)
+    antes = datetime.now(UTC)
+
+    respuesta = cancelar(cliente, evento, auth(ASISTENTE))
+
+    assert respuesta.status_code == 204, respuesta.text
+    assert respuesta.content == b""
+    assert inscripcion.status == EstadoInscripcion.CANCELLED
+    assert inscripcion.cancelled_at is not None
+    assert inscripcion.cancelled_at >= antes
+    assert repos.eventos.bloqueos == [evento.id]
+
+
+def test_cancelar_libera_el_cupo(cliente, repos, auth):
+    evento = repos.evento(capacity=1)
+    repos.inscribir(ASISTENTE, evento)
+    assert_conflicto(inscribirse(cliente, evento, auth(OTRO_ASISTENTE)), "capacity-full")
+
+    assert cancelar(cliente, evento, auth(ASISTENTE)).status_code == 204
+
+    assert inscribirse(cliente, evento, auth(OTRO_ASISTENTE)).status_code == 201
+
+
+def test_volver_a_inscribirse_despues_de_cancelar_deja_una_activa_y_una_cancelada(
+    cliente, repos, auth
+):
+    evento = repos.evento()
+    repos.inscribir(ASISTENTE, evento)
+    assert cancelar(cliente, evento, auth(ASISTENTE)).status_code == 204
+
+    respuesta = inscribirse(cliente, evento, auth(ASISTENTE))
+
+    assert respuesta.status_code == 201, respuesta.text
+    estados = sorted(i.status for i in repos.de(ASISTENTE, evento))
+    assert estados == [EstadoInscripcion.ACTIVE, EstadoInscripcion.CANCELLED]
+
+
+def test_cancelar_sin_inscripcion_activa_responde_404(cliente, repos, auth):
+    evento = repos.evento()
+    repos.inscribir(ASISTENTE, evento, EstadoInscripcion.CANCELLED)
+
+    respuesta = cancelar(cliente, evento, auth(ASISTENTE))
+
+    assert respuesta.status_code == 404
+    assert respuesta.json()["type"] == "not-found"
+
+
+def test_cancelar_solo_toca_la_inscripcion_del_usuario_del_token(cliente, repos, auth):
+    evento = repos.evento()
+    ajena = repos.inscribir(ASISTENTE, evento)
+
+    assert cancelar(cliente, evento, auth(OTRO_ASISTENTE)).status_code == 404
+
+    assert ajena.status == EstadoInscripcion.ACTIVE
+    assert ajena.cancelled_at is None
+
+
+def test_cancelar_con_el_evento_ya_empezado_responde_event_started(cliente, repos, auth):
+    evento = repos.evento(empezado=True)
+    inscripcion = repos.inscribir(ASISTENTE, evento)
+
+    respuesta = cancelar(cliente, evento, auth(ASISTENTE))
+
+    assert_conflicto(respuesta, "event-started")
+    assert inscripcion.status == EstadoInscripcion.ACTIVE
+    assert inscripcion.cancelled_at is None
+
+
+def test_cancelar_en_un_evento_que_no_existe_responde_404(cliente, repos, auth):
+    fantasma = repos.evento()
+    del repos.eventos.eventos[fantasma.id]
+
+    assert cancelar(cliente, fantasma, auth(ASISTENTE)).status_code == 404
+
+
+def test_cancelar_sin_token_responde_401(cliente, repos):
+    evento = repos.evento()
+    inscripcion = repos.inscribir(ASISTENTE, evento)
+
+    assert cancelar(cliente, evento, {}).status_code == 401
+    assert inscripcion.status == EstadoInscripcion.ACTIVE
