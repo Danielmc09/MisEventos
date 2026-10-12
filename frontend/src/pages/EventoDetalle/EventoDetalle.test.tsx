@@ -94,8 +94,17 @@ describe("estados del detalle", () => {
     expect(screen.getByText(/11 de oct.*4:30/)).toBeInTheDocument();
     expect(screen.getByText("Ágora Bogotá")).toBeInTheDocument();
     expect(screen.getByText("Tres días de Python")).toBeInTheDocument();
-    expect(screen.getByText("Publicado")).toBeInTheDocument();
     expect(screen.getByText("Quedan 100 cupos")).toBeInTheDocument();
+  });
+
+  test("un evento publicado que ya empezó se muestra En curso, sin botón de inscripción", async () => {
+    useSession.getState().iniciarSesion(usuario, "token", 3600);
+    servir(empezado);
+    abrir();
+
+    expect(await screen.findByText("En curso")).toBeInTheDocument();
+    expect(screen.queryByText("Publicado")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Inscribirme" })).not.toBeInTheDocument();
   });
 
   test("un 404 dice que no encontramos el evento", async () => {
@@ -216,10 +225,10 @@ describe("ejecutar acciones", () => {
   }
 
   test("publicar avisa, actualiza el estado e invalida el listado", async () => {
-    servir({ ...evento, status: "DRAFT" });
+    servir({ ...abierto, status: "DRAFT" });
     server.use(
       http.post(`${ruta}/publish`, () =>
-        responder("/events/{id_evento}/publish", "post", 200, evento),
+        responder("/events/{id_evento}/publish", "post", 200, abierto),
       ),
     );
     const listados = await contarListados();
@@ -872,6 +881,59 @@ describe("panel de inscripciones del dueño", () => {
     expect(filas[1]).toHaveTextContent(/10 de oct.*8:30/);
     expect(filas[2]).toHaveTextContent("—");
     expect(filas[2]).toHaveTextContent("Cancelada");
+  });
+
+  test("quien se inscribió, canceló y volvió a inscribirse aparece dos veces sin avisos de React", async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    useSession.getState().iniciarSesion(dueno, "token", 3600);
+    servir();
+    servirPanel({}, [
+      inscritoFila,
+      { ...inscritoFila, status: "CANCELLED", created_at: "2026-10-09T15:00:00Z" },
+    ]);
+    abrir();
+
+    const tabla = await screen.findByRole("table", { name: "Lista de inscritos" });
+    expect(within(tabla).getAllByRole("row")).toHaveLength(3);
+    expect(within(tabla).getAllByText("luisa@mail.com")).toHaveLength(2);
+    expect(error).not.toHaveBeenCalled();
+    error.mockRestore();
+  });
+
+  test("cuando el dueño se inscribe, el panel pasa de 0 a 1 inscrito sin recargar", async () => {
+    useSession.getState().iniciarSesion(dueno, "token", 3600);
+    servir(abierto);
+    let inscritos = 0;
+    server.use(
+      http.get(`${ruta}/stats`, () =>
+        responder("/events/{id_evento}/stats", "get", 200, {
+          ...estadisticas,
+          active: inscritos,
+          cancelled: 0,
+        }),
+      ),
+      http.get(`${ruta}/registrations`, () =>
+        responder(
+          "/events/{id_evento}/registrations",
+          "get",
+          200,
+          paginaDe(inscritos ? [inscritoFila] : []),
+        ),
+      ),
+      http.post(rutaInscripcion, () => {
+        inscritos = 1;
+        return responder("/events/{id_evento}/registrations", "post", 201, creada);
+      }),
+    );
+    const user = userEvent.setup();
+    abrir();
+
+    const panel = await screen.findByRole("region", { name: "Inscripciones" });
+    expect(await within(panel).findByText("Todavía no hay inscritos")).toBeInTheDocument();
+    await user.click(await screen.findByRole("button", { name: "Inscribirme" }));
+
+    expect(await within(panel).findByRole("table")).toHaveTextContent("luisa@mail.com");
+    expect(within(panel).getByText("Inscritos").nextElementSibling).toHaveTextContent("1");
   });
 
   test("el admin también ve el panel", async () => {

@@ -3,15 +3,20 @@ import userEvent from "@testing-library/user-event";
 import { http } from "msw";
 import { setupServer } from "msw/node";
 import { useEventos } from "../../stores/eventos";
-import { API, evento, montar } from "../../test/helpers";
+import { useSession } from "../../stores/session";
+import { API, evento, montar, usuario } from "../../test/helpers";
 import { responder } from "../../test/msw";
 import EventoNuevo from "./EventoNuevo";
 
 const server = setupServer();
 beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
+beforeEach(() =>
+  useSession.getState().iniciarSesion({ ...usuario, role: "ORGANIZER" }, "token", 3600),
+);
 afterEach(() => {
   server.resetHandlers();
   useEventos.getState().invalidar();
+  useSession.getState().cerrarSesion();
 });
 afterAll(() => server.close());
 
@@ -35,6 +40,24 @@ async function completar(
 }
 
 const crear = (user: Usuario) => user.click(screen.getByRole("button", { name: "Crear evento" }));
+
+describe("permiso para crear", () => {
+  test("un asistente que entra por la URL ve un mensaje y no el formulario", () => {
+    useSession.getState().iniciarSesion(usuario, "token", 3600);
+    abrir();
+
+    expect(screen.getByText("No tenés permiso para crear eventos")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Crear evento" })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Nombre")).not.toBeInTheDocument();
+  });
+
+  test("un organizador ve el formulario", () => {
+    abrir();
+
+    expect(screen.getByLabelText("Nombre")).toBeInTheDocument();
+    expect(screen.queryByText("No tenés permiso para crear eventos")).not.toBeInTheDocument();
+  });
+});
 
 describe("validación en el cliente", () => {
   test("no se envía con fin igual o anterior al inicio y marca el campo", async () => {

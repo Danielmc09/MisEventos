@@ -7,6 +7,8 @@ import { AlertaError } from "./ui/AlertaError";
 import { Paginacion } from "./ui/Paginacion";
 import { Pestanas } from "./ui/Pestanas";
 import { Spinner } from "./ui/Spinner";
+import { TextoSecundario } from "./ui/TextoSecundario";
+import { TituloSeccion } from "./ui/TituloSeccion";
 
 type Pagina = components["schemas"]["Pagina_InscripcionMia_"];
 
@@ -71,9 +73,7 @@ export function MisInscripciones() {
 
   return (
     <section aria-labelledby="titulo-inscripciones" className="mt-8 flex flex-col gap-4">
-      <h2 id="titulo-inscripciones" className="text-xl font-semibold">
-        Mis inscripciones
-      </h2>
+      <TituloSeccion id="titulo-inscripciones">Mis inscripciones</TituloSeccion>
       <Pestanas
         etiqueta="Mis inscripciones"
         pestanas={PESTANAS.map(({ id, titulo }) => ({ id, titulo }))}
@@ -87,7 +87,7 @@ export function MisInscripciones() {
         )}
         {actual?.error && <AlertaError title={actual.error} />}
         {actual?.pagina && actual.pagina.items.length === 0 && (
-          <p className="text-gray-600">{pestana.vacio}</p>
+          <TextoSecundario>{pestana.vacio}</TextoSecundario>
         )}
         {actual?.pagina && actual.pagina.items.length > 0 && (
           <div className="grid gap-4 sm:grid-cols-2">

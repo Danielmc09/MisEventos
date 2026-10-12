@@ -1,7 +1,11 @@
 import { render, screen } from "@testing-library/react";
+import { http } from "msw";
+import { setupServer } from "msw/node";
 import { MemoryRouter, useLocation } from "react-router-dom";
 import type { components } from "./api/schema";
 import { useSession } from "./stores/session";
+import { API } from "./test/helpers";
+import { responder } from "./test/msw";
 import App from "./App";
 
 const usuario: components["schemas"]["UsuarioSalida"] = {
@@ -14,7 +18,21 @@ const usuario: components["schemas"]["UsuarioSalida"] = {
   created_at: "2026-10-11T15:30:00Z",
 };
 
+// El perfil pide "Mis inscripciones": sin respuesta simulada, esa petición quedaba colgada y afectaba al test siguiente.
+const server = setupServer(
+  http.get(`${API}/me/registrations`, () =>
+    responder("/me/registrations", "get", 200, {
+      items: [],
+      total: 0,
+      page: 1,
+      page_size: 12,
+      pages: 0,
+    }),
+  ),
+);
+beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
 afterEach(() => useSession.getState().cerrarSesion());
+afterAll(() => server.close());
 
 function Ubicacion() {
   const { pathname, search } = useLocation();
@@ -69,4 +87,35 @@ test("con sesión, /perfil muestra el perfil", async () => {
 
   expect(await screen.findByRole("heading", { name: "Perfil" })).toBeInTheDocument();
   expect(screen.getByLabelText("ubicación")).toHaveTextContent(/^\/perfil$/);
+});
+
+describe("ruta desconocida", () => {
+  test.each(["/eventos", "/cualquier-cosa"])(
+    "%s muestra la página 404 con un enlace al inicio",
+    async (ruta) => {
+      render(
+        <MemoryRouter initialEntries={[ruta]}>
+          <App />
+        </MemoryRouter>,
+      );
+
+      expect(
+        await screen.findByRole("heading", { name: "No encontramos esa página" }),
+      ).toBeInTheDocument();
+      expect(screen.getByRole("link", { name: "Volver al inicio" })).toHaveAttribute("href", "/");
+    },
+  );
+
+  test("una ruta existente no cae en la 404", async () => {
+    render(
+      <MemoryRouter initialEntries={["/login"]}>
+        <App />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByRole("heading", { name: "Iniciar sesión" })).toBeInTheDocument();
+    expect(
+      screen.queryByRole("heading", { name: "No encontramos esa página" }),
+    ).not.toBeInTheDocument();
+  });
 });

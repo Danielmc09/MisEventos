@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { Button } from "./Button";
@@ -10,6 +10,39 @@ import { EnlaceBoton } from "./EnlaceBoton";
 import { BarraProgreso } from "./BarraProgreso";
 import { Tabla } from "./Tabla";
 import { Paginacion } from "./Paginacion";
+import { TituloSeccion } from "./TituloSeccion";
+import { TextoSecundario } from "./TextoSecundario";
+import { Cifra } from "./Cifra";
+
+describe("TituloSeccion", () => {
+  test("es un encabezado de nivel 2 con el id dado", () => {
+    render(<TituloSeccion id="titulo-x">Inscripciones</TituloSeccion>);
+
+    const titulo = screen.getByRole("heading", { level: 2, name: "Inscripciones" });
+    expect(titulo).toHaveAttribute("id", "titulo-x");
+  });
+});
+
+describe("TextoSecundario", () => {
+  test("muestra su texto en un párrafo", () => {
+    render(<TextoSecundario>Todavía no hay inscritos</TextoSecundario>);
+
+    expect(screen.getByText("Todavía no hay inscritos").tagName).toBe("P");
+  });
+});
+
+describe("Cifra", () => {
+  test("asocia la etiqueta con su valor dentro de una lista de definiciones", () => {
+    render(
+      <dl>
+        <Cifra etiqueta="Inscritos">12</Cifra>
+      </dl>,
+    );
+
+    expect(screen.getByRole("term")).toHaveTextContent("Inscritos");
+    expect(screen.getByRole("definition")).toHaveTextContent("12");
+  });
+});
 
 describe("Button", () => {
   test("en estado de carga queda deshabilitado y muestra el spinner", () => {
@@ -156,7 +189,37 @@ describe("Tabla", () => {
     expect(screen.getByRole("table", { name: "Inscritos" })).toBeInTheDocument();
     expect(screen.getByRole("columnheader", { name: "Correo" })).toBeInTheDocument();
     expect(screen.getAllByRole("row")).toHaveLength(3);
-    expect(screen.getByRole("cell", { name: "luis@mail.com" })).toBeInTheDocument();
+    expect(screen.getByRole("cell", { name: /luis@mail.com/ })).toBeInTheDocument();
+  });
+
+  test("cada celda lleva su etiqueta de columna, para verse como tarjeta en pantallas angostas", () => {
+    render(
+      <Tabla
+        descripcion="Inscritos"
+        columnas={["Nombre", "Correo", "Estado", "Inscripción"]}
+        filas={[
+          { id: "1", celdas: ["Ana", "ana@mail.com", "Activa", "10 de oct"] },
+          { id: "2", celdas: ["Luis", "luis@mail.com", "Cancelada", "11 de oct"] },
+        ]}
+      />,
+    );
+
+    const [, ana, luis] = screen.getAllByRole("row");
+    expect(
+      within(ana)
+        .getAllByRole("cell")
+        .map((c) => c.textContent),
+    ).toEqual(["Nombre: Ana", "Correo: ana@mail.com", "Estado: Activa", "Inscripción: 10 de oct"]);
+    expect(
+      within(luis)
+        .getAllByRole("cell")
+        .map((c) => c.textContent),
+    ).toEqual([
+      "Nombre: Luis",
+      "Correo: luis@mail.com",
+      "Estado: Cancelada",
+      "Inscripción: 11 de oct",
+    ]);
   });
 });
 
