@@ -2,6 +2,7 @@ import { useId, useState, type FormEvent } from "react";
 import { api } from "../api/client";
 import { ApiError } from "../api/errors";
 import type { components } from "../api/schema";
+import { errorDeFormulario } from "../lib/errores";
 import { useSession } from "../stores/session";
 import { AlertaError } from "./ui/AlertaError";
 import { useAvisos } from "./ui/Avisos";
@@ -22,6 +23,8 @@ export const ROLES: Record<Rol, string> = {
   ORGANIZER: "Organizador",
   ADMIN: "Administrador",
 };
+
+const CAMPOS_VISIBLES = ["full_name", "email"];
 
 export const nombreDe = (u: UsuarioAdmin) => u.full_name || u.email;
 
@@ -94,7 +97,7 @@ export function FormularioUsuario({
   const [activo, setActivo] = useState(String(usuario.is_active));
   const [errorNombre, setErrorNombre] = useState<string>();
   const [errorEmail, setErrorEmail] = useState<string>();
-  const [general, setGeneral] = useState<string>();
+  const [general, setGeneral] = useState<{ title: string; detail?: string }>();
   const [enviando, setEnviando] = useState(false);
   const [pendiente, setPendiente] = useState<Edicion>();
 
@@ -112,8 +115,11 @@ export function FormularioUsuario({
     } catch (err) {
       setPendiente(undefined);
       setEnviando(false);
-      if (err instanceof ApiError && err.type === "email-taken") setErrorEmail(err.title);
-      else setGeneral(err instanceof ApiError ? err.title : "Ocurrió un error inesperado");
+      if (err instanceof ApiError && err.type === "email-taken") return setErrorEmail(err.title);
+      const { campos, general, detalle } = errorDeFormulario(err, CAMPOS_VISIBLES);
+      setErrorNombre(campos.full_name);
+      setErrorEmail(campos.email);
+      setGeneral(general ? { title: general, detail: detalle ?? undefined } : undefined);
     }
   }
 
@@ -190,7 +196,7 @@ export function FormularioUsuario({
               No podés cambiar tu propio rol ni tu estado
             </TextoSecundario>
           )}
-          {general && <AlertaError title={general} />}
+          {general && <AlertaError {...general} />}
           <div className="flex flex-wrap justify-end gap-3">
             <Button type="button" variante="secundario" onClick={onCancelar}>
               Cancelar
