@@ -1,11 +1,17 @@
 import { useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { api } from "../../api/client";
 import { ApiError } from "../../api/errors";
 import { InsigniaEstado } from "../../components/InsigniaEstado";
+import { AlertaError } from "../../components/ui/AlertaError";
 import { Button } from "../../components/ui/Button";
+import { Chip } from "../../components/ui/Chip";
 import { DialogoConfirmacion } from "../../components/ui/DialogoConfirmacion";
+import { EnlaceBoton } from "../../components/ui/EnlaceBoton";
+import { Pagina, TituloPagina } from "../../components/ui/Pagina";
 import { Spinner } from "../../components/ui/Spinner";
+import { Tarjeta } from "../../components/ui/Tarjeta";
+import { TextoSecundario } from "../../components/ui/TextoSecundario";
 import { formatearFecha } from "../../lib/fechas";
 import { SeccionSesiones } from "../../components/SeccionSesiones";
 import { useAvisos } from "../../components/ui/Avisos";
@@ -78,68 +84,73 @@ export default function EventoDetalle() {
   }
 
   return (
-    <main className="mx-auto flex max-w-3xl flex-col gap-3 p-6">
+    <Pagina>
       {cargando && (
         <div className="flex justify-center p-10">
           <Spinner />
         </div>
       )}
       {error && (
-        <p role="alert" className="text-red-700">
-          {error.status === 404 ? "No encontramos este evento" : error.title}
-        </p>
+        <AlertaError title={error.status === 404 ? "No encontramos este evento" : error.title} />
       )}
       {evento && (
         <>
-          <InsigniaEstado evento={evento} />
-          <h1 className="text-2xl font-bold">{evento.name}</h1>
-          <p>
-            <time dateTime={evento.start_at}>{formatearFecha(evento.start_at)}</time>
-            {" – "}
-            <time dateTime={evento.end_at}>{formatearFecha(evento.end_at)}</time>
-          </p>
-          {evento.location && <p className="text-gray-600">{evento.location}</p>}
-          {evento.description && <p className="whitespace-pre-line">{evento.description}</p>}
-          <p className="font-medium">{quedan(evento.available_spots, "cupo", "cupos")}</p>
-          <div className="flex flex-wrap items-center gap-3">
-            <AccionInscripcion
-              evento={evento}
-              onEvento={setEvento}
-              onRefrescar={refrescar}
-              reservas={reservas}
-              onCancelada={sesiones.refrescar}
-            />
-          </div>
-          {puede && (
-            <div className="mt-2 flex flex-wrap gap-3">
-              {evento.status !== "CANCELLED" && !evento.is_finished && (
-                <Link
-                  to={`/eventos/${evento.id}/editar`}
-                  className="rounded-md border border-gray-300 px-4 py-2"
-                >
-                  Editar
-                </Link>
+          <Tarjeta as="div">
+            <div className="flex flex-col gap-2">
+              <InsigniaEstado evento={evento} />
+              <TituloPagina>{evento.name}</TituloPagina>
+              <p>
+                <time dateTime={evento.start_at}>{formatearFecha(evento.start_at)}</time>
+                {" – "}
+                <time dateTime={evento.end_at}>{formatearFecha(evento.end_at)}</time>
+              </p>
+              {evento.location && <TextoSecundario>{evento.location}</TextoSecundario>}
+              {evento.description && (
+                <p className="break-words whitespace-pre-line">{evento.description}</p>
               )}
-              {evento.status === "DRAFT" && !evento.is_finished && (
-                <Button loading={trabajando} onClick={() => ejecutar("publish")}>
-                  Publicar
-                </Button>
-              )}
-              {evento.status === "PUBLISHED" && (
-                <Button loading={trabajando} onClick={() => ejecutar("unpublish")}>
-                  Despublicar
-                </Button>
-              )}
-              {evento.status !== "CANCELLED" && !evento.is_finished && (
-                <Button variante="peligro" onClick={() => setPendiente("cancel")}>
-                  Cancelar
-                </Button>
-              )}
-              <Button variante="peligro" onClick={() => setPendiente("delete")}>
-                Eliminar
-              </Button>
             </div>
-          )}
+            <div className="flex flex-wrap items-center gap-3">
+              <Chip tono="acento">{quedan(evento.available_spots, "cupo", "cupos")}</Chip>
+              <AccionInscripcion
+                evento={evento}
+                onEvento={setEvento}
+                onRefrescar={refrescar}
+                reservas={reservas}
+                onCancelada={sesiones.refrescar}
+              />
+            </div>
+            {puede && (
+              <div className="flex flex-wrap gap-3">
+                {evento.status !== "CANCELLED" && !evento.is_finished && (
+                  <EnlaceBoton to={`/eventos/${evento.id}/editar`} variante="secundario">
+                    Editar
+                  </EnlaceBoton>
+                )}
+                {evento.status === "DRAFT" && !evento.is_finished && (
+                  <Button loading={trabajando} onClick={() => ejecutar("publish")}>
+                    Publicar
+                  </Button>
+                )}
+                {evento.status === "PUBLISHED" && (
+                  <Button
+                    variante="secundario"
+                    loading={trabajando}
+                    onClick={() => ejecutar("unpublish")}
+                  >
+                    Despublicar
+                  </Button>
+                )}
+                {evento.status !== "CANCELLED" && !evento.is_finished && (
+                  <Button variante="peligro" onClick={() => setPendiente("cancel")}>
+                    Cancelar
+                  </Button>
+                )}
+                <Button variante="peligro" onClick={() => setPendiente("delete")}>
+                  Eliminar
+                </Button>
+              </div>
+            )}
+          </Tarjeta>
           {puede && <PanelInscripciones eventoId={evento.id} version={evento.registered_count} />}
           <SeccionSesiones
             cargando={sesiones.cargando}
@@ -165,6 +176,6 @@ export default function EventoDetalle() {
           onVolver={() => setPendiente(null)}
         />
       )}
-    </main>
+    </Pagina>
   );
 }

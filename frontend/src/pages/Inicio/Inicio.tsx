@@ -2,9 +2,13 @@ import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { ApiError } from "../../api/errors";
 import { EventoCard } from "../../components/EventoCard";
+import { AlertaError } from "../../components/ui/AlertaError";
 import { Input } from "../../components/ui/Input";
+import { Pagina, TituloPagina } from "../../components/ui/Pagina";
 import { Paginacion } from "../../components/ui/Paginacion";
+import { Select } from "../../components/ui/Select";
 import { Spinner } from "../../components/ui/Spinner";
+import { TextoSecundario } from "../../components/ui/TextoSecundario";
 import { useEventos, type PaginaEventos } from "../../stores/eventos";
 
 interface Resultado {
@@ -76,9 +80,9 @@ export default function Inicio() {
   const actual = resultado?.consulta === consulta ? resultado : null;
 
   return (
-    <main className="mx-auto max-w-6xl p-6">
-      <h1 className="text-2xl font-bold">Mis Eventos</h1>
-      <div className="mt-4 flex flex-wrap items-end gap-4">
+    <Pagina ancho="ancho">
+      <TituloPagina>Mis Eventos</TituloPagina>
+      <div className="flex flex-wrap items-end gap-4">
         <div className="w-full max-w-md">
           <Input
             type="search"
@@ -89,41 +93,32 @@ export default function Inicio() {
             onChange={(e) => buscar(e.target.value)}
           />
         </div>
-        <div className="flex flex-col gap-1">
-          <label htmlFor="estado" className="text-sm font-medium text-gray-700">
-            Estado
-          </label>
-          <select
-            id="estado"
-            value={params.get("status") ?? ""}
-            onChange={(e) => filtrar("status", e.target.value)}
-            className="rounded-md border border-gray-300 px-3 py-2"
-          >
-            <option value="">Todos</option>
-            <option value="PUBLISHED">Publicado</option>
-            <option value="DRAFT">Borrador</option>
-            <option value="CANCELLED">Cancelado</option>
-          </select>
-        </div>
+        <Select
+          id="estado"
+          label="Estado"
+          value={params.get("status") ?? ""}
+          onChange={(e) => filtrar("status", e.target.value)}
+        >
+          <option value="">Todos</option>
+          <option value="PUBLISHED">Publicado</option>
+          <option value="DRAFT">Borrador</option>
+          <option value="CANCELLED">Cancelado</option>
+        </Select>
       </div>
-      <div className="mt-6">
+      <div className="flex flex-col gap-6">
         {!actual && (
           <div className="flex justify-center p-10">
             <Spinner />
           </div>
         )}
-        {actual?.error && (
-          <p role="alert" className="text-red-700">
-            {actual.error}
-          </p>
-        )}
+        {actual?.error && <AlertaError title={actual.error} />}
         {actual?.pagina && actual.pagina.items.length === 0 && (
-          <p className="text-gray-600">No hay eventos que coincidan</p>
+          <TextoSecundario>No hay eventos que coincidan</TextoSecundario>
         )}
         {actual?.pagina && actual.pagina.items.length > 0 && (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {actual.pagina.items.map((e) => (
-              <EventoCard key={e.id} evento={e} />
+            {actual.pagina.items.map((e, i) => (
+              <EventoCard key={e.id} evento={e} indice={i} />
             ))}
           </div>
         )}
@@ -135,6 +130,6 @@ export default function Inicio() {
           />
         )}
       </div>
-    </main>
+    </Pagina>
   );
 }

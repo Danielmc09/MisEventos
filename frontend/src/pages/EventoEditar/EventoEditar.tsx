@@ -1,6 +1,9 @@
 import { useParams } from "react-router-dom";
 import { FormularioEvento } from "../../components/FormularioEvento";
+import { AlertaError } from "../../components/ui/AlertaError";
+import { Pagina, TituloPagina } from "../../components/ui/Pagina";
 import { Spinner } from "../../components/ui/Spinner";
+import { Tarjeta } from "../../components/ui/Tarjeta";
 import { useEvento } from "../../lib/useEvento";
 import { useSession, useTienePermiso } from "../../stores/session";
 
@@ -12,20 +15,22 @@ export default function EventoEditar() {
   const puede = evento && user && (gestionaTodos || user.id === evento.organizer_id);
 
   return (
-    <main className="mx-auto max-w-3xl p-6">
-      <h1 className="text-2xl font-bold">Editar evento</h1>
+    <Pagina>
+      <TituloPagina>Editar evento</TituloPagina>
       {cargando && (
         <div className="flex justify-center p-10">
           <Spinner />
         </div>
       )}
       {error && (
-        <p role="alert" className="mt-4 text-red-700">
-          {error.status === 404 ? "No encontramos este evento" : error.title}
-        </p>
+        <AlertaError title={error.status === 404 ? "No encontramos este evento" : error.title} />
       )}
-      {evento && !puede && <p className="mt-4">No tenés permiso para editar este evento</p>}
-      {evento && puede && <FormularioEvento evento={evento} />}
-    </main>
+      {evento && !puede && <p>No tenés permiso para editar este evento</p>}
+      {evento && puede && (
+        <Tarjeta as="div">
+          <FormularioEvento evento={evento} />
+        </Tarjeta>
+      )}
+    </Pagina>
   );
 }
