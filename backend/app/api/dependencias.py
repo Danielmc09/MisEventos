@@ -1,6 +1,7 @@
 from typing import Annotated
 
 from fastapi import Depends, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.security import OAuth2PasswordBearer
 
 from app.core.config import Settings
@@ -9,10 +10,34 @@ from app.core.excepciones import Unauthorized
 from app.models.usuario import User
 from app.repositories.eventos import RepositorioEventos
 from app.repositories.usuarios import RepositorioUsuarios
+from app.schemas.comunes import CARACTER_NULO, MENSAJE_CARACTER_NULO
 from app.services import autenticacion
+
+FORMULARIOS = ("application/x-www-form-urlencoded", "multipart/form-data")
 
 # auto_error=False: la falta de token la responde el handler de dominio, como cualquier 401.
 esquema_bearer = OAuth2PasswordBearer(tokenUrl="/auth/login", auto_error=False)
+
+
+async def sin_caracter_nulo(request: Request) -> None:
+    """Dependencia de toda la app: rechaza el carácter nulo en la query y en los formularios,
+    que no pasan por un esquema de entrada. Los cuerpos JSON los cubre EntradaBase."""
+    lugares = [("query", request.query_params)]
+    if request.headers.get("content-type", "").startswith(FORMULARIOS):
+        lugares.append(("body", await request.form()))
+    errores = [
+        {
+            "type": "value_error",
+            "loc": (lugar, nombre),
+            "msg": MENSAJE_CARACTER_NULO,
+            "input": valor,
+        }
+        for lugar, datos in lugares
+        for nombre, valor in datos.multi_items()
+        if isinstance(valor, str) and CARACTER_NULO in valor
+    ]
+    if errores:
+        raise RequestValidationError(errores)
 
 
 def get_settings(request: Request) -> Settings:

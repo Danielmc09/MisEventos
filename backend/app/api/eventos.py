@@ -7,7 +7,7 @@ from app.api.dependencias import RepoEventos, UsuarioActual, UsuarioOpcional
 from app.api.errores import respuestas_de_error
 from app.api.paginacion import ParametrosPagina, parametros_pagina
 from app.models.evento import EstadoEvento
-from app.schemas.comunes import FechaUTC, Pagina, Texto
+from app.schemas.comunes import FechaUTC, Pagina
 from app.schemas.eventos import (
     Cuando,
     EventoEdicion,
@@ -46,9 +46,7 @@ def listar(
     usuario: UsuarioOpcional,
     repo: RepoEventos,
     pagina: Annotated[ParametrosPagina, Depends(parametros_pagina)],
-    q: Annotated[
-        Texto | None, Query(max_length=100, description="Nombre o parte del nombre")
-    ] = None,
+    q: Annotated[str | None, Query(max_length=100, description="Nombre o parte del nombre")] = None,
     estados: Annotated[
         list[EstadoEvento] | None, Query(alias="status", description="Uno o varios estados")
     ] = None,
