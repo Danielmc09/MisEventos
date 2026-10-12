@@ -275,7 +275,7 @@ def test_crea_los_seis_eventos_demo_a_nombre_del_organizador():
     assert estados == sorted(
         [EstadoEvento.PUBLISHED] * 3 + [EstadoEvento.DRAFT, EstadoEvento.CANCELLED]
     )
-    casi_lleno = [e for e in vigentes if e.status == EstadoEvento.PUBLISHED and e.capacity == 10]
+    casi_lleno = [e for e in vigentes if e.status == EstadoEvento.PUBLISHED and e.capacity == 3]
     assert len(casi_lleno) == 1
 
 
@@ -624,8 +624,8 @@ def test_el_asistente_demo_no_esta_en_el_casi_lleno_para_poder_tomar_el_ultimo_c
 def test_el_casi_lleno_queda_con_un_solo_cupo_libre(con_inscripciones):
     casi_lleno = con_inscripciones.evento(CASI_LLENO)
 
-    assert casi_lleno.capacity == 10
-    assert con_inscripciones.activas_en(CASI_LLENO) == 9
+    assert casi_lleno.capacity == 3
+    assert con_inscripciones.activas_en(CASI_LLENO) == 2
 
 
 def test_los_inscritos_extra_son_asistentes_con_una_contrasena_que_nadie_conoce(
@@ -637,7 +637,8 @@ def test_los_inscritos_extra_son_asistentes_con_una_contrasena_que_nadie_conoce(
         if u.id not in {ORGANIZADOR_DEMO.id, ASISTENTE_DEMO.id}
     ]
 
-    assert len(extra) >= 9
+    assert len(extra) == 2
+    assert all(u.email.endswith("@asistentes.example") for u in extra)
     assert all(u.role == Rol.ATTENDEE for u in extra)
     assert all(u.full_name for u in extra)
     assert all(u.password_hash.startswith("$argon2id$") for u in extra)
@@ -672,8 +673,8 @@ def test_no_reactiva_una_inscripcion_que_el_asistente_cancelo(con_inscripciones)
 
 def test_no_inscribe_mas_alla_del_cupo_si_alguien_achico_el_evento():
     base = DemoConInscripciones()
-    base.evento(CASI_LLENO).capacity = 4
+    base.evento(CASI_LLENO).capacity = 1
 
     base.sembrar()
 
-    assert base.activas_en(CASI_LLENO) == 4
+    assert base.activas_en(CASI_LLENO) == 1

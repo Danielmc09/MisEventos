@@ -256,7 +256,7 @@ def test_el_seed_deja_al_asistente_con_dos_activas_y_una_cancelada_y_el_casi_lle
         {"nombre": "Taller de python para principiantes"},
     ).one()
     detalle = cliente_db.get(f"/events/{id_casi_lleno}").json()
-    assert (detalle["capacity"], detalle["available_spots"]) == (10, 1)
+    assert (detalle["capacity"], detalle["available_spots"]) == (3, 1)
     assert len(usuarios_demo(conexion)) == 3
 
 
