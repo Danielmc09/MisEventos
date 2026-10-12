@@ -325,3 +325,31 @@ def test_cancelar_sin_token_responde_401(cliente, repos):
 
     assert cancelar(cliente, evento, {}).status_code == 401
     assert inscripcion.status == EstadoInscripcion.ACTIVE
+
+
+# --- El evento cuenta sus inscritos --------------------------------------------------------
+
+
+def test_el_detalle_del_evento_cuenta_solo_las_inscripciones_activas(cliente, repos, auth):
+    evento = repos.evento(capacity=5)
+    repos.inscribir(ASISTENTE, evento)
+    repos.inscribir(OTRO_ASISTENTE, evento)
+    repos.inscribir(ORGANIZADOR, evento, EstadoInscripcion.CANCELLED)
+    otro_evento = repos.evento()
+    repos.inscribir(ASISTENTE, otro_evento)
+
+    cuerpo = cliente.get(f"/events/{evento.id}").json()
+
+    assert (cuerpo["registered_count"], cuerpo["available_spots"]) == (2, 3)
+
+
+def test_inscribirse_y_cancelar_se_ven_en_el_detalle_del_evento(cliente, repos, auth):
+    evento = repos.evento(capacity=5)
+
+    assert inscribirse(cliente, evento, auth(ASISTENTE)).status_code == 201
+    despues_de_inscribirse = cliente.get(f"/events/{evento.id}").json()
+    assert cancelar(cliente, evento, auth(ASISTENTE)).status_code == 204
+    despues_de_cancelar = cliente.get(f"/events/{evento.id}").json()
+
+    assert despues_de_inscribirse["available_spots"] == 4
+    assert despues_de_cancelar["available_spots"] == 5
