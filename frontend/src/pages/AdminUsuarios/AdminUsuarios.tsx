@@ -8,6 +8,7 @@ import { useAvisos } from "../../components/ui/Avisos";
 import { Button } from "../../components/ui/Button";
 import { Chip } from "../../components/ui/Chip";
 import { DialogoConfirmacion } from "../../components/ui/DialogoConfirmacion";
+import { EstadoVacio } from "../../components/ui/EstadoVacio";
 import { Formulario } from "../../components/ui/Formulario";
 import { Input } from "../../components/ui/Input";
 import { Modal } from "../../components/ui/Modal";
@@ -17,7 +18,6 @@ import { Select } from "../../components/ui/Select";
 import { Spinner } from "../../components/ui/Spinner";
 import { Tabla } from "../../components/ui/Tabla";
 import { Tarjeta } from "../../components/ui/Tarjeta";
-import { TextoSecundario } from "../../components/ui/TextoSecundario";
 import { useSesionVigente, useSession, useTienePermiso } from "../../stores/session";
 
 type UsuarioAdmin = components["schemas"]["UsuarioAdmin"];
@@ -183,6 +183,13 @@ export default function AdminUsuarios() {
     setNumero(1);
   };
 
+  const quitarFiltros = () => {
+    setBusqueda("");
+    setRol("");
+    setEstado("");
+    setNumero(1);
+  };
+
   return (
     <Pagina ancho="ancho">
       <TituloPagina>Usuarios</TituloPagina>
@@ -223,7 +230,11 @@ export default function AdminUsuarios() {
           </div>
         )}
         {datos && datos.items.length === 0 && (
-          <TextoSecundario>No hay usuarios que coincidan con la búsqueda</TextoSecundario>
+          <EstadoVacio
+            mensaje="No hay usuarios que coincidan con la búsqueda"
+            accion="Quitar filtros"
+            onAccion={quitarFiltros}
+          />
         )}
         {datos && datos.items.length > 0 && (
           <>

@@ -3,13 +3,12 @@ import { useSearchParams } from "react-router-dom";
 import { ApiError } from "../../api/errors";
 import { EventoCard } from "../../components/EventoCard";
 import { AlertaError } from "../../components/ui/AlertaError";
-import { Button } from "../../components/ui/Button";
+import { EstadoVacio } from "../../components/ui/EstadoVacio";
 import { Input } from "../../components/ui/Input";
 import { Pagina, TituloPagina } from "../../components/ui/Pagina";
 import { Paginacion } from "../../components/ui/Paginacion";
 import { Select } from "../../components/ui/Select";
 import { Spinner } from "../../components/ui/Spinner";
-import { TextoSecundario } from "../../components/ui/TextoSecundario";
 import { useEventos, type PaginaEventos } from "../../stores/eventos";
 
 interface Resultado {
@@ -120,12 +119,11 @@ export default function Inicio() {
         )}
         {actual?.error && <AlertaError title={actual.error} />}
         {actual?.pagina && actual.pagina.items.length === 0 && (
-          <div className="flex flex-col items-start gap-3">
-            <TextoSecundario>No hay eventos que coincidan</TextoSecundario>
-            <Button variante="secundario" onClick={quitarFiltros}>
-              Quitar filtros
-            </Button>
-          </div>
+          <EstadoVacio
+            mensaje="No hay eventos que coincidan"
+            accion="Quitar filtros"
+            onAccion={quitarFiltros}
+          />
         )}
         {actual?.pagina && actual.pagina.items.length > 0 && (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
