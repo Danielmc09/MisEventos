@@ -1,9 +1,13 @@
 """Las capas importan solo hacia abajo: router → servicio → repositorio.
 
 - Un servicio no sabe de HTTP: no importa `fastapi`, `starlette` ni nada de `app.api`.
-- Un repositorio no conoce las reglas: no importa de `app.services` ni de `app.api`.
-- Un router no toca los datos directo: no importa de `app.repositories`, salvo
-  `app/api/dependencias.py`, que es donde se arman las dependencias que se inyectan.
+- Un repositorio no conoce las reglas ni HTTP: no importa `fastapi`, `starlette`, `app.services`
+  ni `app.api`.
+- Un router no toca los datos directo: no importa `app.repositories`, `app.core.db`, `sqlmodel`
+  ni `sqlalchemy`, salvo `app/api/dependencias.py`, que es donde se arman las dependencias que se
+  inyectan.
+- En ninguna capa se importa de forma dinámica (`importlib.import_module`, `__import__`): el
+  detector no puede ver qué módulo cargan.
 """
 
 import ast
@@ -15,9 +19,10 @@ APP = Path(__file__).resolve().parents[2] / "app"
 
 REGLAS: dict[str, tuple[str, ...]] = {
     "services": ("fastapi", "starlette", "app.api"),
-    "repositories": ("app.services", "app.api"),
-    "api": ("app.repositories",),
+    "repositories": ("fastapi", "starlette", "app.services", "app.api"),
+    "api": ("app.repositories", "app.core.db", "sqlmodel", "sqlalchemy"),
 }
+IMPORTS_DINAMICOS = {"import_module", "__import__"}
 EXCEPCIONES = {"api/dependencias.py"}
 
 
@@ -56,6 +61,25 @@ def imports_de(codigo: str, modulo: str, es_paquete: bool = False) -> list[tuple
     return encontrados
 
 
+def imports_dinamicos_de(codigo: str) -> list[tuple[int, str]]:
+    """Cada llamada a `importlib.import_module` o `__import__`: el AST no ve qué importan."""
+    encontrados = []
+    for nodo in ast.walk(ast.parse(codigo)):
+        if not isinstance(nodo, ast.Call):
+            continue
+        funcion = nodo.func
+        nombre = (
+            funcion.attr
+            if isinstance(funcion, ast.Attribute)
+            else funcion.id
+            if isinstance(funcion, ast.Name)
+            else None
+        )
+        if nombre in IMPORTS_DINAMICOS:
+            encontrados.append((nodo.lineno, nombre))
+    return encontrados
+
+
 def _cae_en(nombre: str, prefijos: tuple[str, ...]) -> bool:
     return any(nombre == p or nombre.startswith(p + ".") for p in prefijos)
 
@@ -64,11 +88,14 @@ def violaciones_de(archivo: Path, raiz: Path, prohibidos: tuple[str, ...]) -> li
     modulo = nombre_de_modulo(archivo, raiz)
     es_paquete = archivo.name == "__init__.py"
     relativo = archivo.relative_to(raiz.parent)
+    codigo = archivo.read_text(encoding="utf-8")
     violaciones = []
-    for linea, candidatos in imports_de(archivo.read_text(encoding="utf-8"), modulo, es_paquete):
+    for linea, candidatos in imports_de(codigo, modulo, es_paquete):
         prohibido = next((c for c in candidatos if _cae_en(c, prohibidos)), None)
         if prohibido:
             violaciones.append(f"{relativo}:{linea} → {prohibido}")
+    for linea, nombre in imports_dinamicos_de(codigo):
+        violaciones.append(f"{relativo}:{linea} → import dinámico: {nombre}")
     return violaciones
 
 
