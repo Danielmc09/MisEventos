@@ -8,11 +8,19 @@ const ESTADOS = {
 
 const FINALIZADO = ["Finalizado", "bg-amber-100 text-amber-800"] as const;
 
-export function InsigniaEstado({ evento }: { evento: Evento }) {
+interface Props {
+  evento: Pick<Evento, "status" | "is_finished">;
+  /** Cómo se llama el estado cancelado donde se muestra (por defecto, "Cancelado"). */
+  etiquetaCancelado?: string;
+}
+
+export function InsigniaEstado({ evento, etiquetaCancelado }: Props) {
   const [estado, tono] = evento.is_finished ? FINALIZADO : ESTADOS[evento.status];
   return (
     <span className={`self-start rounded-full px-2 py-0.5 text-xs font-medium ${tono}`}>
-      {estado}
+      {evento.status === "CANCELLED" && !evento.is_finished && etiquetaCancelado
+        ? etiquetaCancelado
+        : estado}
     </span>
   );
 }
