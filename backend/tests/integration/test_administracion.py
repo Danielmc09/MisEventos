@@ -97,6 +97,29 @@ def test_el_listado_busca_por_nombre_o_email_y_filtra_por_rol_y_estado(
     assert emails(q=f"{prefijo[:-1]}_") == []
 
 
+def test_el_rol_se_puede_repetir_y_trae_los_de_cualquiera_de_esos_roles(
+    cliente_db, tokens, prefijo
+):
+    def emails(params) -> list[str]:
+        respuesta = cliente_db.get("/admin/users", params=params, headers=auth(tokens["admin"]))
+        assert respuesta.status_code == 200, respuesta.text
+        return sorted(u["email"] for u in respuesta.json()["items"])
+
+    equipo = [("q", prefijo), ("role", "ADMIN"), ("role", "ORGANIZER")]
+    assert emails(equipo) == sorted(email(prefijo, n) for n in ("admin", "orga"))
+    assert emails([("q", prefijo), ("role", "ATTENDEE")]) == [email(prefijo, "ana")]
+    assert emails([("q", prefijo)]) == sorted(email(prefijo, n) for n in ("admin", "orga", "ana"))
+
+
+def test_un_rol_invalido_entre_varios_responde_422(cliente_db, tokens):
+    params = [("role", "ADMIN"), ("role", "SUPERUSER")]
+
+    respuesta = cliente_db.get("/admin/users", params=params, headers=auth(tokens["admin"]))
+
+    assert respuesta.status_code == 422, respuesta.text
+    assert [e["field"] for e in respuesta.json()["errors"]] == ["role.1"]
+
+
 def test_cada_usuario_del_listado_trae_sus_inscripciones_activas(
     cliente_db, conexion, tokens, prefijo
 ):
