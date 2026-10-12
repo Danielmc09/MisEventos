@@ -108,7 +108,7 @@ def crear(
     description=(
         "Solo el admin. Genera una contraseña temporal nueva, que se devuelve una sola vez y no "
         "se guarda en caché; la anterior deja de servir y el usuario tiene que cambiarla en su "
-        "próximo login. El admin no se la restablece a sí mismo (403 `cannot-modify-self`), y a "
+        "próximo login. El admin no se la restablece a sí mismo (409 `cannot-modify-self`), y a "
         "un usuario desactivado tampoco (409 `user-inactive`)."
     ),
     responses=respuestas_de_error(401, 403, 404, 409),

@@ -157,7 +157,7 @@ def restablecer_contrasena(repo: Usuarios, actor: User, id_usuario: UUID) -> str
     desactiva al mismo tiempo."""
     _exigir_permiso(actor)
     if id_usuario == actor.id:
-        raise Forbidden(
+        raise Conflict(
             tipo="cannot-modify-self",
             titulo="Para cambiar tu propia contraseña usá «Cambiar contraseña»",
         )
