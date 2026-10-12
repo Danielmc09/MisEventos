@@ -1,3 +1,5 @@
+import secrets
+
 import pytest
 from sqlalchemy import text
 from sqlmodel import Session
@@ -6,10 +8,12 @@ from app.scripts.seed import CredencialesDemo, sembrar
 
 pytestmark = pytest.mark.integration
 
+CLAVE_ADMIN = secrets.token_urlsafe()
+CLAVE_DEMO = secrets.token_urlsafe()
 DEMO = CredencialesDemo(
     admin_email="admin@miseventos.local",
-    admin_password="Admin-Test-2026",
-    demo_password="Demo-Test-2026",
+    admin_password=CLAVE_ADMIN,
+    demo_password=CLAVE_DEMO,
 )
 ROLES = {
     "admin@miseventos.local": "ADMIN",
@@ -17,9 +21,9 @@ ROLES = {
     "asistente@miseventos.local": "ATTENDEE",
 }
 CONTRASENAS = {
-    "admin@miseventos.local": "Admin-Test-2026",
-    "organizador@miseventos.local": "Demo-Test-2026",
-    "asistente@miseventos.local": "Demo-Test-2026",
+    "admin@miseventos.local": CLAVE_ADMIN,
+    "organizador@miseventos.local": CLAVE_DEMO,
+    "asistente@miseventos.local": CLAVE_DEMO,
 }
 
 
@@ -111,7 +115,7 @@ def test_completa_el_nombre_del_demo_que_existe_sin_nombre_y_respeta_el_que_tien
 
 def test_el_seed_no_restaura_la_contrasena_que_un_usuario_demo_cambio(cliente_db, conexion):
     correr_seed(conexion)
-    email, vieja, nueva = "asistente@miseventos.local", "Demo-Test-2026", "Clave-Propia-77"
+    email, vieja, nueva = "asistente@miseventos.local", CLAVE_DEMO, secrets.token_urlsafe()
     primer_login = login(cliente_db, email, vieja)
     assert primer_login.status_code == 200
     token = primer_login.json()["access_token"]
