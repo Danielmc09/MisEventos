@@ -11,7 +11,7 @@ export function ImagenPortada() {
     <img
       src={portada1440}
       srcSet={`${portada480} 480w, ${portada960} 960w, ${portada1440} 1440w`}
-      sizes="(min-width: 72rem) 1152px, 100vw"
+      sizes="(min-width: 72rem) 1104px, 100vw"
       width={1440}
       height={360}
       alt=""
