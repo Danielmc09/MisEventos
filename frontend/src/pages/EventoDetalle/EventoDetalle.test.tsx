@@ -900,6 +900,42 @@ describe("panel de inscripciones del dueño", () => {
     error.mockRestore();
   });
 
+  test("cuando el dueño se inscribe, el panel pasa de 0 a 1 inscrito sin recargar", async () => {
+    useSession.getState().iniciarSesion(dueno, "token", 3600);
+    servir(abierto);
+    let inscritos = 0;
+    server.use(
+      http.get(`${ruta}/stats`, () =>
+        responder("/events/{id_evento}/stats", "get", 200, {
+          ...estadisticas,
+          active: inscritos,
+          cancelled: 0,
+        }),
+      ),
+      http.get(`${ruta}/registrations`, () =>
+        responder(
+          "/events/{id_evento}/registrations",
+          "get",
+          200,
+          paginaDe(inscritos ? [inscritoFila] : []),
+        ),
+      ),
+      http.post(rutaInscripcion, () => {
+        inscritos = 1;
+        return responder("/events/{id_evento}/registrations", "post", 201, creada);
+      }),
+    );
+    const user = userEvent.setup();
+    abrir();
+
+    const panel = await screen.findByRole("region", { name: "Inscripciones" });
+    expect(await within(panel).findByText("Todavía no hay inscritos")).toBeInTheDocument();
+    await user.click(await screen.findByRole("button", { name: "Inscribirme" }));
+
+    expect(await within(panel).findByRole("table")).toHaveTextContent("luisa@mail.com");
+    expect(within(panel).getByText("Inscritos").nextElementSibling).toHaveTextContent("1");
+  });
+
   test("el admin también ve el panel", async () => {
     useSession.getState().iniciarSesion(admin, "token", 3600);
     servir();
