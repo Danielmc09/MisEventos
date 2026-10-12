@@ -36,3 +36,12 @@ test("la entrada no se retrasa más de un grupo chico, aunque la lista sea larga
 
   expect(screen.getByRole("article")).toHaveStyle("--i: 5");
 });
+
+test("la cabecera va arriba, a todo el ancho, antes del contenido", () => {
+  render(<Tarjeta cabecera={<p>Franja</p>}>Contenido</Tarjeta>);
+
+  const tarjeta = screen.getByRole("article");
+  expect(tarjeta.firstElementChild).toHaveTextContent("Franja");
+  expect(tarjeta).toHaveTextContent("Contenido");
+  expect(tarjeta).toHaveClass("overflow-hidden");
+});

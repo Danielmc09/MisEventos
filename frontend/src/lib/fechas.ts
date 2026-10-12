@@ -44,5 +44,15 @@ export const etiquetaDia = (iso: string) => {
   return texto.charAt(0).toUpperCase() + texto.slice(1);
 };
 
+const diaFmt = new Intl.DateTimeFormat("es-CO", { day: "numeric", timeZone: "America/Bogota" });
+const mesFmt = new Intl.DateTimeFormat("es-CO", { month: "short", timeZone: "America/Bogota" });
+
+/** El día y el mes abreviado ("10", "Oct") en hora de Bogotá, para el bloque de fecha de una tarjeta. */
+export const diaMesBogota = (iso: string) => {
+  const fecha = new Date(iso);
+  const mes = mesFmt.format(fecha).replace(".", "");
+  return { dia: diaFmt.format(fecha), mes: mes.charAt(0).toUpperCase() + mes.slice(1) };
+};
+
 /** "20:30", en hora de Bogotá. */
 export const horaBogota = (iso: string) => horaFmt.format(new Date(iso));

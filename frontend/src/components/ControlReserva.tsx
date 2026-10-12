@@ -1,6 +1,5 @@
 import type { Sesion } from "../lib/useSesiones";
-import { quedan } from "../lib/plural";
-import { ChipDisponibilidad } from "./ChipDisponibilidad";
+import { ChipCupos } from "./ChipCupos";
 import { Button } from "./ui/Button";
 import { Chip } from "./ui/Chip";
 import { TextoSecundario } from "./ui/TextoSecundario";
@@ -28,9 +27,10 @@ export function ControlReserva({
 
   // La capacidad efectiva (la propia o la heredada del evento) es lo reservado más lo que queda.
   const chip = (
-    <ChipDisponibilidad
+    <ChipCupos
       capacidad={sesion.reserved_count + sesion.available_spots}
       libres={sesion.available_spots}
+      unidad="lugar"
     />
   );
 
@@ -51,7 +51,6 @@ export function ControlReserva({
           Cancelar reserva
         </Button>
         {chip}
-        <TextoSecundario>{quedan(sesion.available_spots, "lugar", "lugares")}</TextoSecundario>
       </div>
     );
   }
@@ -71,7 +70,6 @@ export function ControlReserva({
         Reservar lugar
       </Button>
       {chip}
-      <TextoSecundario>{quedan(sesion.available_spots, "lugar", "lugares")}</TextoSecundario>
     </div>
   );
 }

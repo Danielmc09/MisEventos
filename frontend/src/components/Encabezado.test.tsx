@@ -180,3 +180,45 @@ test("con sesión, /eventos/nuevo muestra la pantalla de nuevo evento", async ()
 
   expect(await screen.findByRole("heading", { name: "Nuevo evento" })).toBeInTheDocument();
 });
+
+describe("en una pantalla angosta", () => {
+  beforeEach(() =>
+    vi.stubGlobal("matchMedia", (media: string) => ({
+      matches: true,
+      media,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+    })),
+  );
+  afterEach(() => vi.unstubAllGlobals());
+
+  test("con sesión deja el logo y un círculo con la inicial que abre el menú de la cuenta", async () => {
+    useSession
+      .getState()
+      .iniciarSesion(
+        { ...usuario, full_name: "Oscar Organizador", permisos: ["evento:crear"] },
+        "token-abc",
+        3600,
+      );
+    const user = userEvent.setup();
+    montar("/");
+
+    const nav = within(encabezado());
+    expect(nav.getByRole("link", { name: "Mis Eventos" })).toBeInTheDocument();
+    expect(nav.queryByRole("button", { name: "Cerrar sesión" })).not.toBeInTheDocument();
+    const menu = nav.getByRole("button", { name: "Menú de la cuenta" });
+    expect(menu).toHaveTextContent("O");
+
+    await user.click(menu);
+
+    expect(nav.getByRole("menuitem", { name: "Crear evento" })).toHaveAttribute(
+      "href",
+      "/eventos/nuevo",
+    );
+    expect(nav.getByRole("menuitem", { name: "Mi perfil" })).toHaveAttribute("href", "/perfil");
+    // El nombre es el encabezado del menú, no un enlace.
+    expect(nav.getByText("Oscar Organizador")).toBeInTheDocument();
+    expect(nav.queryByRole("menuitem", { name: "Oscar Organizador" })).not.toBeInTheDocument();
+    expect(nav.getByRole("menuitem", { name: "Cerrar sesión" })).toBeInTheDocument();
+  });
+});

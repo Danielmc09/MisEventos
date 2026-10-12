@@ -2,11 +2,10 @@ import { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { api } from "../../api/client";
 import { ApiError } from "../../api/errors";
-import { ChipDisponibilidad } from "../../components/ChipDisponibilidad";
+import { ChipCupos } from "../../components/ChipCupos";
 import { InsigniaEstado } from "../../components/InsigniaEstado";
 import { AlertaError } from "../../components/ui/AlertaError";
-import { Button } from "../../components/ui/Button";
-import { Chip } from "../../components/ui/Chip";
+import { MenuAcciones } from "../../components/ui/MenuAcciones";
 import { DialogoConfirmacion } from "../../components/ui/DialogoConfirmacion";
 import { EnlaceBoton } from "../../components/ui/EnlaceBoton";
 import { Pagina, TituloPagina } from "../../components/ui/Pagina";
@@ -18,7 +17,6 @@ import { SeccionSesiones } from "../../components/SeccionSesiones";
 import { useAvisos } from "../../components/ui/Avisos";
 import { PanelInscripciones } from "../../components/PanelInscripciones";
 import { AccionInscripcion } from "../../components/AccionInscripcion";
-import { quedan } from "../../lib/plural";
 import { useEvento } from "../../lib/useEvento";
 import { useSesiones } from "../../lib/useSesiones";
 import { useEventos, type Evento } from "../../stores/eventos";
@@ -112,9 +110,8 @@ export default function EventoDetalle() {
             </div>
             <div className="flex flex-wrap items-center gap-3">
               {evento.status === "PUBLISHED" && !evento.is_finished && (
-                <ChipDisponibilidad capacidad={evento.capacity} libres={evento.available_spots} />
+                <ChipCupos capacidad={evento.capacity} libres={evento.available_spots} />
               )}
-              <Chip tono="acento">{quedan(evento.available_spots, "cupo", "cupos")}</Chip>
               <AccionInscripcion
                 evento={evento}
                 onEvento={setEvento}
@@ -124,34 +121,34 @@ export default function EventoDetalle() {
               />
             </div>
             {puede && (
-              <div className="flex flex-wrap gap-3">
+              <div className="flex items-center gap-3">
                 {evento.status !== "CANCELLED" && !evento.is_finished && (
-                  <EnlaceBoton to={`/eventos/${evento.id}/editar`} variante="secundario">
-                    Editar
-                  </EnlaceBoton>
+                  <EnlaceBoton to={`/eventos/${evento.id}/editar`}>Editar</EnlaceBoton>
                 )}
-                {evento.status === "DRAFT" && !evento.is_finished && (
-                  <Button loading={trabajando} onClick={() => ejecutar("publish")}>
-                    Publicar
-                  </Button>
-                )}
-                {evento.status === "PUBLISHED" && (
-                  <Button
-                    variante="secundario"
-                    loading={trabajando}
-                    onClick={() => ejecutar("unpublish")}
-                  >
-                    Despublicar
-                  </Button>
-                )}
-                {evento.status !== "CANCELLED" && !evento.is_finished && (
-                  <Button variante="peligro" onClick={() => setPendiente("cancel")}>
-                    Cancelar
-                  </Button>
-                )}
-                <Button variante="peligro" onClick={() => setPendiente("delete")}>
-                  Eliminar
-                </Button>
+                <MenuAcciones
+                  etiqueta="Más acciones"
+                  deshabilitado={trabajando}
+                  items={[
+                    ...(evento.status === "DRAFT" && !evento.is_finished
+                      ? [{ texto: "Publicar", onSelect: () => ejecutar("publish") }]
+                      : []),
+                    ...(evento.status === "PUBLISHED"
+                      ? [{ texto: "Despublicar", onSelect: () => ejecutar("unpublish") }]
+                      : []),
+                    ...(evento.status !== "CANCELLED" && !evento.is_finished
+                      ? [
+                          {
+                            texto: "Cancelar evento",
+                            onSelect: () => setPendiente("cancel"),
+                            peligro: true,
+                          },
+                        ]
+                      : []),
+                    { texto: "Eliminar", onSelect: () => setPendiente("delete"), peligro: true },
+                  ]}
+                >
+                  Más acciones
+                </MenuAcciones>
               </div>
             )}
           </Tarjeta>

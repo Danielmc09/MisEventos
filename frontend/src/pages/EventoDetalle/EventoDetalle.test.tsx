@@ -28,6 +28,9 @@ const abrir = () =>
     ["/", <p>Página de inicio</p>],
   ]);
 const ruta = `${API}/events/${evento.id}`;
+const abrirMenu = async (user: ReturnType<typeof userEvent.setup>) =>
+  user.click(await screen.findByRole("button", { name: "Más acciones" }));
+const opcion = (nombre: string) => screen.getByRole("menuitem", { name: nombre });
 const rutaSesiones = `${ruta}/sessions`;
 
 const estadisticas = {
@@ -194,30 +197,39 @@ describe("acciones según quién mira y el estado", () => {
   test("el dueño de un evento publicado ve solo las transiciones válidas", async () => {
     useSession.getState().iniciarSesion(dueno, "token", 3600);
     servir();
+    const user = userEvent.setup();
     abrir();
 
     expect(await screen.findByRole("link", { name: "Editar" })).toHaveAttribute(
       "href",
       `/eventos/${evento.id}/editar`,
     );
-    expect(screen.getByRole("button", { name: "Despublicar" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Cancelar" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Eliminar" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Publicar" })).not.toBeInTheDocument();
+    // Un solo botón principal visible: el resto vive en el menú.
+    expect(screen.queryByRole("button", { name: "Despublicar" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Eliminar" })).not.toBeInTheDocument();
+    await abrirMenu(user);
+    expect(screen.getAllByRole("menuitem").map((i) => i.textContent)).toEqual([
+      "Despublicar",
+      "Cancelar evento",
+      "Eliminar",
+    ]);
   });
 
   test("el admin ve Publicar en un borrador, y en uno cancelado solo Eliminar", async () => {
     useSession.getState().iniciarSesion(admin, "token", 3600);
     servir({ ...evento, status: "DRAFT" });
+    const user = userEvent.setup();
     const { unmount } = abrir();
-    expect(await screen.findByRole("button", { name: "Publicar" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Despublicar" })).not.toBeInTheDocument();
+    await abrirMenu(user);
+    expect(opcion("Publicar")).toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: "Despublicar" })).not.toBeInTheDocument();
     unmount();
 
     servir({ ...evento, status: "CANCELLED" });
     abrir();
-    expect(await screen.findByRole("button", { name: "Eliminar" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Cancelar" })).not.toBeInTheDocument();
+    await abrirMenu(user);
+    expect(opcion("Eliminar")).toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: "Cancelar evento" })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Editar" })).not.toBeInTheDocument();
   });
 });
@@ -254,7 +266,8 @@ describe("ejecutar acciones", () => {
     const user = userEvent.setup();
     abrir();
 
-    await user.click(await screen.findByRole("button", { name: "Publicar" }));
+    await abrirMenu(user);
+    await user.click(opcion("Publicar"));
 
     expect(await screen.findByText("Publicaste el evento")).toBeInTheDocument();
     expect(screen.getByText("Publicado")).toBeInTheDocument();
@@ -277,13 +290,15 @@ describe("ejecutar acciones", () => {
     const user = userEvent.setup();
     abrir();
 
-    await user.click(await screen.findByRole("button", { name: "Cancelar" }));
+    await abrirMenu(user);
+    await user.click(opcion("Cancelar evento"));
     expect(screen.getByRole("alertdialog")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Volver" }));
     expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
     expect(llamadas).toBe(0);
 
-    await user.click(screen.getByRole("button", { name: "Cancelar" }));
+    await abrirMenu(user);
+    await user.click(opcion("Cancelar evento"));
     await user.click(screen.getByRole("button", { name: "Sí, cancelar el evento" }));
     expect(await screen.findByText("Cancelaste el evento")).toBeInTheDocument();
     expect(llamadas).toBe(1);
@@ -305,7 +320,8 @@ describe("ejecutar acciones", () => {
     const user = userEvent.setup();
     abrir();
 
-    await user.click(await screen.findByRole("button", { name: "Publicar" }));
+    await abrirMenu(user);
+    await user.click(opcion("Publicar"));
 
     expect(await screen.findByRole("alert")).toHaveTextContent("No se puede publicar este evento");
   });
@@ -317,7 +333,9 @@ describe("ejecutar acciones", () => {
     const user = userEvent.setup();
     abrir();
 
-    await user.click(await screen.findByRole("button", { name: "Eliminar" }));
+    await abrirMenu(user);
+    await user.click(opcion("Eliminar"));
+    expect(screen.getByRole("alertdialog")).toHaveTextContent("Eliminar el evento");
     await user.click(screen.getByRole("button", { name: "Sí, eliminar el evento" }));
 
     expect(await screen.findByText("Página de inicio")).toBeInTheDocument();
@@ -336,7 +354,8 @@ describe("ejecutar acciones", () => {
     const user = userEvent.setup();
     abrir();
 
-    await user.click(await screen.findByRole("button", { name: "Despublicar" }));
+    await abrirMenu(user);
+    await user.click(opcion("Despublicar"));
 
     expect(await screen.findByText("Despublicaste el evento")).toBeInTheDocument();
   });
@@ -472,8 +491,10 @@ describe("sección de sesiones", () => {
     abrir();
 
     expect(await screen.findByRole("button", { name: "Agregar sesión" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Editar sesión Apertura" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Eliminar sesión Apertura" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Editar la sesión «Apertura»" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Eliminar la sesión «Apertura»" }),
+    ).toBeInTheDocument();
   });
 
   describe("eliminar una sesión", () => {
@@ -493,13 +514,15 @@ describe("sección de sesiones", () => {
       const user = userEvent.setup();
       abrir();
 
-      await user.click(await screen.findByRole("button", { name: "Eliminar sesión Apertura" }));
+      await user.click(
+        await screen.findByRole("button", { name: "Eliminar la sesión «Apertura»" }),
+      );
       expect(screen.getByRole("alertdialog")).toBeInTheDocument();
       await user.click(screen.getByRole("button", { name: "Volver" }));
       expect(llamadas).toBe(0);
 
       servirSesiones([]);
-      await user.click(screen.getByRole("button", { name: "Eliminar sesión Apertura" }));
+      await user.click(screen.getByRole("button", { name: "Eliminar la sesión «Apertura»" }));
       await user.click(screen.getByRole("button", { name: "Sí, eliminar la sesión" }));
 
       expect(await screen.findByText("Eliminaste la sesión")).toBeInTheDocument();
@@ -524,7 +547,9 @@ describe("sección de sesiones", () => {
       const user = userEvent.setup();
       abrir();
 
-      await user.click(await screen.findByRole("button", { name: "Eliminar sesión Apertura" }));
+      await user.click(
+        await screen.findByRole("button", { name: "Eliminar la sesión «Apertura»" }),
+      );
       await user.click(screen.getByRole("button", { name: "Sí, eliminar la sesión" }));
 
       expect(await screen.findByRole("alert")).toHaveTextContent(
@@ -579,7 +604,7 @@ describe("agregar y editar sesiones", () => {
     const user = userEvent.setup();
     abrir();
 
-    await user.click(await screen.findByRole("button", { name: "Editar sesión Apertura" }));
+    await user.click(await screen.findByRole("button", { name: "Editar la sesión «Apertura»" }));
     const dialogo = screen.getByRole("dialog", { name: "Editar sesión" });
     expect(within(dialogo).getByLabelText("Título")).toHaveValue("Apertura");
     await user.clear(within(dialogo).getByLabelText("Título"));
@@ -787,7 +812,9 @@ describe("inscribirse", () => {
 
     expect(await screen.findByRole("alert")).toHaveTextContent("El evento no tiene cupos");
     expect(await screen.findByRole("button", { name: "Sin cupos" })).toBeDisabled();
-    expect(screen.getByText("Quedan 0 cupos")).toBeInTheDocument();
+    // El botón deshabilitado y el chip de cupos dicen lo mismo.
+    expect(screen.getAllByText("Sin cupos")).toHaveLength(2);
+    expect(screen.queryByText(/Quedan/)).not.toBeInTheDocument();
   });
 
   test("cualquier 409 refresca el evento", async () => {
@@ -1371,14 +1398,15 @@ describe("reservas de sesiones", () => {
     });
   });
 
-  test("con un solo lugar en una sesión dice Queda 1 lugar", async () => {
+  test("con un solo lugar en una sesión el chip dice queda 1", async () => {
     useSession.getState().iniciarSesion(usuario, "token", 3600);
     servir(inscrito);
     servirLista([{ ...conLugar, reserved_count: 4, available_spots: 1 }]);
     abrir();
 
     const item = await fila("Taller de Pytest");
-    expect(item.getByText("Queda 1 lugar")).toBeInTheDocument();
+    expect(item.getByText("Últimos lugares · queda 1")).toBeInTheDocument();
+    expect(item.queryByText("Queda 1 lugar")).not.toBeInTheDocument();
   });
 
   test("una sesión con pocos lugares muestra el chip Últimos lugares", async () => {
@@ -1388,7 +1416,7 @@ describe("reservas de sesiones", () => {
     abrir();
 
     const item = await fila("Taller de Pytest");
-    expect(item.getByText("Últimos lugares")).toBeInTheDocument();
+    expect(item.getByText("Últimos lugares · quedan 2")).toBeInTheDocument();
   });
 
   test("una sesión con lugares de sobra no muestra el chip Últimos lugares", async () => {
@@ -1398,7 +1426,7 @@ describe("reservas de sesiones", () => {
     abrir();
 
     const item = await fila("Taller de Pytest");
-    expect(item.queryByText("Últimos lugares")).not.toBeInTheDocument();
+    expect(item.queryByText(/Últimos lugares/)).not.toBeInTheDocument();
   });
 
   test("una sesión sin capacidad propia usa lo reservado más lo que queda: Últimos lugares", async () => {
@@ -1408,14 +1436,15 @@ describe("reservas de sesiones", () => {
     abrir();
 
     const item = await fila("Taller de Pytest");
-    expect(item.getByText("Últimos lugares")).toBeInTheDocument();
+    expect(item.getByText("Últimos lugares · quedan 5")).toBeInTheDocument();
   });
 
   test("el evento con pocos cupos muestra el chip Últimos lugares", async () => {
     servir({ ...abierto, capacity: 100, available_spots: 5 });
     abrir();
 
-    expect(await screen.findByText("Últimos lugares")).toBeInTheDocument();
+    expect(await screen.findByText("Últimos lugares · quedan 5")).toBeInTheDocument();
+    expect(screen.queryByText(/Quedan 5 cupos/)).not.toBeInTheDocument();
   });
 
   test.each([
@@ -1429,7 +1458,7 @@ describe("reservas de sesiones", () => {
       abrir();
 
       await screen.findByRole("heading", { name: "PyCon Bogotá" });
-      expect(screen.queryByText("Últimos lugares")).not.toBeInTheDocument();
+      expect(screen.queryByText(/Últimos lugares/)).not.toBeInTheDocument();
     },
   );
 
@@ -1445,7 +1474,7 @@ describe("reservas de sesiones", () => {
     servir({ ...abierto, available_spots: 1 });
     abrir();
 
-    expect(await screen.findByText("Queda 1 cupo")).toBeInTheDocument();
+    expect(await screen.findByText("Últimos lugares · queda 1")).toBeInTheDocument();
   });
 
   describe("cancelar la inscripción con reservas", () => {
