@@ -445,6 +445,7 @@ describe("formulario de edición", () => {
     await user.clear(campo);
     await user.type(campo, "ocupado@mail.com");
     await user.click(form.getByRole("button", { name: "Guardar" }));
+    await user.click(confirmacion().getByRole("button", { name: "Sí, cambiar el correo" }));
 
     await waitFor(() => expect(campo).toHaveAttribute("aria-invalid", "true"));
     expect(campo).toHaveAccessibleDescription(TITULOS["email-taken"]);

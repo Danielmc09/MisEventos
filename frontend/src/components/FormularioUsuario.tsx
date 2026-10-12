@@ -25,6 +25,53 @@ export const ROLES: Record<Rol, string> = {
 
 export const nombreDe = (u: UsuarioAdmin) => u.full_name || u.email;
 
+interface TextoConfirmacion {
+  titulo: string;
+  mensaje: string;
+  confirmar: string;
+}
+
+/** Lo que dice el diálogo por cada cambio que pide confirmación. Con varios a la vez, un solo diálogo los menciona todos. */
+function textosDe(cuerpo: Edicion, nombre: string, rol: Rol): TextoConfirmacion[] {
+  const textos: TextoConfirmacion[] = [];
+  if (cuerpo.email !== undefined)
+    textos.push({
+      titulo: `¿Cambiar el correo de ${nombre}?`,
+      mensaje: "Va a tener que iniciar sesión con el correo nuevo.",
+      confirmar: "Sí, cambiar el correo",
+    });
+  if (cuerpo.role !== undefined)
+    textos.push({
+      titulo: `¿Cambiar el rol de ${nombre}?`,
+      mensaje: `Va a pasar a ser ${ROLES[rol].toLowerCase()}. Tiene efecto en su siguiente acción.`,
+      confirmar: "Cambiar rol",
+    });
+  if (cuerpo.is_active !== undefined)
+    textos.push(
+      cuerpo.is_active
+        ? {
+            titulo: `¿Reactivar a ${nombre}?`,
+            mensaje: "Va a poder volver a entrar con su cuenta.",
+            confirmar: "Reactivar",
+          }
+        : {
+            titulo: `¿Desactivar a ${nombre}?`,
+            mensaje: "Se va a cerrar su sesión y no va a poder volver a entrar.",
+            confirmar: "Sí, desactivar",
+          },
+    );
+  return textos;
+}
+
+function textoUnico(textos: TextoConfirmacion[], nombre: string): TextoConfirmacion {
+  if (textos.length === 1) return textos[0];
+  return {
+    titulo: `¿Guardar estos cambios de ${nombre}?`,
+    mensaje: textos.map((t) => t.mensaje).join(" "),
+    confirmar: "Sí, guardar los cambios",
+  };
+}
+
 export interface FormularioUsuarioProps {
   usuario: UsuarioAdmin;
   /** Es la cuenta de quien está editando: no puede cambiar su propio rol ni su estado. */
@@ -89,7 +136,12 @@ export function FormularioUsuario({
     if (!propio && (activo === "true") !== usuario.is_active) cuerpo.is_active = activo === "true";
 
     if (Object.keys(cuerpo).length === 0) onCancelar();
-    else if (cuerpo.role !== undefined || cuerpo.is_active !== undefined) setPendiente(cuerpo);
+    else if (
+      cuerpo.email !== undefined ||
+      cuerpo.role !== undefined ||
+      cuerpo.is_active !== undefined
+    )
+      setPendiente(cuerpo);
     else void guardar(cuerpo);
   }
 
@@ -151,25 +203,7 @@ export function FormularioUsuario({
       </Modal>
       {pendiente && (
         <DialogoConfirmacion
-          titulo={
-            pendiente.is_active === undefined
-              ? `¿Cambiar el rol de ${nombreDe(usuario)}?`
-              : `¿${pendiente.is_active ? "Reactivar" : "Desactivar"} a ${nombreDe(usuario)}?`
-          }
-          mensaje={
-            pendiente.is_active === undefined
-              ? `Va a pasar a ser ${ROLES[rol].toLowerCase()}. Tiene efecto en su siguiente acción.`
-              : pendiente.is_active
-                ? "Va a poder volver a entrar con su cuenta."
-                : "No va a poder iniciar sesión."
-          }
-          confirmar={
-            pendiente.is_active === undefined
-              ? "Cambiar rol"
-              : pendiente.is_active
-                ? "Reactivar"
-                : "Sí, desactivar"
-          }
+          {...textoUnico(textosDe(pendiente, nombreDe(usuario), rol), nombreDe(usuario))}
           variante={pendiente.is_active === false ? "peligro" : "primario"}
           cargando={enviando}
           onConfirmar={() => void guardar(pendiente)}
