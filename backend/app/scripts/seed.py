@@ -6,6 +6,7 @@ El arranque del contenedor lo llama con --solo-si-seed-demo, después de las mig
 
 import argparse
 import logging
+import secrets
 from collections.abc import Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass
@@ -21,9 +22,11 @@ from app.core.db import crear_fabrica_de_sesiones, sesion_transaccional
 from app.core.excepciones import Conflict
 from app.core.permisos import Rol
 from app.models.evento import EstadoEvento, Event
+from app.models.inscripcion import EstadoInscripcion, Registration
 from app.models.ponente import Speaker
 from app.models.usuario import User
 from app.repositories.eventos import RepositorioEventos
+from app.repositories.inscripciones import RepositorioInscripciones
 from app.repositories.ponentes import RepositorioPonentes
 from app.repositories.sesiones import RepositorioSesiones
 from app.repositories.usuarios import RepositorioUsuarios
@@ -342,11 +345,88 @@ def sembrar_sesiones(
             )
 
 
+class InscripcionesDemo(Protocol):
+    def alguna_de(self, id_usuario: UUID, id_evento: UUID) -> Registration | None: ...
+    def crear(self, inscripcion: Registration) -> Registration: ...
+
+
+CASI_LLENO = "Taller de python para principiantes"
+
+# Las del asistente demo, para que su perfil muestre las tres pestañas. No está en el casi lleno:
+# así puede tomar el último cupo en la demo.
+INSCRIPCIONES_DEL_ASISTENTE = [
+    ("PyCon Bogotá", EstadoInscripcion.ACTIVE),
+    ("Python Day Medellín", EstadoInscripcion.ACTIVE),
+    ("Jornada de seguridad web", EstadoInscripcion.CANCELLED),
+]
+
+# Asistentes que solo existen para ocupar el casi lleno: nueve, sobre una capacidad de diez.
+INSCRITOS_DEMO = [
+    ("Camila Torres", "camila.torres@asistentes.example"),
+    ("Julián Herrera", "julian.herrera@asistentes.example"),
+    ("Valentina Ríos", "valentina.rios@asistentes.example"),
+    ("Santiago Castro", "santiago.castro@asistentes.example"),
+    ("Mariana López", "mariana.lopez@asistentes.example"),
+    ("Andrés Moreno", "andres.moreno@asistentes.example"),
+    ("Daniela Vargas", "daniela.vargas@asistentes.example"),
+    ("Felipe Ramírez", "felipe.ramirez@asistentes.example"),
+    ("Isabela Cárdenas", "isabela.cardenas@asistentes.example"),
+]
+
+
+def _inscritos_demo(usuarios: Usuarios) -> list[User]:
+    """Crea los que falten. Nadie entra con ellos: la contraseña es aleatoria y no se guarda."""
+    inscritos = []
+    for nombre, email in INSCRITOS_DEMO:
+        usuario = usuarios.por_email(email)
+        if usuario is None:
+            usuario = User(
+                email=email,
+                password_hash=hashear(secrets.token_urlsafe(32)),
+                role=Rol.ATTENDEE,
+                full_name=nombre,
+                is_active=True,
+                must_change_password=False,
+            )
+            usuarios.crear(usuario)
+        inscritos.append(usuario)
+    return inscritos
+
+
+def sembrar_inscripciones(
+    usuarios: Usuarios, eventos: EventosConSesiones, inscripciones: InscripcionesDemo
+) -> None:
+    """Crea las inscripciones demo que falten. Si la persona ya tiene una en ese evento, activa o
+    cancelada, no se toca: no se reactiva lo que alguien canceló. Nunca se pasa del cupo, aunque
+    alguien haya achicado el evento. Van por el repositorio: una es de un evento cancelado."""
+    organizador = _organizador(usuarios)
+    asistente = usuarios.por_email(ASISTENTE_DEMO)
+    if asistente is None:
+        raise RuntimeError(f"Falta el usuario {ASISTENTE_DEMO}, el asistente de la demo")
+    pendientes = [(asistente, evento, estado) for evento, estado in INSCRIPCIONES_DEL_ASISTENTE]
+    pendientes += [(u, CASI_LLENO, EstadoInscripcion.ACTIVE) for u in _inscritos_demo(usuarios)]
+    for usuario, nombre_evento, estado in pendientes:
+        evento = eventos.por_nombre_y_organizador(nombre_evento, organizador.id)
+        if evento is None or inscripciones.alguna_de(usuario.id, evento.id) is not None:
+            continue
+        activa = estado == EstadoInscripcion.ACTIVE
+        if activa and eventos.inscritos([evento.id])[evento.id] >= evento.capacity:
+            continue
+        inscripciones.crear(
+            Registration(
+                user_id=usuario.id,
+                event_id=evento.id,
+                status=estado,
+                cancelled_at=None if activa else datetime.now(UTC),
+            )
+        )
+
+
 def sembrar(session: Session, credenciales: CredencialesDemo) -> None:
     """Crea lo que falte de los datos de demostración, en la transacción recibida.
 
     Cada parte es idempotente. El orden importa: el organizador demo es dueño de los eventos y
-    de los ponentes, y las sesiones cuelgan de los dos.
+    de los ponentes, las sesiones cuelgan de los dos y las inscripciones, de los eventos.
     """
     usuarios = RepositorioUsuarios(session)
     eventos = RepositorioEventos(session)
@@ -355,6 +435,7 @@ def sembrar(session: Session, credenciales: CredencialesDemo) -> None:
     sembrar_eventos(usuarios, eventos)
     sembrar_ponentes(usuarios, ponentes)
     sembrar_sesiones(usuarios, eventos, RepositorioSesiones(session), ponentes)
+    sembrar_inscripciones(usuarios, eventos, RepositorioInscripciones(session))
 
 
 def main(argv: Sequence[str] | None = None) -> None:

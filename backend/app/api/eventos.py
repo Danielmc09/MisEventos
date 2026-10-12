@@ -10,6 +10,7 @@ from app.models.evento import EstadoEvento
 from app.schemas.comunes import FechaUTC, Pagina
 from app.schemas.eventos import (
     Cuando,
+    EventoDetalle,
     EventoEdicion,
     EventoEntrada,
     EventoSalida,
@@ -17,8 +18,15 @@ from app.schemas.eventos import (
     OrdenEventos,
 )
 from app.services import eventos
+from app.services.eventos import ConInscritos
 
 router = APIRouter(prefix="/events", tags=["eventos"])
+
+
+def _salida(con: ConInscritos) -> EventoSalida:
+    return EventoSalida.model_validate(
+        con.evento.model_dump() | {"registered_count": con.inscritos}
+    )
 
 
 @router.post(
@@ -66,7 +74,7 @@ def listar(
     )
     items, total = eventos.listar(repo, usuario, filtros, pagina.offset, pagina.page_size)
     return Pagina[EventoSalida].crear(
-        [EventoSalida.model_validate(e, from_attributes=True) for e in items],
+        [_salida(con) for con in items],
         total=total,
         page=pagina.page,
         page_size=pagina.page_size,
@@ -79,9 +87,11 @@ def listar(
     description="Público. Un borrador solo lo ven su dueño y el admin; para el resto, 404.",
     responses=respuestas_de_error(404, 422),
 )
-def ver(id_evento: UUID, usuario: UsuarioOpcional, repo: RepoEventos) -> EventoSalida:
-    evento, inscritos = eventos.detalle(repo, usuario, id_evento)
-    return EventoSalida.model_validate(evento.model_dump() | {"registered_count": inscritos})
+def ver(id_evento: UUID, usuario: UsuarioOpcional, repo: RepoEventos) -> EventoDetalle:
+    con = eventos.detalle(repo, usuario, id_evento)
+    return EventoDetalle.model_validate(
+        con.evento.model_dump() | {"registered_count": con.inscritos, "is_registered": con.inscrito}
+    )
 
 
 @router.post(
@@ -91,8 +101,7 @@ def ver(id_evento: UUID, usuario: UsuarioOpcional, repo: RepoEventos) -> EventoS
     responses=respuestas_de_error(401, 403, 404, 409, 422),
 )
 def publicar(id_evento: UUID, usuario: UsuarioActual, repo: RepoEventos) -> EventoSalida:
-    evento = eventos.publicar(repo, usuario, id_evento)
-    return EventoSalida.model_validate(evento, from_attributes=True)
+    return _salida(eventos.publicar(repo, usuario, id_evento))
 
 
 @router.post(
@@ -102,8 +111,7 @@ def publicar(id_evento: UUID, usuario: UsuarioActual, repo: RepoEventos) -> Even
     responses=respuestas_de_error(401, 403, 404, 409, 422),
 )
 def despublicar(id_evento: UUID, usuario: UsuarioActual, repo: RepoEventos) -> EventoSalida:
-    evento = eventos.despublicar(repo, usuario, id_evento)
-    return EventoSalida.model_validate(evento, from_attributes=True)
+    return _salida(eventos.despublicar(repo, usuario, id_evento))
 
 
 @router.post(
@@ -113,8 +121,7 @@ def despublicar(id_evento: UUID, usuario: UsuarioActual, repo: RepoEventos) -> E
     responses=respuestas_de_error(401, 403, 404, 409, 422),
 )
 def cancelar(id_evento: UUID, usuario: UsuarioActual, repo: RepoEventos) -> EventoSalida:
-    evento = eventos.cancelar(repo, usuario, id_evento)
-    return EventoSalida.model_validate(evento, from_attributes=True)
+    return _salida(eventos.cancelar(repo, usuario, id_evento))
 
 
 @router.patch(
@@ -129,8 +136,7 @@ def cancelar(id_evento: UUID, usuario: UsuarioActual, repo: RepoEventos) -> Even
 def editar(
     id_evento: UUID, datos: EventoEdicion, usuario: UsuarioActual, repo: RepoEventos
 ) -> EventoSalida:
-    evento = eventos.editar(repo, usuario, id_evento, datos)
-    return EventoSalida.model_validate(evento, from_attributes=True)
+    return _salida(eventos.editar(repo, usuario, id_evento, datos))
 
 
 @router.delete(

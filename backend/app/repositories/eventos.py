@@ -96,6 +96,15 @@ class RepositorioEventos:
             por_evento[id_evento] = cantidad
         return por_evento
 
+    def inscrito(self, id_usuario: UUID, id_evento: UUID) -> bool:
+        """Si el usuario tiene una inscripción activa en el evento."""
+        consulta = select(Registration.id).where(
+            Registration.user_id == id_usuario,
+            Registration.event_id == id_evento,
+            Registration.status == EstadoInscripcion.ACTIVE,
+        )
+        return self.session.exec(consulta).first() is not None
+
     def sesiones_de(self, id_evento: UUID) -> list[Sesion]:
         consulta = (
             select(Sesion)
