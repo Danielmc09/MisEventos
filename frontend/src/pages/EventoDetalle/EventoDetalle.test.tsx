@@ -1169,7 +1169,7 @@ describe("reservas de sesiones", () => {
   }
 
   /** Sirve las sesiones, y desde el segundo pedido las que devuelva `siguiente`. */
-  function servirLista(inicial: (typeof conLugar)[], siguiente?: () => (typeof conLugar)[]) {
+  function servirLista(inicial: (typeof sesion)[], siguiente?: () => (typeof sesion)[]) {
     const pedidos = { n: 0 };
     server.use(
       http.get(rutaSesiones, () => {
