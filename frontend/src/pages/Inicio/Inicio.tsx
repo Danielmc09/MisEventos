@@ -70,7 +70,7 @@ export default function Inicio() {
   // Un valor desconocido o no permitido se trata como "publicados": así lista y select coinciden.
   const pedido = params.get("estado") ?? "";
   const estado: Estado =
-    pedido in ESTADOS && (veBorradores || !ESTADOS[pedido as Estado].soloBorradores)
+    Object.hasOwn(ESTADOS, pedido) && (veBorradores || !ESTADOS[pedido as Estado].soloBorradores)
       ? (pedido as Estado)
       : "publicados";
   const hayFiltros = !!(params.get("q") || estado !== "publicados");
