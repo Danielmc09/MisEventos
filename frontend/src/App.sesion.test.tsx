@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import { http, HttpResponse } from "msw";
 import { setupServer } from "msw/node";
 import { MemoryRouter, useLocation } from "react-router-dom";
@@ -96,6 +96,25 @@ test("ante un error de red se queda con lo guardado", async () => {
   expect(screen.getByRole("link", { name: "Crear evento" })).toBeInTheDocument();
   expect(useSession.getState().user?.permisos).toEqual(["evento:crear"]);
   expect(screen.getByLabelText("ubicación")).toHaveTextContent(/^\/$/);
+});
+
+test("la respuesta de /auth/me del token A no pisa al usuario de la sesión B", async () => {
+  let soltar!: () => void;
+  const espera = new Promise<void>((resolver) => (soltar = resolver));
+  respuestaMe = async () => {
+    await espera;
+    return responder("/auth/me", "get", 200, asistente);
+  };
+  montar();
+  await waitFor(() => expect(llamadasMe).toBe(1));
+
+  const otra: Perfil = { ...organizador, id: "otro-id", full_name: "Otra persona" };
+  act(() => useSession.getState().iniciarSesion(otra, "token-b", 3600));
+  soltar();
+  await act(() => new Promise((r) => setTimeout(r, 50)));
+
+  expect(useSession.getState().accessToken).toBe("token-b");
+  expect(useSession.getState().user).toEqual(otra);
 });
 
 test("sin sesión guardada no pide /auth/me", async () => {
