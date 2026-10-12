@@ -490,8 +490,8 @@ export interface paths {
     options?: never;
     head?: never;
     /**
-     * Cambiar el nombre, el rol o el estado de un usuario
-     * @description Solo el admin. Acepta solo `full_name`, `role` e `is_active`: el email y la contraseña no se cambian por acá (422). El admin no puede cambiarse el rol ni desactivarse a sí mismo (409 `cannot-modify-self`), y siempre queda al menos un admin activo (409 `last-admin`). Desactivar corta la sesión en el siguiente request.
+     * Cambiar el nombre, el email, el rol o el estado de un usuario
+     * @description Solo el admin. Acepta solo `full_name`, `email`, `role` e `is_active`: la contraseña no se cambia por acá (422). El email se guarda en minúsculas y sin espacios; si ya lo usa otro usuario, 409 `email-taken`. El admin no puede cambiarse el rol ni desactivarse a sí mismo (409 `cannot-modify-self`), y siempre queda al menos un admin activo (409 `last-admin`). Desactivar corta la sesión en el siguiente request.
      */
     patch: operations["cambiar_admin_users__id_usuario__patch"];
     trace?: never;
@@ -1288,12 +1288,14 @@ export interface components {
     };
     /**
      * UsuarioEdicion
-     * @description Lo que el admin le cambia a un usuario: el nombre, el rol y si está activo. El email, la
+     * @description Lo que el admin le cambia a un usuario: el nombre, el email, el rol y si está activo. La
      *     contraseña y cualquier otro campo responden 422.
      */
     UsuarioEdicion: {
       /** Full Name */
       full_name?: string | null;
+      /** Email */
+      email?: string | null;
       role?: components["schemas"]["Rol"] | null;
       /** Is Active */
       is_active?: boolean | null;
