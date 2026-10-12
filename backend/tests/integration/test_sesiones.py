@@ -340,3 +340,30 @@ def test_achicar_las_fechas_del_evento_dejando_una_sesion_afuera_responde_409(
         text("SELECT end_at FROM events WHERE id = :id"), {"id": evento["id"]}
     ).scalar_one()
     assert fin == datetime(2030, 1, 10, 23, tzinfo=UTC)
+
+
+def test_bajar_la_capacidad_del_evento_por_debajo_de_una_sesion_responde_409(
+    cliente_db, conexion, usuarios, prefijo
+):
+    token = usuarios["orga"]
+    evento = crear_evento(cliente_db, token, f"{prefijo} PyCon")
+    grande = crear_sesion(cliente_db, token, evento, cuerpo_sesion("10:00", "11:00", capacity=80))
+    sin_capacidad = crear_sesion(cliente_db, token, evento, cuerpo_sesion("12:00", "13:00"))
+    assert (grande.status_code, sin_capacidad.status_code) == (201, 201)
+
+    rechazada = cliente_db.patch(
+        f"/events/{evento['id']}", json={"capacity": 50}, headers=auth(token)
+    )
+    capacidad = conexion.execute(
+        text("SELECT capacity FROM events WHERE id = :id"), {"id": evento["id"]}
+    ).scalar_one()
+    aceptada = cliente_db.patch(
+        f"/events/{evento['id']}", json={"capacity": 80}, headers=auth(token)
+    )
+
+    assert rechazada.status_code == 409
+    assert rechazada.json()["type"] == "sessions-capacity-above"
+    assert rechazada.json()["detail"] == "1 sesión tiene más capacidad que la nueva"
+    assert capacidad == 100
+    assert aceptada.status_code == 200, aceptada.text
+    assert aceptada.json()["capacity"] == 80

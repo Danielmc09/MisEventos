@@ -418,6 +418,35 @@ def test_una_edicion_invalida_responde_422(cliente, repos, auth, cambios, campo)
     )
 
 
+def mandar(como: str, cliente, repos, datos: dict, headers: dict):
+    evento = repos.evento()
+    if como == "crear":
+        return crear(cliente, evento, cuerpo() | datos, headers)
+    return editar(cliente, repos.sesion(evento, hora(9), hora(10)), datos, headers)
+
+
+@pytest.mark.parametrize("como", ["crear", "editar"])
+def test_mas_de_20_ponentes_responde_422_en_speaker_ids(cliente, repos, auth, como):
+    ids = [str(repos.ponente(f"Ponente {i}").id) for i in range(21)]
+
+    respuesta = mandar(como, cliente, repos, {"speaker_ids": ids}, auth(ORGANIZADOR))
+
+    assert respuesta.status_code == 422
+    assert respuesta.json()["errors"] == [
+        {"field": "speaker_ids", "message": "Debe tener como máximo 20 elementos"}
+    ]
+
+
+@pytest.mark.parametrize("como", ["crear", "editar"])
+def test_20_ponentes_se_aceptan(cliente, repos, auth, como):
+    ids = [str(repos.ponente(f"Ponente {i}").id) for i in range(20)]
+
+    respuesta = mandar(como, cliente, repos, {"speaker_ids": ids}, auth(ORGANIZADOR))
+
+    assert respuesta.status_code in (200, 201), respuesta.text
+    assert len(respuesta.json()["speakers"]) == 20
+
+
 def test_el_dueno_elimina_una_sesion(cliente, repos, auth):
     evento = repos.evento()
     sesion = repos.sesion(evento, hora(9), hora(10), repos.ponente())
