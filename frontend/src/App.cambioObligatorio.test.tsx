@@ -1,6 +1,6 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { http } from "msw";
+import { http, HttpResponse } from "msw";
 import { setupServer } from "msw/node";
 import { MemoryRouter, useLocation } from "react-router-dom";
 import App from "./App";
@@ -109,12 +109,16 @@ test("un 403 password-change-required de la API lleva a /cambiar-contrasena", as
   server.use(
     http.get(`${API}/auth/me`, () => responder("/auth/me", "get", 200, usuario)),
     http.get(`${API}/me/registrations`, () =>
-      responder("/me/registrations", "get", 403, {
-        type: "password-change-required",
-        title: "Tenés que cambiar tu contraseña temporal",
-        status: 403,
-        trace_id: "t-1",
-      }),
+      // El OpenAPI aún no declara el 403: el cuerpo es el problem+json que el backend sí devuelve.
+      HttpResponse.json(
+        {
+          type: "password-change-required",
+          title: "Tenés que cambiar tu contraseña temporal",
+          status: 403,
+          trace_id: "t-1",
+        },
+        { status: 403, headers: { "Content-Type": "application/problem+json" } },
+      ),
     ),
   );
   useSession.getState().iniciarSesion(usuario, "token-abc", 3600);
