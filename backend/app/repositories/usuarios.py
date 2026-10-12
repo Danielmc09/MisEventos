@@ -37,8 +37,8 @@ class RepositorioUsuarios:
                     col(User.full_name).ilike(patron, escape="\\"),
                 )
             )
-        if filtros.rol is not None:
-            condiciones.append(col(User.role) == filtros.rol)
+        if filtros.rol:
+            condiciones.append(col(User.role).in_(sorted(filtros.rol)))
         if filtros.activo is not None:
             condiciones.append(col(User.is_active) == filtros.activo)
 

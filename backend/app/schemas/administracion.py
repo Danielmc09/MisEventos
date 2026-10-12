@@ -44,5 +44,5 @@ class FiltrosUsuarios:
     """Lo que se pide al listar usuarios."""
 
     q: str | None = None
-    rol: Rol | None = None
+    rol: frozenset[Rol] = frozenset()  # vacío: todos los roles
     activo: bool | None = None
