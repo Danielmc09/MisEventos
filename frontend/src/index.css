@@ -1,10 +1,69 @@
 @import "tailwindcss";
 
 @theme {
+  /* Marca */
+  --color-primario: #6f2277;
+  --color-primario-hover: #5a1b61;
+  --color-acento: #00aec7;
+  --color-acento-suave: #6ac6dc;
+
+  /* Texto y superficies */
+  --color-tinta: #282a68;
+  --color-texto: #1f2937;
+  --color-texto-suave: #4b5563;
+  --color-fondo: #f2f4f8;
+  --color-panel: #ffffff;
+  /* Borde de campos: 3:1 contra el panel, para que se vean los límites del campo. */
+  --color-borde: #8b93a1;
+
+  /* Avisos y estados: texto sobre su fondo suave, mínimo 4.5:1. */
   --color-exito-suave: #dcfce7;
   --color-exito: #166534;
   --color-error-suave: #fee2e2;
   --color-error: #991b1b;
   --color-info-suave: #e5e7eb;
   --color-info: #1f2937;
+  --color-advertencia-suave: #fef3c7;
+  --color-advertencia: #92400e;
+  --color-finalizado-suave: #dbeafe;
+  --color-finalizado: #1e3a8a;
+
+  --font-sans: system-ui, sans-serif;
+
+  /* Profundidad con sombras en capas, no con bordes. */
+  --shadow-tarjeta: 0 1px 2px rgb(40 42 104 / 0.06), 0 4px 12px rgb(40 42 104 / 0.08);
+  --shadow-elevada: 0 2px 4px rgb(40 42 104 / 0.08), 0 8px 24px rgb(40 42 104 / 0.16);
+
+  /* Movimiento: la entrada de un elemento y el crecimiento de un diálogo. */
+  --animate-entrar: entrar 200ms ease-out both;
+  --animate-crecer: crecer 150ms ease-out both;
+
+  @keyframes entrar {
+    from {
+      opacity: 0;
+      transform: translateY(4px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  @keyframes crecer {
+    from {
+      opacity: 0;
+      transform: scale(0.96);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+}
+
+@layer base {
+  body {
+    background-color: var(--color-fondo);
+    color: var(--color-texto);
+  }
 }

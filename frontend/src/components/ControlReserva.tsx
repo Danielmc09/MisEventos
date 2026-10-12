@@ -1,7 +1,7 @@
 import type { Sesion } from "../lib/useSesiones";
 import { quedan } from "../lib/plural";
 import { Button } from "./ui/Button";
-import { Insignia } from "./ui/Insignia";
+import { Chip } from "./ui/Chip";
 import { TextoSecundario } from "./ui/TextoSecundario";
 
 interface Props {
@@ -32,7 +32,7 @@ export function ControlReserva({
   if (sesion.is_reserved) {
     return (
       <div className="flex flex-wrap items-center gap-3">
-        <Insignia tono="exito">Reservado</Insignia>
+        <Chip tono="exito">Reservado</Chip>
         <Button variante="secundario" loading={trabajando} onClick={onCancelar}>
           Cancelar reserva
         </Button>

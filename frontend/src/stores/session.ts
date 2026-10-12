@@ -15,6 +15,8 @@ interface SessionState {
   /** true tras un logout voluntario: la ruta protegida no debe recordar adónde volver. */
   saliendo: boolean;
   cerrarSesion: () => void;
+  /** Actualiza el nombre del usuario de la sesión, sin tocar el token. */
+  actualizarNombre: (nombre: string | null) => void;
   salir: () => void;
 }
 
@@ -28,6 +30,8 @@ export const useSession = create<SessionState>()(
       iniciarSesion: (user, accessToken, expiresIn) =>
         set({ user, accessToken, expiresAt: Date.now() + expiresIn * 1000, saliendo: false }),
       cerrarSesion: () => set({ user: null, accessToken: null, expiresAt: null, saliendo: false }),
+      actualizarNombre: (nombre) =>
+        set((s) => (s.user ? { user: { ...s.user, full_name: nombre } } : {})),
       salir: () => set({ user: null, accessToken: null, expiresAt: null, saliendo: true }),
     }),
     {

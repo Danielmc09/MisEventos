@@ -22,7 +22,9 @@ export function Toast({ message, tone = "info", onClose }: ToastProps) {
   return (
     <div
       role={tone === "error" ? "alert" : "status"}
-      className={`pointer-events-auto flex items-center gap-3 rounded-md px-4 py-3 shadow-lg ${TONOS[tone]}`}
+      className={`pointer-events-auto flex items-center gap-3 rounded-lg py-3 pl-4 shadow-elevada motion-safe:animate-entrar ${
+        onClose ? "pr-1" : "pr-4"
+      } ${TONOS[tone]}`}
     >
       <svg
         role="img"
@@ -43,9 +45,9 @@ export function Toast({ message, tone = "info", onClose }: ToastProps) {
           type="button"
           onClick={onClose}
           aria-label="Cerrar aviso"
-          className="ml-auto inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center md:min-h-10 md:min-w-10"
+          className="ml-auto inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-md text-xl focus-visible:outline-3 focus-visible:outline-acento md:min-h-10 md:min-w-10"
         >
-          ×
+          <span aria-hidden="true">×</span>
         </button>
       )}
     </div>

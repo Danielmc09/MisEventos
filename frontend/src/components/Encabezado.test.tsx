@@ -55,6 +55,14 @@ test("con sesión muestra el nombre y no el email", () => {
   expect(nav.queryByText(usuario.email)).not.toBeInTheDocument();
 });
 
+test("un nombre largo se corta con «…» pero se lee completo en su título", () => {
+  const largo = "Oscar Organizador Con Un Nombre Larguísimo De Verdad";
+  useSession.getState().iniciarSesion({ ...usuario, full_name: largo }, "token-abc", 3600);
+  montar("/");
+
+  expect(within(encabezado()).getByRole("link", { name: largo })).toHaveAttribute("title", largo);
+});
+
 test.each([null, ""])("sin nombre (%j) muestra el email", (nombre) => {
   useSession.getState().iniciarSesion({ ...usuario, full_name: nombre }, "token-abc", 3600);
   montar("/");

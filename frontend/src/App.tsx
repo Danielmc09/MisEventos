@@ -13,6 +13,7 @@ const EventoDetalle = lazy(() => import("./pages/EventoDetalle/EventoDetalle"));
 const EventoNuevo = lazy(() => import("./pages/EventoNuevo/EventoNuevo"));
 const EventoEditar = lazy(() => import("./pages/EventoEditar/EventoEditar"));
 const Perfil = lazy(() => import("./pages/Perfil/Perfil"));
+const AdminUsuarios = lazy(() => import("./pages/AdminUsuarios/AdminUsuarios"));
 const NoEncontrada = lazy(() => import("./pages/NoEncontrada/NoEncontrada"));
 const CambiarContrasena = lazy(() => import("./pages/CambiarContrasena/CambiarContrasena"));
 
@@ -43,6 +44,7 @@ export default function App() {
             <Route path="/eventos/nuevo" element={<EventoNuevo />} />
             <Route path="/eventos/:id/editar" element={<EventoEditar />} />
             <Route path="/perfil" element={<Perfil />} />
+            <Route path="/admin/usuarios" element={<AdminUsuarios />} />
             <Route path="/cambiar-contrasena" element={<CambiarContrasena />} />
           </Route>
           <Route path="*" element={<NoEncontrada />} />

@@ -74,7 +74,7 @@ export function MisInscripciones() {
   }
 
   return (
-    <section aria-labelledby="titulo-inscripciones" className="mt-8 flex flex-col gap-4">
+    <section aria-labelledby="titulo-inscripciones" className="flex flex-col gap-4">
       <TituloSeccion id="titulo-inscripciones">Mis inscripciones</TituloSeccion>
       <Pestanas
         etiqueta="Mis inscripciones"
@@ -96,13 +96,12 @@ export function MisInscripciones() {
         )}
         {actual?.pagina && actual.pagina.items.length > 0 && (
           <div className="grid gap-4 sm:grid-cols-2">
-            {actual.pagina.items.map((i) => (
-              <div key={i.id} className="flex flex-col gap-2">
-                <EventoCard evento={i.event} />
+            {actual.pagina.items.map((i, n) => (
+              <EventoCard key={i.id} evento={i.event} indice={n}>
                 {activa === "proximos" && (
                   <SesionesReservadas evento={i.event.name} sesiones={i.reserved_sessions} />
                 )}
-              </div>
+              </EventoCard>
             ))}
           </div>
         )}

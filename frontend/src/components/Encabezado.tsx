@@ -1,45 +1,51 @@
-import { Link } from "react-router-dom";
 import { useCerrarSesion } from "../lib/useCerrarSesion";
 import { useSesionVigente, useSession, useTienePermiso } from "../stores/session";
-
-const enlace = "text-indigo-700 hover:underline";
+import { BotonEnlace, Enlace } from "./ui/Enlace";
 
 export function Encabezado() {
   const user = useSession((s) => s.user);
   const puedeCrear = useTienePermiso("evento:crear");
+  const puedeAdministrar = useTienePermiso("usuarios:gestionar");
   const vigente = useSesionVigente();
   const cerrarSesion = useCerrarSesion();
+  const nombre = user && (user.full_name || user.email);
   return (
-    <header className="border-b border-gray-200">
+    <header className="bg-panel shadow-tarjeta">
+      {/* En escritorio mide 4 rem: los avisos arrancan justo debajo. */}
       <nav
         aria-label="Principal"
-        className="mx-auto flex max-w-3xl flex-wrap items-center gap-x-4 gap-y-1 px-4 py-2"
+        className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-4 gap-y-1 px-4 py-2 md:h-16 md:flex-nowrap md:px-6 md:py-0"
       >
-        <Link to="/" className="mr-auto font-bold">
-          Mis Eventos
-        </Link>
+        <div className="mr-auto shrink-0">
+          <Enlace to="/" variante="marca">
+            Mis Eventos
+          </Enlace>
+        </div>
         {user && vigente ? (
           <>
             {puedeCrear && (
-              <Link to="/eventos/nuevo" className={enlace}>
+              <Enlace to="/eventos/nuevo" variante="navegacion">
                 Crear evento
-              </Link>
+              </Enlace>
             )}
-            <Link to="/perfil" className={`${enlace} max-w-full truncate`}>
-              {user.full_name || user.email}
-            </Link>
-            <button type="button" onClick={cerrarSesion} className={enlace}>
-              Cerrar sesión
-            </button>
+            {puedeAdministrar && (
+              <Enlace to="/admin/usuarios" variante="navegacion">
+                Administración
+              </Enlace>
+            )}
+            <Enlace to="/perfil" variante="navegacion" title={nombre ?? undefined}>
+              {nombre}
+            </Enlace>
+            <BotonEnlace onClick={cerrarSesion}>Cerrar sesión</BotonEnlace>
           </>
         ) : (
           <>
-            <Link to="/login" className={enlace}>
+            <Enlace to="/login" variante="navegacion">
               Iniciar sesión
-            </Link>
-            <Link to="/registro" className={enlace}>
+            </Enlace>
+            <Enlace to="/registro" variante="navegacion">
               Registrarse
-            </Link>
+            </Enlace>
           </>
         )}
       </nav>
