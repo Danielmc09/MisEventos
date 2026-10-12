@@ -5,7 +5,12 @@ if (typeof document !== "undefined") {
   document.addEventListener(
     "click",
     (e) => {
-      if (e.target instanceof Element) ultimoClick = e.target.closest("button, a") ?? e.target;
+      if (!(e.target instanceof Element)) return;
+      const clicado = e.target.closest("button, a") ?? e.target;
+      // Una opción de menú desaparece al elegirla: el origen es el botón que abrió el menú.
+      const menu = clicado.closest('[role="menu"]');
+      const abrio = menu?.id ? document.querySelector(`[aria-controls="${menu.id}"]`) : null;
+      ultimoClick = abrio ?? clicado;
     },
     true,
   );
