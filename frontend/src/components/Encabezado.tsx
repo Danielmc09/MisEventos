@@ -5,6 +5,7 @@ import { BotonEnlace, Enlace } from "./ui/Enlace";
 export function Encabezado() {
   const user = useSession((s) => s.user);
   const puedeCrear = useTienePermiso("evento:crear");
+  const puedeAdministrar = useTienePermiso("usuarios:gestionar");
   const vigente = useSesionVigente();
   const cerrarSesion = useCerrarSesion();
   const nombre = user && (user.full_name || user.email);
@@ -25,6 +26,11 @@ export function Encabezado() {
             {puedeCrear && (
               <Enlace to="/eventos/nuevo" variante="navegacion">
                 Crear evento
+              </Enlace>
+            )}
+            {puedeAdministrar && (
+              <Enlace to="/admin/usuarios" variante="navegacion">
+                Administración
               </Enlace>
             )}
             <Enlace to="/perfil" variante="navegacion" title={nombre ?? undefined}>
