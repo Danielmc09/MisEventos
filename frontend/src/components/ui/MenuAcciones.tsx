@@ -2,6 +2,7 @@ import { useEffect, useId, useRef, useState, type KeyboardEvent, type ReactNode 
 import { Link } from "react-router-dom";
 import { BASE_BOTON, VARIANTES_BOTON } from "./estilosBoton";
 import { IconoPuntos } from "./iconos/IconoPuntos";
+import { Spinner } from "./Spinner";
 
 export interface ItemMenu {
   texto: string;
@@ -23,7 +24,8 @@ export interface MenuAccionesProps {
   variante?: "boton" | "circulo";
   /** De qué borde del botón sale el menú. */
   alinear?: "inicio" | "fin";
-  deshabilitado?: boolean;
+  /** Hay una acción en curso: el botón sigue enfocable (no pierde el foco), muestra un spinner y no abre. */
+  ocupado?: boolean;
   children: ReactNode;
 }
 
@@ -43,7 +45,7 @@ export function MenuAcciones({
   titulo,
   variante = "boton",
   alinear = "inicio",
-  deshabilitado,
+  ocupado,
   children,
 }: MenuAccionesProps) {
   const id = useId();
@@ -74,6 +76,7 @@ export function MenuAcciones({
   function alTeclearEnDisparador(e: KeyboardEvent) {
     if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
     e.preventDefault();
+    if (ocupado) return;
     setFoco(e.key === "ArrowDown" ? "primero" : "ultimo");
     setAbierto(true);
   }
@@ -116,15 +119,21 @@ export function MenuAcciones({
         aria-haspopup="menu"
         aria-expanded={abierto}
         aria-controls={abierto ? id : undefined}
-        disabled={deshabilitado}
+        aria-disabled={ocupado || undefined}
+        aria-busy={ocupado || undefined}
         onClick={() => {
+          if (ocupado) return;
           setFoco("primero");
           setAbierto(!abierto);
         }}
         onKeyDown={alTeclearEnDisparador}
-        className={`${BOTON[variante]} disabled:cursor-not-allowed disabled:opacity-60`}
+        className={`${BOTON[variante]} aria-disabled:cursor-not-allowed aria-disabled:opacity-60`}
       >
-        {variante === "boton" && <IconoPuntos />}
+        {ocupado ? (
+          <Spinner heredar className="h-4 w-4" />
+        ) : (
+          variante === "boton" && <IconoPuntos />
+        )}
         {children}
       </button>
       {abierto && (

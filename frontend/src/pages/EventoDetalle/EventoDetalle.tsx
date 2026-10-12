@@ -131,7 +131,7 @@ export default function EventoDetalle() {
                 )}
                 <MenuAcciones
                   etiqueta="Más acciones"
-                  deshabilitado={trabajando}
+                  ocupado={trabajando}
                   items={[
                     ...(evento.status === "DRAFT" && !evento.is_finished
                       ? [{ texto: "Publicar", onSelect: () => ejecutar("publish") }]
