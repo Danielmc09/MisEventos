@@ -8,6 +8,7 @@ import { Spinner } from "./components/ui/Spinner";
 const Inicio = lazy(() => import("./pages/Inicio/Inicio"));
 const Login = lazy(() => import("./pages/Login/Login"));
 const Registro = lazy(() => import("./pages/Registro/Registro"));
+const EventoDetalle = lazy(() => import("./pages/EventoDetalle/EventoDetalle"));
 const EventoNuevo = lazy(() => import("./pages/EventoNuevo/EventoNuevo"));
 const EventoEditar = lazy(() => import("./pages/EventoEditar/EventoEditar"));
 const Perfil = lazy(() => import("./pages/Perfil/Perfil"));
@@ -35,6 +36,7 @@ export default function App() {
           <Route path="/" element={<Inicio />} />
           <Route path="/login" element={<Login />} />
           <Route path="/registro" element={<Registro />} />
+          <Route path="/eventos/:id" element={<EventoDetalle />} />
           <Route element={<RutaProtegida />}>
             <Route path="/eventos/nuevo" element={<EventoNuevo />} />
             <Route path="/eventos/:id/editar" element={<EventoEditar />} />

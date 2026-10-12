@@ -29,8 +29,8 @@ describe("estados del detalle", () => {
     expect(screen.getByRole("status", { name: "Cargando" })).toBeInTheDocument();
     expect(await screen.findByRole("heading", { name: "PyCon Bogotá" })).toBeInTheDocument();
     expect(screen.queryByRole("status", { name: "Cargando" })).not.toBeInTheDocument();
-    expect(screen.getByText(/10 oct.*8:30/)).toBeInTheDocument();
-    expect(screen.getByText(/11 oct.*4:30/)).toBeInTheDocument();
+    expect(screen.getByText(/10 de oct.*8:30/)).toBeInTheDocument();
+    expect(screen.getByText(/11 de oct.*4:30/)).toBeInTheDocument();
     expect(screen.getByText("Ágora Bogotá")).toBeInTheDocument();
     expect(screen.getByText("Tres días de Python")).toBeInTheDocument();
     expect(screen.getByText("Publicado")).toBeInTheDocument();
