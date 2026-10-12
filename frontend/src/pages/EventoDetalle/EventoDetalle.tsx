@@ -128,7 +128,10 @@ export default function EventoDetalle() {
             cargando={sesiones.cargando}
             sesiones={sesiones.sesiones}
             error={sesiones.error}
-            puede={puede}
+            evento={evento}
+            // Un evento cancelado o finalizado ya no admite cambios en sus sesiones.
+            puede={puede && evento.status !== "CANCELLED" && !evento.is_finished}
+            onGuardada={sesiones.guardar}
             onEliminada={sesiones.quitar}
           />
         </>
