@@ -20,6 +20,9 @@ administrador: una escalada de privilegios (OWASP A01).
 - Solo un admin cambia el rol de otro usuario, con `PATCH /admin/users/{id}`
   (`backend/app/services/administracion.py`). No puede cambiarse el rol ni desactivarse a sí mismo
   (`cannot-modify-self`), y siempre queda al menos un admin activo (`last-admin`).
+- El admin también puede crear un usuario con cualquier rol, con `POST /admin/users`. La contraseña
+  no la elige nadie: el sistema genera una temporal, que se muestra una sola vez, y el usuario tiene
+  que cambiarla antes de hacer cualquier otra cosa.
 - El seed crea un organizador de demostración, para probar la app sin pasar por el admin.
 
 ## Alternativas descartadas
@@ -32,7 +35,8 @@ administrador: una escalada de privilegios (OWASP A01).
 
 ## Consecuencias
 
-- Un organizador nuevo necesita que un admin le cambie el rol.
+- Un organizador nuevo necesita a un admin: que le cambie el rol a su cuenta, o que se la cree ya
+  como organizador.
 - El cambio de rol rige desde el request siguiente: el token no lleva el rol, y el usuario se lee de
   la base en cada request (`backend/app/core/tokens.py`, `usuario_actual()` en
   `backend/app/api/dependencias.py`). Lo mismo con una desactivación.
