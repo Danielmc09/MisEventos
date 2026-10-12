@@ -1,4 +1,4 @@
-import { screen, waitFor, within } from "@testing-library/react";
+import { cleanup, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http } from "msw";
 import { setupServer } from "msw/node";
@@ -15,6 +15,7 @@ type UsuarioAdmin = components["schemas"]["UsuarioAdmin"];
 const server = setupServer();
 beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
 afterEach(() => {
+  cleanup();
   server.resetHandlers();
   useSession.getState().cerrarSesion();
 });

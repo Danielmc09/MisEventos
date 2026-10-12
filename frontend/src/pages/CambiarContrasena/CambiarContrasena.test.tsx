@@ -1,4 +1,4 @@
-import { act, fireEvent, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { delay, http } from "msw";
 import { setupServer } from "msw/node";
@@ -12,6 +12,7 @@ const server = setupServer();
 beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
 beforeEach(() => useSession.getState().iniciarSesion(usuario, "token-viejo", 3600));
 afterEach(() => {
+  cleanup();
   server.resetHandlers();
   useSession.getState().cerrarSesion();
 });

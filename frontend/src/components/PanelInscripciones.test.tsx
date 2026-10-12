@@ -1,4 +1,4 @@
-import { screen, within } from "@testing-library/react";
+import { cleanup, screen, within } from "@testing-library/react";
 import { http } from "msw";
 import { setupServer } from "msw/node";
 import { useSession } from "../stores/session";
@@ -10,6 +10,7 @@ const server = setupServer();
 beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
 beforeEach(() => useSession.getState().iniciarSesion(usuario, "token", 3600));
 afterEach(() => {
+  cleanup();
   server.resetHandlers();
   useSession.getState().cerrarSesion();
 });

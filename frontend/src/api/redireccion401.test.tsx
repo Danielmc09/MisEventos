@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
 import { http } from "msw";
 import { setupServer } from "msw/node";
 import { MemoryRouter, useLocation } from "react-router-dom";
@@ -33,7 +33,10 @@ const server = setupServer(
 );
 
 beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
-afterEach(() => useSession.getState().cerrarSesion());
+afterEach(() => {
+  cleanup();
+  useSession.getState().cerrarSesion();
+});
 afterAll(() => server.close());
 
 function Ubicacion() {
@@ -54,7 +57,7 @@ test("ante un 401 vacía la sesión y la app termina en /login?next=<ruta donde 
   montar("/?x=1");
   await screen.findByRole("heading", { name: "Próximos eventos" });
 
-  await api("/me/registrations").catch(() => undefined);
+  await act(() => api("/me/registrations").catch(() => undefined));
 
   await waitFor(() =>
     expect(screen.getByLabelText("ubicación")).toHaveTextContent("/login?next=%2F%3Fx%3D1"),

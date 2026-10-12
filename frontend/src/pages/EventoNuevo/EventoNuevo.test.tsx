@@ -1,4 +1,4 @@
-import { screen } from "@testing-library/react";
+import { cleanup, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http } from "msw";
 import { setupServer } from "msw/node";
@@ -14,6 +14,7 @@ beforeEach(() =>
   useSession.getState().iniciarSesion({ ...usuario, permisos: ["evento:crear"] }, "token", 3600),
 );
 afterEach(() => {
+  cleanup();
   server.resetHandlers();
   useEventos.getState().invalidar();
   useSession.getState().cerrarSesion();

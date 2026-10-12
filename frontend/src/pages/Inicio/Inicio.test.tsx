@@ -1,4 +1,4 @@
-import { act, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { delay, http } from "msw";
 import { setupServer } from "msw/node";
@@ -254,7 +254,10 @@ describe("filtro de estado", () => {
 });
 
 describe("opciones del filtro de estado", () => {
-  afterEach(() => useSession.getState().cerrarSesion());
+  afterEach(() => {
+    cleanup();
+    useSession.getState().cerrarSesion();
+  });
   const opciones = () => screen.getAllByRole("option").map((o) => o.textContent);
   const organizador = {
     ...usuario,
@@ -325,5 +328,6 @@ describe("opciones del filtro de estado", () => {
 
     await user.selectOptions(screen.getByRole("combobox", { name: "Estado" }), "Borradores");
     await waitFor(() => expect(pedidos).toEqual(["?status=PUBLISHED", "", "?status=DRAFT"]));
+    await waitFor(() => expect(screen.queryByRole("status", { name: "Cargando" })).toBeNull());
   });
 });
