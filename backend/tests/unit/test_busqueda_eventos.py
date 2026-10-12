@@ -69,6 +69,7 @@ def test_el_escape_vuelve_literales_los_comodines_y_la_barra(texto, escapado):
     ("params", "campo"),
     [
         ({"q": "x" * 101}, "q"),
+        ({"q": "abc\x00"}, "q"),
         ({"order_by": "fecha"}, "order_by"),
         ({"when": "manana"}, "when"),
         ({"status": "ARCHIVED"}, "status"),
