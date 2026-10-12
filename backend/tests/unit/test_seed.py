@@ -482,6 +482,20 @@ def test_no_pisa_un_ponente_ni_una_sesion_que_alguien_cambio_y_recrea_lo_borrado
     assert borrada.title in {s.title for s in demo.eventos.sesiones.values()}
 
 
+def test_una_sesion_demo_que_el_organizador_movio_y_dejo_sin_ponentes_no_se_vuelve_a_crear(demo):
+    titulos = [s.title for s in demo.sesiones_de("Python Day Medellín")]
+    assert titulos
+    movida = demo.sesiones_de("Python Day Medellín")[0]
+    movida.start_at += timedelta(hours=6)
+    movida.end_at += timedelta(hours=6)
+    movida.room = None
+    demo.sesiones.vinculos[movida.id] = []
+
+    demo.sembrar()
+
+    assert sorted(s.title for s in demo.sesiones_de("Python Day Medellín")) == sorted(titulos)
+
+
 def test_una_sesion_que_ya_no_entra_en_su_evento_se_saltea_sin_frenar_el_resto():
     base = Demo()
     python_day = base.evento("Python Day Medellín")
