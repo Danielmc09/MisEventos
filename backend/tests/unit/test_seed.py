@@ -5,6 +5,7 @@ import pytest
 
 from app.core.config import Settings
 from app.core.contrasenas import hashear, verificar
+from app.core.excepciones import DomainError
 from app.core.permisos import Rol
 from app.models.evento import EstadoEvento, Event
 from app.models.usuario import User
@@ -523,3 +524,31 @@ def test_una_sesion_salteada_deja_un_aviso_que_nombra_la_sesion_y_el_evento(capl
         if r.name == "miseventos.seed" and r.levelno == logging.WARNING
     ]
     assert any("Testing en Python" in m and "Python Day Medellín" in m for m in avisos), avisos
+
+
+def test_una_sesion_con_mas_capacidad_que_su_evento_se_saltea_con_un_aviso_y_sigue(caplog):
+    base = Demo()
+    python_day = base.evento("Python Day Medellín")
+    python_day.capacity = 110
+
+    with caplog.at_level(logging.WARNING, logger="miseventos.seed"):
+        try:
+            base.sembrar()
+        except DomainError as error:
+            pytest.fail(f"el seed se cortó con {error!r} en lugar de saltear la sesión")
+
+    titulos = {s.title for s in base.sesiones_de("Python Day Medellín")}
+    assert "Testing en Python" not in titulos
+    assert "Pandas para análisis de datos" in titulos
+    assert base.sesiones_de("PyCon Bogotá")
+    avisos = [
+        r.getMessage()
+        for r in caplog.records
+        if r.name == "miseventos.seed" and r.levelno == logging.WARNING
+    ]
+    assert any(
+        "«Testing en Python»" in m
+        and "Python Day Medellín" in m
+        and "No puede superar la del evento (110)" in m
+        for m in avisos
+    ), avisos
