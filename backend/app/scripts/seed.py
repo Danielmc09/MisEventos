@@ -334,7 +334,12 @@ def sembrar_sesiones(
         try:
             servicio_sesiones.crear(eventos, sesiones, ponentes, organizador, evento.id, datos)
         except Conflict as error:
-            logger.warning("seed: no se creó la sesión «%s»: %s", demo.titulo, error)
+            logger.warning(
+                "seed: no se creó la sesión «%s» del evento «%s»: %s",
+                demo.titulo,
+                demo.evento,
+                error,
+            )
 
 
 def sembrar(session: Session, credenciales: CredencialesDemo) -> None:
