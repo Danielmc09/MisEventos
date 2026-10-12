@@ -1415,7 +1415,8 @@ describe("reservas de sesiones", () => {
     servir({ ...abierto, capacity: 100, available_spots: 5 });
     abrir();
 
-    expect(await screen.findByText("Últimos lugares")).toBeInTheDocument();
+    expect(await screen.findByText("Últimos lugares · quedan 5")).toBeInTheDocument();
+    expect(screen.queryByText(/Quedan 5 cupos/)).not.toBeInTheDocument();
   });
 
   test.each([
@@ -1445,7 +1446,7 @@ describe("reservas de sesiones", () => {
     servir({ ...abierto, available_spots: 1 });
     abrir();
 
-    expect(await screen.findByText("Queda 1 cupo")).toBeInTheDocument();
+    expect(await screen.findByText("Últimos lugares · queda 1")).toBeInTheDocument();
   });
 
   describe("cancelar la inscripción con reservas", () => {

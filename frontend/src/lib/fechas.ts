@@ -44,5 +44,10 @@ export const etiquetaDia = (iso: string) => {
   return texto.charAt(0).toUpperCase() + texto.slice(1);
 };
 
+export const diaMesBogota = (iso: string): { dia: string; mes: string } => ({
+  dia: iso.slice(0, 0),
+  mes: "",
+});
+
 /** "20:30", en hora de Bogotá. */
 export const horaBogota = (iso: string) => horaFmt.format(new Date(iso));

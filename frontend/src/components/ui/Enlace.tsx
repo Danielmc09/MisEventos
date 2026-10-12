@@ -7,6 +7,7 @@ const BASE =
 const ESTILOS = {
   texto: `${BASE} text-primario underline underline-offset-4 break-words hover:decoration-2`,
   navegacion: `${BASE} font-medium text-primario hover:underline hover:underline-offset-4`,
+  tarjeta: "",
   marca: `${BASE} text-lg font-bold text-tinta hover:underline hover:underline-offset-4`,
 } as const;
 

@@ -41,3 +41,38 @@ describe("ControlReserva sin inscripción", () => {
     expect(screen.queryByText("Sin cupos")).not.toBeInTheDocument();
   });
 });
+
+describe("ControlReserva con inscripción", () => {
+  const dibujarInscrito = (libres: number, reservada = false) =>
+    render(
+      <ControlReserva
+        sesion={{
+          start_at: manana,
+          is_reserved: reservada,
+          available_spots: libres,
+          reserved_count: 50 - libres,
+        }}
+        inscrito
+        eventoPublicado
+        onReservar={() => {}}
+        onCancelar={() => {}}
+      />,
+    );
+
+  it("con lugares de sobra hay un solo chip, en lugares", () => {
+    dibujarInscrito(30);
+    expect(screen.getByText("Quedan 30 lugares")).toBeInTheDocument();
+  });
+
+  it("con pocos lugares el chip dice cuántos quedan, sin repetirlo aparte", () => {
+    dibujarInscrito(4);
+    expect(screen.getByText("Últimos lugares · quedan 4")).toBeInTheDocument();
+    expect(screen.queryByText("Quedan 4 lugares")).not.toBeInTheDocument();
+  });
+
+  it("con la sesión reservada también es un solo chip", () => {
+    dibujarInscrito(1, true);
+    expect(screen.getByText("Últimos lugares · queda 1")).toBeInTheDocument();
+    expect(screen.queryByText("Queda 1 lugar")).not.toBeInTheDocument();
+  });
+});

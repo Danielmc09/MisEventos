@@ -3,7 +3,8 @@ import userEvent from "@testing-library/user-event";
 import { delay, http } from "msw";
 import { setupServer } from "msw/node";
 import { useEventos } from "../../stores/eventos";
-import { API, evento, montar } from "../../test/helpers";
+import { useSession } from "../../stores/session";
+import { API, evento, montar, usuario } from "../../test/helpers";
 import { responder } from "../../test/msw";
 import Inicio from "./Inicio";
 
@@ -195,5 +196,38 @@ describe("filtro de estado", () => {
 
     await waitFor(() => expect(pedidos).toEqual(["?page=2", "?status=CANCELLED"]));
     expect(screen.getByLabelText("ubicación")).toHaveTextContent(/^\/\?status=CANCELLED$/);
+  });
+});
+
+describe("opciones del filtro de estado", () => {
+  afterEach(() => useSession.getState().cerrarSesion());
+  const opciones = () => screen.getAllByRole("option").map((o) => o.textContent);
+
+  test("sin sesión solo ofrece Publicado y Cancelado", async () => {
+    server.use(http.get(`${API}/events`, () => responder("/events", "get", 200, pagina())));
+    abrir();
+
+    await screen.findByRole("link", { name: "PyCon Bogotá" });
+    expect(opciones()).toEqual(["Todos", "Publicado", "Cancelado"]);
+  });
+
+  test("quien no crea eventos tampoco ve Borrador", async () => {
+    useSession.getState().iniciarSesion(usuario, "token", 3600);
+    server.use(http.get(`${API}/events`, () => responder("/events", "get", 200, pagina())));
+    abrir();
+
+    await screen.findByRole("link", { name: "PyCon Bogotá" });
+    expect(opciones()).toEqual(["Todos", "Publicado", "Cancelado"]);
+  });
+
+  test("un organizador también ofrece Borrador", async () => {
+    useSession
+      .getState()
+      .iniciarSesion({ ...usuario, role: "ORGANIZER", permisos: ["evento:crear"] }, "token", 3600);
+    server.use(http.get(`${API}/events`, () => responder("/events", "get", 200, pagina())));
+    abrir();
+
+    await screen.findByRole("link", { name: "PyCon Bogotá" });
+    expect(opciones()).toEqual(["Todos", "Publicado", "Borrador", "Cancelado"]);
   });
 });

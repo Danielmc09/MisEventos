@@ -7,6 +7,8 @@ export interface TarjetaProps extends HTMLAttributes<HTMLElement> {
   as?: "article" | "li" | "div" | "section";
   /** Posición en una lista, para escalonar la entrada. Sin índice, no se anima. */
   indice?: number;
+  /** Una franja a todo el ancho, arriba del contenido. */
+  cabecera?: ReactNode;
   children: ReactNode;
 }
 
