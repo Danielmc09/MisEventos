@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { cleanup, render, screen } from "@testing-library/react";
 import { http } from "msw";
 import { setupServer } from "msw/node";
 import { MemoryRouter, useLocation } from "react-router-dom";
@@ -32,7 +32,10 @@ const server = setupServer(
   ),
 );
 beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
-afterEach(() => useSession.getState().cerrarSesion());
+afterEach(() => {
+  cleanup();
+  useSession.getState().cerrarSesion();
+});
 afterAll(() => server.close());
 
 function Ubicacion() {

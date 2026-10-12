@@ -1,4 +1,4 @@
-import { screen, waitFor, within } from "@testing-library/react";
+import { cleanup, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { delay, http } from "msw";
 import { setupServer } from "msw/node";
@@ -16,6 +16,7 @@ beforeEach(() => {
   servirPanel();
 });
 afterEach(() => {
+  cleanup();
   server.resetHandlers();
   useSession.getState().cerrarSesion();
   useEventos.getState().invalidar();

@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
 import { http, HttpResponse } from "msw";
 import { setupServer } from "msw/node";
 import { MemoryRouter, useLocation } from "react-router-dom";
@@ -32,6 +32,7 @@ beforeEach(() => {
   useSession.getState().iniciarSesion(organizador, "token-abc", 3600);
 });
 afterEach(() => {
+  cleanup();
   useSession.getState().cerrarSesion();
   localStorage.clear();
 });

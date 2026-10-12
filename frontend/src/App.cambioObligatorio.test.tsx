@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { setupServer } from "msw/node";
@@ -26,6 +26,7 @@ const server = setupServer(
 
 beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
 afterEach(() => {
+  cleanup();
   server.resetHandlers();
   useSession.getState().cerrarSesion();
 });
@@ -125,7 +126,7 @@ test("un 403 password-change-required de la API lleva a /cambiar-contrasena", as
   montar("/perfil");
   await screen.findByRole("heading", { name: "Perfil" });
 
-  await api("/me/registrations").catch(() => undefined);
+  await act(() => api("/me/registrations").catch(() => undefined));
 
   await waitFor(() => expect(ubicacion()).toHaveTextContent(/^\/cambiar-contrasena$/));
   await screen.findByRole("heading", { name: "Cambiar contraseña" });
