@@ -23,9 +23,12 @@ const montarPantalla = () =>
     ["/perfil", <Perfil />],
   ]);
 
-async function completar(user: ReturnType<typeof userEvent.setup>, confirmacion = "clave nueva") {
-  await user.type(screen.getByLabelText("Contraseña actual"), "clave vieja");
-  await user.type(screen.getByLabelText("Contraseña nueva"), "clave nueva");
+const claveVieja = crypto.randomUUID();
+const claveNueva = crypto.randomUUID();
+
+async function completar(user: ReturnType<typeof userEvent.setup>, confirmacion = claveNueva) {
+  await user.type(screen.getByLabelText("Contraseña actual"), claveVieja);
+  await user.type(screen.getByLabelText("Contraseña nueva"), claveNueva);
   await user.type(screen.getByLabelText("Confirmá la contraseña nueva"), confirmacion);
   await user.click(screen.getByRole("button", { name: /cambiar contraseña/i }));
 }
@@ -53,7 +56,7 @@ test("con éxito guarda el token nuevo, avisa y lleva a /perfil", async () => {
   expect(screen.getByText("Tu contraseña se cambió")).toBeInTheDocument();
   expect(useSession.getState().accessToken).toBe("token-nuevo");
   expect(useSession.getState().user).toEqual(usuario);
-  expect(cuerpo).toEqual({ current_password: "clave vieja", new_password: "clave nueva" });
+  expect(cuerpo).toEqual({ current_password: claveVieja, new_password: claveNueva });
 });
 
 test.each([
@@ -91,7 +94,7 @@ test("con una confirmación distinta no llama a la API y lo marca en el campo", 
   const user = userEvent.setup();
   montarPantalla();
 
-  await completar(user, "otra clave");
+  await completar(user, crypto.randomUUID());
 
   expect(screen.getByLabelText("Confirmá la contraseña nueva")).toHaveAccessibleDescription(
     "Las contraseñas no coinciden",

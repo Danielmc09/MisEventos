@@ -18,9 +18,11 @@ const montarRegistro = (ruta = "/registro") =>
     ["/login", <Login />],
   ]);
 
+const clave = crypto.randomUUID();
+
 async function completar(user: ReturnType<typeof userEvent.setup>) {
   await user.type(screen.getByLabelText("Correo electrónico"), "ana@mail.com");
-  await user.type(screen.getByLabelText("Contraseña"), "clave de prueba");
+  await user.type(screen.getByLabelText("Contraseña"), clave);
   await user.type(screen.getByLabelText("Nombre (opcional)"), "Ana");
 }
 
@@ -113,7 +115,7 @@ test("al registrarse muestra el mensaje del backend y lleva a /login conservando
     screen.getByText("Si el correo es válido, te enviamos las instrucciones"),
   ).toBeInTheDocument();
   expect(screen.getByLabelText("ubicación")).toHaveTextContent("/login?next=%2Feventos%2Fabc");
-  expect(cuerpo).toEqual({ email: "ana@mail.com", password: "clave de prueba", full_name: "Ana" });
+  expect(cuerpo).toEqual({ email: "ana@mail.com", password: clave, full_name: "Ana" });
 });
 
 test("el enlace a iniciar sesión conserva next", () => {
