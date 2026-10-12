@@ -234,16 +234,125 @@ def test_un_usuario_inexistente_responde_404(cliente_db, tokens):
     assert respuesta.status_code == 404, respuesta.text
 
 
-def test_un_patch_con_email_o_contrasena_responde_422_y_no_cambia_nada(
+def test_un_patch_con_contrasena_responde_422_y_no_cambia_nada(
     cliente_db, conexion, tokens, prefijo
 ):
     id_orga = id_de(conexion, email(prefijo, "orga"))
+    cuerpo = {"role": "ADMIN", "email": email(prefijo, "orga2"), "password": CLAVE}
 
-    for campo, valor in (("email", "otro@mail.com"), ("password", CLAVE)):
-        respuesta = cambiar(cliente_db, tokens["admin"], id_orga, {"role": "ADMIN", campo: valor})
-        assert respuesta.status_code == 422, respuesta.text
+    respuesta = cambiar(cliente_db, tokens["admin"], id_orga, cuerpo)
 
+    assert respuesta.status_code == 422, respuesta.text
     assert en_la_base(conexion, id_orga) == ("ORGANIZER", True)
+    assert email_en_la_base(conexion, id_orga) == email(prefijo, "orga")
+
+
+# --- Cambiar el email -------------------------------------------------------------------------
+
+
+def email_en_la_base(conexion, id_usuario: str) -> str:
+    return conexion.execute(
+        text("SELECT email FROM users WHERE id = :id"), {"id": id_usuario}
+    ).scalar_one()
+
+
+def entra(cliente, email_: str) -> int:
+    return cliente.post("/auth/login", data={"username": email_, "password": CLAVE}).status_code
+
+
+def test_cambiar_el_email_lo_guarda_en_minusculas_y_se_entra_con_el_nuevo_y_no_con_el_viejo(
+    cliente_db, conexion, tokens, prefijo
+):
+    id_ana = id_de(conexion, email(prefijo, "ana"))
+    nuevo = email(prefijo, "ana.nueva")
+
+    cambio = cambiar(cliente_db, tokens["admin"], id_ana, {"email": f"  {nuevo.upper()} "})
+
+    assert cambio.status_code == 200, cambio.text
+    assert cambio.json()["email"] == nuevo
+    assert email_en_la_base(conexion, id_ana) == nuevo
+    assert entra(cliente_db, nuevo) == 200
+    assert entra(cliente_db, email(prefijo, "ana")) == 401
+
+
+def test_cambiar_el_email_a_uno_que_ya_usa_otro_es_409_y_no_cambia_nada(
+    cliente_db, conexion, tokens, prefijo
+):
+    id_ana = id_de(conexion, email(prefijo, "ana"))
+    id_orga = id_de(conexion, email(prefijo, "orga"))
+
+    respuesta = cambiar(
+        cliente_db,
+        tokens["admin"],
+        id_ana,
+        {"email": email(prefijo, "orga").upper(), "full_name": "No Se Guarda"},
+    )
+
+    assert respuesta.status_code == 409, respuesta.text
+    problema = respuesta.json()
+    assert problema["type"] == "email-taken"
+    assert problema["title"] == "Ese email ya está registrado"
+    fila = conexion.execute(
+        text("SELECT email, full_name FROM users WHERE id = :id"), {"id": id_ana}
+    ).one()
+    assert tuple(fila) == (email(prefijo, "ana"), None)
+    assert email_en_la_base(conexion, id_orga) == email(prefijo, "orga")
+    assert entra(cliente_db, email(prefijo, "ana")) == 200
+
+
+def test_mandar_el_mismo_email_con_otras_mayusculas_no_es_conflicto(
+    cliente_db, conexion, tokens, prefijo
+):
+    id_ana = id_de(conexion, email(prefijo, "ana"))
+
+    respuesta = cambiar(cliente_db, tokens["admin"], id_ana, {"email": email(prefijo, "Ana")})
+
+    assert respuesta.status_code == 200, respuesta.text
+    assert email_en_la_base(conexion, id_ana) == email(prefijo, "ana")
+
+
+def test_el_admin_se_cambia_su_nombre_y_su_email_y_entra_con_el_nuevo(
+    cliente_db, conexion, tokens, prefijo
+):
+    id_admin = id_de(conexion, email(prefijo, "admin"))
+    nuevo = email(prefijo, "yo.admin")
+
+    nombre = cambiar(cliente_db, tokens["admin"], id_admin, {"full_name": "Ana Administradora"})
+    cambio = cambiar(cliente_db, tokens["admin"], id_admin, {"email": nuevo.upper()})
+
+    assert nombre.status_code == 200, nombre.text
+    assert cambio.status_code == 200, cambio.text
+    fila = conexion.execute(
+        text("SELECT email, full_name, role, is_active FROM users WHERE id = :id"),
+        {"id": id_admin},
+    ).one()
+    assert tuple(fila) == (nuevo, "Ana Administradora", "ADMIN", True)
+    assert entra(cliente_db, nuevo) == 200
+    assert entra(cliente_db, email(prefijo, "admin")) == 401
+
+
+def test_el_admin_no_se_puede_poner_un_email_que_ya_usa_otro(cliente_db, conexion, tokens, prefijo):
+    id_admin = id_de(conexion, email(prefijo, "admin"))
+
+    respuesta = cambiar(cliente_db, tokens["admin"], id_admin, {"email": email(prefijo, "Orga")})
+
+    assert respuesta.status_code == 409, respuesta.text
+    assert respuesta.json()["type"] == "email-taken"
+    assert email_en_la_base(conexion, id_admin) == email(prefijo, "admin")
+
+
+def test_el_admin_que_se_cambia_el_rol_con_el_email_no_cambia_nada(
+    cliente_db, conexion, tokens, prefijo
+):
+    id_admin = id_de(conexion, email(prefijo, "admin"))
+    cuerpo = {"role": "ATTENDEE", "email": email(prefijo, "yo")}
+
+    respuesta = cambiar(cliente_db, tokens["admin"], id_admin, cuerpo)
+
+    assert respuesta.status_code == 409, respuesta.text
+    assert respuesta.json()["type"] == "cannot-modify-self"
+    assert en_la_base(conexion, id_admin) == ("ADMIN", True)
+    assert email_en_la_base(conexion, id_admin) == email(prefijo, "admin")
 
 
 # --- Protecciones -----------------------------------------------------------------------------

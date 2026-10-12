@@ -12,11 +12,15 @@ from app.models.usuario import User
 
 
 class RepositorioUsuariosFalso:
-    def __init__(self, *usuarios: User, choca_al_crear: bool = False) -> None:
+    def __init__(
+        self, *usuarios: User, choca_al_crear: bool = False, choca_al_guardar: bool = False
+    ) -> None:
         self.usuarios = {u.id: u for u in usuarios}
         self.creados: list[User] = []
         # Simula a otro registro del mismo email que ganó la carrera contra el índice único.
         self.choca_al_crear = choca_al_crear
+        # Lo mismo al guardar: otro request puso ese email a otro usuario y ganó.
+        self.choca_al_guardar = choca_al_guardar
         # Inscripciones activas de cada usuario; las cuenta la base y se prueba en integración.
         self.inscripciones: dict[UUID, int] = {}
         self.busquedas: list[dict] = []
@@ -48,8 +52,13 @@ class RepositorioUsuariosFalso:
         self.operaciones.append(("leer para escribir", id_))
         return self.usuarios.get(id_)
 
-    def guardar(self, usuario: User) -> User:
+    def guardar(self, usuario: User) -> User | None:
+        """Como la base: None si otro usuario ya tiene ese email (el índice único)."""
         self.operaciones.append(("guardar", usuario.id))
+        if self.choca_al_guardar or any(
+            u.id != usuario.id and u.email == usuario.email for u in self.usuarios.values()
+        ):
+            return None
         usuario.updated_at = datetime.now(UTC)
         self.usuarios[usuario.id] = usuario
         return usuario
