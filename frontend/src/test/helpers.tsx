@@ -1,6 +1,6 @@
 import { render } from "@testing-library/react";
 import type { ReactNode } from "react";
-import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
+import { MemoryRouter, Route, Routes, useLocation, type Location } from "react-router-dom";
 import type { components } from "../api/schema";
 
 export const API = "http://localhost:8000";
@@ -16,12 +16,17 @@ export const usuario: components["schemas"]["UsuarioSalida"] = {
 };
 
 function Ubicacion() {
-  const { pathname, search } = useLocation();
-  return <output aria-label="ubicación">{pathname + search}</output>;
+  const { pathname, search, state } = useLocation();
+  return (
+    <>
+      <output aria-label="ubicación">{pathname + search}</output>
+      <output aria-label="estado">{JSON.stringify(state)}</output>
+    </>
+  );
 }
 
 /** Monta las rutas dadas (`[path, elemento]`) en un MemoryRouter y muestra la ubicación actual. */
-export function montar(inicial: string, rutas: [string, ReactNode][]) {
+export function montar(inicial: string | Partial<Location>, rutas: [string, ReactNode][]) {
   return render(
     <MemoryRouter initialEntries={[inicial]}>
       <Routes>

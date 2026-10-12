@@ -44,5 +44,5 @@ test("con la sesión vigente se muestra /perfil", async () => {
   abrirPerfil();
 
   expect(await screen.findByRole("heading", { name: "Perfil" })).toBeInTheDocument();
-  expect(screen.getByRole("link", { name: usuario.email })).toBeInTheDocument();
+  expect(screen.getByRole("link", { name: usuario.full_name! })).toBeInTheDocument();
 });
