@@ -4,8 +4,19 @@ import { api } from "../api/client";
 import { errorDeFormulario } from "../lib/errores";
 import { aInputBogota, aISOBogota } from "../lib/fechas";
 import { useEventos, type Evento } from "../stores/eventos";
+import { AlertaError } from "./ui/AlertaError";
 import { Button } from "./ui/Button";
 import { Input } from "./ui/Input";
+import { Textarea } from "./ui/Textarea";
+
+const CAMPOS_VISIBLES = [
+  "name",
+  "description",
+  "location",
+  "start_at",
+  "end_at",
+  "capacity",
+] as const;
 
 const VACIO = { name: "", description: "", location: "", start_at: "", end_at: "", capacity: "" };
 type Valores = typeof VACIO;
@@ -52,7 +63,7 @@ export function FormularioEvento({ evento }: { evento?: Evento }) {
   const invalidar = useEventos((s) => s.invalidar);
   const [valores, setValores] = useState<Valores>(evento ? desdeEvento(evento) : VACIO);
   const [errores, setErrores] = useState<Record<string, string>>({});
-  const [general, setGeneral] = useState<string | null>(null);
+  const [general, setGeneral] = useState<{ title: string; detail?: string } | null>(null);
   const [enviando, setEnviando] = useState(false);
 
   const campo = (name: keyof Valores) => ({
@@ -96,9 +107,9 @@ export function FormularioEvento({ evento }: { evento?: Evento }) {
       invalidar();
       navigate(`/eventos/${id}`);
     } catch (e) {
-      const { campos, general } = errorDeFormulario(e);
+      const { campos, general, detalle } = errorDeFormulario(e, CAMPOS_VISIBLES);
       setErrores(campos);
-      setGeneral(general);
+      setGeneral(general ? { title: general, detail: detalle ?? undefined } : null);
     } finally {
       setEnviando(false);
     }
@@ -107,26 +118,12 @@ export function FormularioEvento({ evento }: { evento?: Evento }) {
   return (
     <form onSubmit={enviar} noValidate className="mt-4 flex flex-col gap-4">
       <Input label="Nombre" {...campo("name")} />
-      <div className="flex flex-col gap-1">
-        <label htmlFor="descripcion" className="text-sm font-medium text-gray-700">
-          Descripción
-        </label>
-        <textarea
-          id="descripcion"
-          rows={4}
-          className="rounded-md border border-gray-300 px-3 py-2"
-          {...{ ...campo("description"), error: undefined }}
-        />
-      </div>
+      <Textarea label="Descripción" rows={4} {...campo("description")} />
       <Input label="Lugar" {...campo("location")} />
       <Input label="Inicio" type="datetime-local" {...campo("start_at")} />
       <Input label="Fin" type="datetime-local" {...campo("end_at")} />
       <Input label="Capacidad" type="number" {...campo("capacity")} />
-      {general && (
-        <p role="alert" className="text-red-700">
-          {general}
-        </p>
-      )}
+      {general && <AlertaError title={general.title} detail={general.detail} />}
       <Button type="submit" loading={enviando} className="self-start">
         {evento ? "Guardar cambios" : "Crear evento"}
       </Button>

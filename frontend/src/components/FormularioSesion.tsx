@@ -6,6 +6,7 @@ import { aInputBogota, aISOBogota } from "../lib/fechas";
 import type { Sesion } from "../lib/useSesiones";
 import type { Evento } from "../stores/eventos";
 import { SelectorPonentes, type PonenteDeSesion } from "./SelectorPonentes";
+import { AlertaError } from "./ui/AlertaError";
 import { Button } from "./ui/Button";
 import { Input } from "./ui/Input";
 
@@ -142,10 +143,15 @@ export function FormularioSesion({
           : sesion,
       );
     } catch (e) {
-      const { campos, general } = errorDeFormulario(e, CAMPOS_VISIBLES);
+      const { campos, general, detalle } = errorDeFormulario(e, CAMPOS_VISIBLES);
       setErrores(campos);
       if (general)
-        setGeneral({ title: general, detail: e instanceof ApiError ? e.detail : undefined });
+        setGeneral({
+          title: general,
+          detail:
+            [e instanceof ApiError ? e.detail : null, detalle].filter(Boolean).join(". ") ||
+            undefined,
+        });
     } finally {
       setEnviando(false);
     }
@@ -163,12 +169,7 @@ export function FormularioSesion({
         onChange={cambiarPonentes}
         error={errores.speaker_ids}
       />
-      {general && (
-        <p role="alert" className="text-red-700">
-          <strong>{general.title}</strong>
-          {general.detail && <span className="block">{general.detail}</span>}
-        </p>
-      )}
+      {general && <AlertaError title={general.title} detail={general.detail} />}
       <Button type="submit" loading={enviando}>
         {sesion ? "Guardar cambios" : "Crear sesión"}
       </Button>
