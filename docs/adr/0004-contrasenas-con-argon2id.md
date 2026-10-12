@@ -18,6 +18,8 @@ personas con la misma contraseña tienen el mismo hash y sirven las tablas preca
 - `verificar()` devuelve `False` ante una contraseña incorrecta o un hash que no es Argon2; nunca lanza.
 - El login con un email inexistente igual verifica contra un hash ficticio (`_HASH_FICTICIO` en
   `backend/app/services/autenticacion.py`), para tardar lo mismo que con uno real.
+- El registro con un email que ya existe igual calcula el hash Argon2 de la contraseña recibida y lo
+  descarta, para tardar lo mismo que con un email nuevo.
 - Email de más de 254 caracteres o contraseña de más de 128 se rechazan antes de llegar a Argon2: una
   contraseña de 1 MB por request sería una denegación de servicio barata.
 - Nunca se guarda ni se loguea una contraseña, tampoco una intentada.

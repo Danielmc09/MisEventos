@@ -41,6 +41,13 @@ services:
         condition: service_healthy
     ports:
       - "5173:8080"
+    # nginx escucha en 8080 dentro del contenedor; la imagen alpine trae wget.
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8080/"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
 
 volumes:
   pgdata:

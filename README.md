@@ -102,7 +102,7 @@ Diseñado y no implementado, con cómo se haría:
 | Auditoría de cambios | Un trigger por tabla que escribe en una tabla de auditoría, con el usuario que la app pasa en una variable de la transacción |
 | Alta de usuarios por el admin y restablecer contraseña | El admin crea la cuenta con una contraseña temporal y `must_change_password`; el primer login obliga a cambiarla. Lo mismo para restablecer |
 | Refresh token | Access token corto y refresh token en cookie `HttpOnly`, guardado como hash SHA-256, rotado en cada uso; si se reusa uno ya rotado, se revoca toda la familia |
-| Avisos de seguridad y registro de tiempo constante | Avisar por correo de un cambio de contraseña o email. Calcular un hash Argon2 también cuando el email ya existe: hoy esa respuesta es más rápida y se distingue midiendo |
+| Avisos de seguridad | Avisar al dueño de la cuenta cuando alguien intenta registrarse con su email, y avisar por correo de un cambio de contraseña o email |
 | Aviso de cruce entre eventos | Al inscribirse, buscar inscripciones activas en eventos que se superponen y avisar sin bloquear |
 | Cierre de sesión por inactividad | Un temporizador en el frontend que cierra la sesión tras un tiempo sin actividad |
 | Verificación por correo | La cuenta nace inactiva y se activa con un link firmado de un solo uso |

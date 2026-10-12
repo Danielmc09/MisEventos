@@ -2,6 +2,7 @@ import secrets
 
 import pytest
 
+from app.core.contrasenas import hashear
 from app.core.permisos import Rol
 from app.models.usuario import User
 from app.services import autenticacion
@@ -12,6 +13,8 @@ MENSAJE = {"message": "Registro recibido. Iniciá sesión con tu correo y contra
 EMAIL_254 = "a" * 64 + "@" + "b" * 63 + "." + "c" * 63 + "." + "d" * 57 + ".com"
 # Una contraseña de 8 caracteres, el mínimo aceptado.
 VALIDO = {"email": "ana@mail.com", "password": secrets.token_urlsafe(16)[:8], "full_name": "Ana"}
+# El hash del usuario que ya existe; se calcula antes de que el espía empiece a contar.
+HASH_ORIGINAL = hashear(secrets.token_urlsafe(16))
 
 
 @pytest.fixture
@@ -80,18 +83,25 @@ def test_un_email_nuevo_crea_un_attendee_activo_con_hash_argon2id(con_repo, clie
     assert password not in creado.password_hash
 
 
-def test_solo_un_email_nuevo_calcula_el_hash(con_repo, cliente, hashes):
-    original = User(email="ana@mail.com", password_hash="$argon2id$original", role=Rol.ATTENDEE)
+@pytest.mark.parametrize(
+    ("email", "creados"),
+    [("beto@mail.com", ["beto@mail.com"]), ("Ana@Mail.com ", [])],
+    ids=["email-nuevo", "email-existente"],
+)
+def test_el_registro_calcula_el_hash_una_vez_exista_o_no_el_email(
+    con_repo, cliente, hashes, email, creados
+):
+    # Con un email existente el hash se calcula igual y se descarta, para tardar lo mismo.
+    original = User(email="ana@mail.com", password_hash=HASH_ORIGINAL, role=Rol.ATTENDEE)
     repo = con_repo(RepositorioUsuariosFalso(original))
 
-    existente = cliente.post("/auth/register", json=VALIDO | {"email": "Ana@Mail.com "})
-    nuevo = cliente.post("/auth/register", json=VALIDO | {"email": "beto@mail.com"})
+    respuesta = cliente.post("/auth/register", json=VALIDO | {"email": email})
 
-    assert existente.status_code == nuevo.status_code == 201
-    assert existente.json() == nuevo.json() == MENSAJE
-    assert [u.email for u in repo.creados] == ["beto@mail.com"]
+    assert respuesta.status_code == 201
+    assert respuesta.json() == MENSAJE
     assert hashes == [VALIDO["password"]]
-    assert original.password_hash == "$argon2id$original"
+    assert [u.email for u in repo.creados] == creados
+    assert original.password_hash == HASH_ORIGINAL
 
 
 def test_si_otro_registro_gana_la_carrera_responde_el_mismo_201(con_repo, cliente):
