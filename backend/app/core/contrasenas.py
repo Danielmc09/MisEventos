@@ -13,5 +13,5 @@ def hashear(contrasena: str) -> str:
 def verificar(hash_guardado: str, contrasena: str) -> bool:
     try:
         return _hasher.verify(hash_guardado, contrasena)
-    except VerificationError, InvalidHashError:
+    except (VerificationError, InvalidHashError):
         return False

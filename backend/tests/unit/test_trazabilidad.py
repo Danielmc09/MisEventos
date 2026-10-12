@@ -22,7 +22,7 @@ def con_ruta(app):
 def es_uuid(valor: str) -> bool:
     try:
         uuid.UUID(valor)
-    except TypeError, ValueError:
+    except (TypeError, ValueError):
         return False
     return True
 
