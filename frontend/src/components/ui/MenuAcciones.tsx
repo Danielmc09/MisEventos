@@ -175,7 +175,7 @@ export function MenuAcciones({
           role="menu"
           aria-label={etiqueta}
           onKeyDown={alTeclearEnMenu}
-          className={`absolute top-full z-20 mt-2 flex min-w-48 flex-col overflow-hidden rounded-lg bg-panel py-1 shadow-elevada motion-safe:animate-crecer ${
+          className={`absolute top-full z-20 mt-2 flex w-max min-w-48 flex-col overflow-hidden rounded-lg bg-panel py-1 shadow-elevada motion-safe:animate-crecer ${
             alinear === "fin" ? "right-0 origin-top-right" : "left-0 origin-top-left"
           }`}
         >

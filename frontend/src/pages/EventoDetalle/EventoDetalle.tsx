@@ -232,6 +232,7 @@ function ContenidoEvento({
                 <MenuAcciones
                   etiqueta="Más acciones del evento"
                   variante="icono"
+                  alinear="fin"
                   ocupado={trabajando || inscripcion.trabajando}
                   items={itemsDueno}
                 >
