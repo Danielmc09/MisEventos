@@ -13,6 +13,15 @@ import { TextoSecundario } from "../../components/ui/TextoSecundario";
 import { useEventos, type PaginaEventos } from "../../stores/eventos";
 import { useTienePermiso } from "../../stores/session";
 
+/** Filtros de estado del inicio: la clave viaja en la URL (`?estado=`), `status` es lo que pide la API. */
+const ESTADOS = {
+  publicados: { etiqueta: "Publicados", status: "PUBLISHED", soloBorradores: false },
+  cancelados: { etiqueta: "Cancelados", status: "CANCELLED", soloBorradores: false },
+  borradores: { etiqueta: "Borradores", status: "DRAFT", soloBorradores: true },
+  todos: { etiqueta: "Todos", status: "", soloBorradores: true },
+} as const;
+type Estado = keyof typeof ESTADOS;
+
 interface Resultado {
   consulta: string;
   pagina?: PaginaEventos;
@@ -58,10 +67,13 @@ export default function Inicio() {
     setParams({});
   };
 
-  // Quien no ve borradores no puede filtrar por ellos: la URL se ignora, así lista y select coinciden.
-  const estado =
-    params.get("status") === "DRAFT" && !veBorradores ? "" : (params.get("status") ?? "");
-  const hayFiltros = !!(params.get("q") || estado);
+  // Un valor desconocido o no permitido se trata como "publicados": así lista y select coinciden.
+  const pedido = params.get("estado") ?? "";
+  const estado: Estado =
+    pedido in ESTADOS && (veBorradores || !ESTADOS[pedido as Estado].soloBorradores)
+      ? (pedido as Estado)
+      : "publicados";
+  const hayFiltros = !!(params.get("q") || estado !== "publicados");
 
   const irAPagina = (pagina: number) =>
     setParams((previos) => {
@@ -74,7 +86,7 @@ export default function Inicio() {
   const consulta = new URLSearchParams(
     [
       ["q", params.get("q")],
-      ["status", estado],
+      ["status", ESTADOS[estado].status],
       ["page", params.get("page")],
     ].flatMap(([k, v]) => (v ? [[k!, v]] : [])),
   ).toString();
@@ -118,12 +130,15 @@ export default function Inicio() {
           id="estado"
           label="Estado"
           value={estado}
-          onChange={(e) => filtrar("status", e.target.value)}
+          onChange={(e) => filtrar("estado", e.target.value === "publicados" ? "" : e.target.value)}
         >
-          <option value="">Todos</option>
-          <option value="PUBLISHED">Publicado</option>
-          {veBorradores && <option value="DRAFT">Borrador</option>}
-          <option value="CANCELLED">Cancelado</option>
+          {(Object.keys(ESTADOS) as Estado[])
+            .filter((clave) => veBorradores || !ESTADOS[clave].soloBorradores)
+            .map((clave) => (
+              <option key={clave} value={clave}>
+                {ESTADOS[clave].etiqueta}
+              </option>
+            ))}
         </Select>
       </div>
       <div className="flex flex-col gap-6">

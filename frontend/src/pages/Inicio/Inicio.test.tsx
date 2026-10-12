@@ -234,7 +234,11 @@ describe("filtro de estado", () => {
 describe("opciones del filtro de estado", () => {
   afterEach(() => useSession.getState().cerrarSesion());
   const opciones = () => screen.getAllByRole("option").map((o) => o.textContent);
-  const organizador = { ...usuario, role: "ORGANIZER" as const, permisos: ["evento:crear"] };
+  const organizador = {
+    ...usuario,
+    role: "ORGANIZER" as const,
+    permisos: ["evento:crear" as const],
+  };
 
   test("sin sesión solo ofrece Publicados y Cancelados", async () => {
     guardarPedidos([]);
