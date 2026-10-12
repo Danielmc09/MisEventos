@@ -43,6 +43,34 @@ function servir(sessions: Estadisticas["sessions"]) {
 
 const abrir = () => montar("/", [["/", <PanelInscripciones eventoId={evento.id} version={0} />]]);
 
+test("con un inscrito y un cancelado las etiquetas van en singular", async () => {
+  server.use(
+    http.get(`${API}/events/${evento.id}/stats`, () =>
+      responder("/events/{id_evento}/stats", "get", 200, {
+        active: 1,
+        cancelled: 1,
+        capacity: 100,
+        available_spots: 99,
+        occupancy_pct: 1,
+        sessions: [],
+      }),
+    ),
+    http.get(`${API}/events/${evento.id}/registrations`, () =>
+      responder("/events/{id_evento}/registrations", "get", 200, {
+        items: [],
+        total: 0,
+        page: 1,
+        page_size: 20,
+        pages: 1,
+      }),
+    ),
+  );
+  abrir();
+
+  expect(await screen.findByText("Inscrito")).toBeInTheDocument();
+  expect(screen.getByText("Cancelado")).toBeInTheDocument();
+});
+
 describe("ocupación por sesión", () => {
   test("cada sesión muestra su título, reservadas sobre capacidad y una barra accesible", async () => {
     servir([
