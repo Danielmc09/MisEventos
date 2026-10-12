@@ -714,6 +714,36 @@ describe("restablecer contraseña", () => {
     );
     expect(screen.queryByRole("dialog", { name: /Contraseña temporal/ })).not.toBeInTheDocument();
   });
+
+  test("con el pedido en curso, Volver está deshabilitado y Escape no cierra: la temporal aparece", async () => {
+    entrarComo(admin);
+    servirUsuarios();
+    let soltar!: () => void;
+    const puerta = new Promise<void>((r) => (soltar = r));
+    server.use(
+      http.post(`${API}/admin/users/:id/reset-password`, async () => {
+        await puerta;
+        return responder("/admin/users/{id_usuario}/reset-password", "post", 200, {
+          temporary_password: clave,
+        });
+      }),
+    );
+    const user = userEvent.setup();
+    montarAdmin();
+
+    await user.click(await screen.findByRole("button", { name: `${RESTABLECER} Beto` }));
+    const confirmacion = within(screen.getByRole("alertdialog"));
+    await user.click(confirmacion.getByRole("button", { name: "Sí, restablecer" }));
+
+    expect(confirmacion.getByRole("button", { name: "Volver" })).toBeDisabled();
+    await user.keyboard("{Escape}");
+    expect(screen.getByRole("alertdialog")).toBeInTheDocument();
+
+    soltar();
+    expect(
+      await screen.findByRole("dialog", { name: "Contraseña temporal de Beto" }),
+    ).toHaveTextContent(clave);
+  });
 });
 
 describe("nuevo usuario", () => {
@@ -794,6 +824,71 @@ describe("nuevo usuario", () => {
     expect(await navigator.clipboard.readText()).toBe(clave);
     expect(await screen.findByText("Copiada")).toBeVisible();
     expect(screen.getByText("Copiada").closest('[role="status"]')).not.toBeNull();
+  });
+
+  describe("si no se puede copiar", () => {
+    const AVISO = "No se pudo copiar: seleccionala y copiala a mano";
+
+    async function abrirTemporal() {
+      entrarComo(admin);
+      servirUsuarios();
+      servirAlta();
+      const user = userEvent.setup();
+      montarAdmin();
+      await llenar(await abrirAlta(user), user);
+      await screen.findByRole("dialog", { name: "Contraseña temporal de Nora" });
+      return user;
+    }
+
+    afterEach(() => vi.restoreAllMocks());
+
+    test("sin navigator.clipboard, avisa con un alert y la contraseña sigue a la vista", async () => {
+      const user = await abrirTemporal();
+      vi.spyOn(navigator, "clipboard", "get").mockReturnValue(undefined as unknown as Clipboard);
+
+      await user.click(screen.getByRole("button", { name: "Copiar" }));
+
+      expect(await screen.findByRole("alert")).toHaveTextContent(AVISO);
+      expect(screen.queryByText("Copiada")).not.toBeInTheDocument();
+      expect(screen.getByText(clave)).toBeVisible();
+    });
+
+    test("si writeText se rechaza, avisa con un alert", async () => {
+      const user = await abrirTemporal();
+      vi.spyOn(navigator.clipboard, "writeText").mockRejectedValue(new Error("denegado"));
+
+      await user.click(screen.getByRole("button", { name: "Copiar" }));
+
+      expect(await screen.findByRole("alert")).toHaveTextContent(AVISO);
+      expect(screen.queryByText("Copiada")).not.toBeInTheDocument();
+    });
+  });
+
+  test("con el pedido en curso, Cancelar está deshabilitado y Escape no cierra: la temporal aparece", async () => {
+    entrarComo(admin);
+    servirUsuarios();
+    let soltar!: () => void;
+    const puerta = new Promise<void>((r) => (soltar = r));
+    server.use(
+      http.post(`${API}/admin/users`, async () => {
+        await puerta;
+        return responder("/admin/users", "post", 201, creado);
+      }),
+    );
+    const user = userEvent.setup();
+    montarAdmin();
+
+    const form = await abrirAlta(user);
+    await llenar(form, user);
+
+    expect(form.getByRole("button", { name: "Cancelar" })).toBeDisabled();
+    await user.keyboard("{Escape}");
+    expect(screen.getByRole("dialog", { name: "Nuevo usuario" })).toBeInTheDocument();
+
+    soltar();
+    expect(
+      await screen.findByRole("dialog", { name: "Contraseña temporal de Nora" }),
+    ).toHaveTextContent(clave);
   });
 
   test("al cerrar el diálogo la contraseña ya no está en la pantalla ni en el store", async () => {

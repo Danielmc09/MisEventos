@@ -20,8 +20,13 @@ export function DialogoContrasenaTemporal({
   const avisar = useAvisos();
 
   async function copiar() {
-    await navigator.clipboard.writeText(contrasena);
-    avisar({ message: "Copiada", tone: "exito" });
+    try {
+      // Sin contexto seguro (http) `navigator.clipboard` no existe: el TypeError cae acá también.
+      await navigator.clipboard.writeText(contrasena);
+      avisar({ message: "Copiada", tone: "exito" });
+    } catch {
+      avisar({ message: "No se pudo copiar: seleccionala y copiala a mano", tone: "error" });
+    }
   }
 
   return (

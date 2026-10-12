@@ -76,7 +76,7 @@ export function FormularioNuevoUsuario({ onCreado, onCerrar }: FormularioNuevoUs
     );
 
   return (
-    <Modal titulo="Nuevo usuario" onCerrar={onCerrar}>
+    <Modal titulo="Nuevo usuario" onCerrar={onCerrar} bloqueado={enviando}>
       <Formulario onSubmit={enviar} noValidate>
         <Input
           label="Correo"
@@ -100,7 +100,7 @@ export function FormularioNuevoUsuario({ onCreado, onCerrar }: FormularioNuevoUs
         </Select>
         {general && <AlertaError {...general} />}
         <div className="flex flex-wrap justify-end gap-3">
-          <Button type="button" variante="secundario" onClick={onCerrar}>
+          <Button type="button" variante="secundario" disabled={enviando} onClick={onCerrar}>
             Cancelar
           </Button>
           <Button type="submit" loading={enviando}>
