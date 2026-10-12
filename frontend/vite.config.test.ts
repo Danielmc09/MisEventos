@@ -45,4 +45,8 @@ describe("configuración de Vite", () => {
     expect(opcionesOfuscacion?.stringArray).toBe(true);
     expect(opcionesOfuscacion?.stringArrayEncoding ?? []).not.toContain("rc4");
   });
+
+  it("no ofusca los import(): si no, Rollup no ve las rutas y se rompe la carga perezosa", () => {
+    expect(opcionesOfuscacion?.ignoreImports).toBe(true);
+  });
 });
