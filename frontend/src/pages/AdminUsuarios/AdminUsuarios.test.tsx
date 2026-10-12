@@ -111,11 +111,13 @@ function entrarComo(u: typeof usuario) {
 }
 
 describe("acceso", () => {
-  test('el enlace "Administración" solo lo ve el admin', async () => {
+  test('el ítem "Administración" del menú de la cuenta solo lo ve el admin', async () => {
+    const user = userEvent.setup();
     entrarComo(admin);
     servirUsuarios();
     const { unmount } = montarAdmin();
-    expect(screen.getByRole("link", { name: "Administración" })).toHaveAttribute(
+    await user.click(screen.getByRole("button", { name: "Menú de la cuenta" }));
+    expect(screen.getByRole("menuitem", { name: "Administración" })).toHaveAttribute(
       "href",
       "/admin/usuarios",
     );
@@ -125,7 +127,9 @@ describe("acceso", () => {
     useSession.getState().cerrarSesion();
     entrarComo(usuario);
     montarAdmin();
-    expect(screen.queryByRole("link", { name: "Administración" })).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Menú de la cuenta" }));
+    expect(screen.getByRole("menuitem", { name: "Mi perfil" })).toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: "Administración" })).not.toBeInTheDocument();
   });
 
   test("otro usuario ve que no tiene permiso", () => {
@@ -369,9 +373,9 @@ describe("formulario de edición", () => {
     await user.type(campo, "Administradora");
     await user.click(form.getByRole("button", { name: "Guardar" }));
 
-    expect(await screen.findByRole("link", { name: "Administradora" })).toHaveAttribute(
-      "href",
-      "/perfil",
+    await user.click(screen.getByRole("button", { name: "Menú de la cuenta" }));
+    await waitFor(() =>
+      expect(within(screen.getByRole("menu")).getByText("Administradora")).toBeVisible(),
     );
     expect(useSession.getState().user?.full_name).toBe("Administradora");
     expect(cuerpos).toEqual([{ full_name: "Administradora" }]);
