@@ -1,5 +1,5 @@
 import { useId, type SelectHTMLAttributes } from "react";
-import { bordeCampo, CAMPO, ETIQUETA_CAMPO, MENSAJE_ERROR } from "./estilosCampo";
+import { ALTURA_LINEA, bordeCampo, CAMPO, ETIQUETA_CAMPO, MENSAJE_ERROR } from "./estilosCampo";
 
 export interface SelectProps extends SelectHTMLAttributes<HTMLSelectElement> {
   label: string;
@@ -20,7 +20,7 @@ export function Select({ label, error, id, className = "", children, ...props }:
         id={campoId}
         aria-invalid={error ? true : undefined}
         aria-describedby={error ? errorId : undefined}
-        className={`${CAMPO} ${bordeCampo(!!error)} ${className}`}
+        className={`${CAMPO} ${ALTURA_LINEA} ${bordeCampo(!!error)} ${className}`}
       >
         {children}
       </select>

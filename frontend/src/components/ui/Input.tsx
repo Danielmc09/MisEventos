@@ -1,5 +1,5 @@
 import { useId, type InputHTMLAttributes } from "react";
-import { bordeCampo, CAMPO, ETIQUETA_CAMPO, MENSAJE_ERROR } from "./estilosCampo";
+import { ALTURA_LINEA, bordeCampo, CAMPO, ETIQUETA_CAMPO, MENSAJE_ERROR } from "./estilosCampo";
 
 export interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
   label: string;
@@ -20,7 +20,7 @@ export function Input({ label, error, id, className = "", ...props }: InputProps
         id={inputId}
         aria-invalid={error ? true : undefined}
         aria-describedby={error ? errorId : undefined}
-        className={`${CAMPO} ${bordeCampo(!!error)} ${className}`}
+        className={`${CAMPO} ${ALTURA_LINEA} ${bordeCampo(!!error)} ${className}`}
       />
       {error && (
         <p id={errorId} className={MENSAJE_ERROR}>
