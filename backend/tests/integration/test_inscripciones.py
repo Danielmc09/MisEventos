@@ -332,3 +332,81 @@ def test_el_listado_cuenta_los_inscritos_con_una_cantidad_fija_de_consultas(
     assert conteos[ids[0]] == (2, 3)
     assert conteos[ids[1]] == conteos[ids[2]] == (1, 4)
     assert all(conteos[id_evento] == (0, 5) for id_evento in ids[3:])
+
+
+# --- Mis inscripciones ----------------------------------------------------------------------
+
+
+def terminar(conexion, id_evento: str) -> None:
+    conexion.execute(
+        text(
+            "UPDATE events SET start_at = now() - interval '2 days',"
+            " end_at = now() - interval '1 day' WHERE id = :id"
+        ),
+        {"id": id_evento},
+    )
+
+
+def mias(cliente, token: str, **params) -> list[tuple[str, str, str]]:
+    """(event_id, status de la inscripción, status del evento) de cada una, en orden."""
+    respuesta = cliente.get("/me/registrations", headers=auth(token), params=params)
+    assert respuesta.status_code == 200, respuesta.text
+    return [(i["event_id"], i["status"], i["event"]["status"]) for i in respuesta.json()["items"]]
+
+
+def test_mis_inscripciones_trae_solo_las_del_usuario_y_filtra_por_status_y_when(
+    cliente_db, conexion, usuarios
+):
+    proximo = crear_evento(cliente_db, usuarios["orga"])
+    cancelada = crear_evento(cliente_db, usuarios["orga"])
+    pasado = crear_evento(cliente_db, usuarios["orga"])
+    cancelado_por_el_organizador = crear_evento(cliente_db, usuarios["orga"])
+    solo_de_beto = crear_evento(cliente_db, usuarios["orga"])
+    for id_evento in (proximo, cancelada, pasado, cancelado_por_el_organizador):
+        assert inscribirse(cliente_db, usuarios["ana"], id_evento).status_code == 201
+    for id_evento in (proximo, solo_de_beto):
+        assert inscribirse(cliente_db, usuarios["beto"], id_evento).status_code == 201
+    assert cancelar(cliente_db, usuarios["ana"], cancelada).status_code == 204
+    cancelado = cliente_db.post(
+        f"/events/{cancelado_por_el_organizador}/cancel", headers=auth(usuarios["orga"])
+    )
+    assert cancelado.status_code == 200, cancelado.text
+    terminar(conexion, pasado)
+
+    por_defecto = mias(cliente_db, usuarios["ana"])
+    canceladas = mias(cliente_db, usuarios["ana"], status="CANCELLED")
+    pasadas = mias(cliente_db, usuarios["ana"], when="past")
+    canceladas_pasadas = mias(cliente_db, usuarios["ana"], status="CANCELLED", when="past")
+
+    assert sorted(por_defecto) == sorted(
+        [
+            (proximo, "ACTIVE", "PUBLISHED"),
+            (cancelado_por_el_organizador, "ACTIVE", "CANCELLED"),
+        ]
+    )
+    assert canceladas == [(cancelada, "CANCELLED", "PUBLISHED")]
+    assert pasadas == [(pasado, "ACTIVE", "PUBLISHED")]
+    assert canceladas_pasadas == []
+    assert sorted(mias(cliente_db, usuarios["beto"])) == sorted(
+        [(proximo, "ACTIVE", "PUBLISHED"), (solo_de_beto, "ACTIVE", "PUBLISHED")]
+    )
+
+
+def test_mis_inscripciones_trae_el_resumen_del_evento(cliente_db, conexion, usuarios):
+    id_evento = crear_evento(cliente_db, usuarios["orga"])
+    assert inscribirse(cliente_db, usuarios["ana"], id_evento).status_code == 201
+    detalle = cliente_db.get(f"/events/{id_evento}").json()
+
+    respuesta = cliente_db.get("/me/registrations", headers=auth(usuarios["ana"]))
+
+    assert respuesta.status_code == 200, respuesta.text
+    assert respuesta.json()["total"] == 1
+    [item] = respuesta.json()["items"]
+    assert item["event"] == {
+        "id": id_evento,
+        "name": detalle["name"],
+        "start_at": detalle["start_at"],
+        "location": detalle["location"],
+        "status": "PUBLISHED",
+        "is_finished": False,
+    }

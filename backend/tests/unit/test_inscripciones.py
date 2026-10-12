@@ -512,3 +512,78 @@ def test_estar_inscrito_en_otro_evento_no_cuenta(cliente, repos, auth):
     respuesta = cliente.get(f"/events/{evento.id}", headers=auth(ASISTENTE))
 
     assert respuesta.json().get("is_registered") is False
+
+
+# --- Mis inscripciones ----------------------------------------------------------------------
+
+
+def mis_inscripciones(cliente, headers: dict, **params):
+    return cliente.get("/me/registrations", headers=headers, params=params)
+
+
+def test_mis_inscripciones_sin_token_responde_401(cliente, repos):
+    assert mis_inscripciones(cliente, {}).status_code == 401
+
+
+def test_mis_inscripciones_trae_solo_las_del_usuario_con_el_resumen_del_evento(
+    cliente, repos, auth
+):
+    evento = repos.evento(location="Ágora Bogotá")
+    propia = repos.inscribir(ASISTENTE, evento)
+    repos.inscribir(OTRO_ASISTENTE, evento)
+
+    respuesta = mis_inscripciones(cliente, auth(ASISTENTE))
+
+    assert respuesta.status_code == 200, respuesta.text
+    cuerpo = respuesta.json()
+    assert (cuerpo["total"], cuerpo["page"], cuerpo["page_size"]) == (1, 1, 12)
+    [item] = cuerpo["items"]
+    assert item["id"] == str(propia.id)
+    assert item["event_id"] == str(evento.id)
+    assert item["status"] == "ACTIVE"
+    assert item["created_at"].endswith("Z")
+    assert item["cancelled_at"] is None
+    assert item["event"] == {
+        "id": str(evento.id),
+        "name": "PyCon Bogotá",
+        "start_at": evento.start_at.isoformat().replace("+00:00", "Z"),
+        "location": "Ágora Bogotá",
+        "status": "PUBLISHED",
+        "is_finished": False,
+    }
+    [consulta] = repos.inscripciones.consultas_del_usuario
+    assert consulta["id_usuario"] == ASISTENTE.id
+
+
+def test_mis_inscripciones_por_defecto_pide_las_activas_que_no_terminaron(cliente, repos, auth):
+    mis_inscripciones(cliente, auth(ASISTENTE))
+
+    pedidos = [(c["estado"], c["cuando"]) for c in repos.inscripciones.consultas_del_usuario]
+    assert pedidos == [(EstadoInscripcion.ACTIVE, "upcoming")]
+
+
+def test_mis_inscripciones_filtra_por_estado_y_por_cuando(cliente, repos, auth):
+    pasado = repos.evento()
+    pasado.start_at -= timedelta(days=60)
+    pasado.end_at -= timedelta(days=60)
+    cancelada = repos.inscribir(ASISTENTE, pasado, EstadoInscripcion.CANCELLED)
+    repos.inscribir(ASISTENTE, repos.evento(), EstadoInscripcion.CANCELLED)
+
+    respuesta = mis_inscripciones(cliente, auth(ASISTENTE), status="CANCELLED", when="past")
+
+    assert respuesta.status_code == 200, respuesta.text
+    [consulta] = repos.inscripciones.consultas_del_usuario
+    assert (consulta["estado"], consulta["cuando"]) == (EstadoInscripcion.CANCELLED, "past")
+    [item] = respuesta.json()["items"]
+    assert item["id"] == str(cancelada.id)
+    assert item["event"]["is_finished"] is True
+
+
+@pytest.mark.parametrize(
+    "params", [{"status": "PENDING"}, {"when": "ayer"}], ids=["status", "when"]
+)
+def test_mis_inscripciones_con_un_filtro_invalido_responde_422(cliente, repos, auth, params):
+    respuesta = mis_inscripciones(cliente, auth(ASISTENTE), **params)
+
+    assert respuesta.status_code == 422
+    assert repos.inscripciones.consultas_del_usuario == []

@@ -222,6 +222,24 @@ class RepositorioInscripcionesFalso:
 
     def __init__(self, eventos: RepositorioEventosFalso) -> None:
         self.eventos = eventos
+        # Con qué se pidieron las inscripciones de un usuario; el filtro real lo hace la base.
+        self.consultas_del_usuario: list[dict] = []
+
+    def del_usuario(
+        self, id_usuario: UUID, estado: EstadoInscripcion, cuando, offset: int, limite: int
+    ) -> tuple[list[tuple[Registration, Event]], int]:
+        self.consultas_del_usuario.append(
+            {"id_usuario": id_usuario, "estado": estado, "cuando": cuando}
+        )
+        ahora = datetime.now(UTC)
+        filas = [
+            (i, self.eventos.eventos[i.event_id])
+            for i in self.eventos.inscripciones.values()
+            if i.user_id == id_usuario
+            and i.status == estado
+            and (self.eventos.eventos[i.event_id].end_at < ahora) == (cuando == "past")
+        ]
+        return filas[offset : offset + limite], len(filas)
 
     def activa_de(self, id_usuario: UUID, id_evento: UUID) -> Registration | None:
         return next(
