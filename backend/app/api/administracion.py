@@ -36,10 +36,13 @@ def listar(
     q: Annotated[
         str | None, Query(max_length=100, description="Nombre o email, o parte de ellos")
     ] = None,
-    role: Annotated[Rol | None, Query(description="Solo los de este rol")] = None,
+    role: Annotated[
+        list[Rol] | None,
+        Query(description="Solo los de estos roles; se repite para pedir varios"),
+    ] = None,
     is_active: Annotated[bool | None, Query(description="Solo activos o solo inactivos")] = None,
 ) -> Pagina[UsuarioAdmin]:
-    filtros = FiltrosUsuarios(q=q, rol=role, activo=is_active)
+    filtros = FiltrosUsuarios(q=q, rol=frozenset(role or ()), activo=is_active)
     items, total = administracion.listar(repo, usuario, filtros, pagina.offset, pagina.page_size)
     return Pagina[UsuarioAdmin].crear(
         [_salida(con) for con in items], total=total, page=pagina.page, page_size=pagina.page_size

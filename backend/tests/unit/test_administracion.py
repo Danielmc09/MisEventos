@@ -422,13 +422,25 @@ def test_los_filtros_llegan_a_la_busqueda_y_se_cuenta_la_pagina_de_una_vez(
 
     assert respuesta.status_code == 200, respuesta.text
     [busqueda] = repo.busquedas
-    assert busqueda["filtros"] == FiltrosUsuarios(q="an_a%", rol=Rol.ATTENDEE, activo=False)
+    assert busqueda["filtros"] == FiltrosUsuarios(
+        q="an_a%", rol=frozenset({Rol.ATTENDEE}), activo=False
+    )
     assert (busqueda["offset"], busqueda["limite"]) == (0, 3)
     cuerpo = respuesta.json()
     assert (cuerpo["total"], cuerpo["page"], cuerpo["page_size"], cuerpo["pages"]) == (4, 1, 3, 2)
     pagina = [gente[k].id for k in ("admin", "otro_admin", "orga")]
     assert repo.conteos == [pagina]
     assert [u["id"] for u in cuerpo["items"]] == [str(id_) for id_ in pagina]
+
+
+def test_varios_roles_repetidos_llegan_juntos_a_la_busqueda(cliente, repo, auth, gente):
+    params = [("role", "ADMIN"), ("role", "ORGANIZER")]
+
+    respuesta = cliente.get("/admin/users", params=params, headers=auth(gente["admin"]))
+
+    assert respuesta.status_code == 200, respuesta.text
+    [busqueda] = repo.busquedas
+    assert busqueda["filtros"] == FiltrosUsuarios(rol=frozenset({Rol.ADMIN, Rol.ORGANIZER}))
 
 
 def test_cada_usuario_del_listado_trae_sus_inscripciones_activas(cliente, repo, auth, gente):
@@ -456,7 +468,9 @@ def test_sin_parametros_busca_sin_filtros_desde_la_primera_pagina(cliente, repo,
 @pytest.mark.parametrize(
     ("params", "campo"),
     [
-        ({"role": "SUPERUSER"}, "role"),
+        # El rol puede repetirse: el error señala cuál de los valores no es un rol.
+        ({"role": "SUPERUSER"}, "role.0"),
+        ([("role", "ADMIN"), ("role", "SUPERUSER")], "role.1"),
         ({"is_active": "talvez"}, "is_active"),
         ({"q": "x" * 101}, "q"),
         ({"page": 0}, "page"),
@@ -484,6 +498,9 @@ class SesionQueAnota:
     def all(self) -> list:
         return []
 
+    def one(self) -> int:
+        return 0
+
 
 def test_el_repositorio_bloquea_los_activos_de_esos_roles_por_id_y_los_relee():
     sesion = SesionQueAnota()
@@ -498,3 +515,30 @@ def test_el_repositorio_bloquea_los_activos_de_esos_roles_por_id_y_los_relee():
     assert "users.is_active" in sql
     assert "users.role IN" in sql
     assert consulta.get_execution_options().get("populate_existing") is True
+
+
+def test_la_busqueda_por_varios_roles_usa_in_con_parametros_ligados():
+    sesion = SesionQueAnota()
+    filtros = FiltrosUsuarios(rol=frozenset({Rol.ADMIN, Rol.ORGANIZER}))
+
+    RepositorioUsuarios(sesion).buscar(filtros, 0, 12)
+
+    assert len(sesion.consultas) == 2  # el total y la página
+    for consulta in sesion.consultas:
+        compilada = consulta.compile(dialect=postgresql.dialect())
+        sql = str(compilada).replace("\n", " ")
+        assert "users.role IN (__[POSTCOMPILE_" in sql
+        assert "ADMIN" not in sql and "ORGANIZER" not in sql
+        [valores] = [v for v in compilada.params.values() if isinstance(v, list | tuple)]
+        assert set(valores) == {Rol.ADMIN, Rol.ORGANIZER}
+
+
+def test_la_busqueda_sin_roles_no_filtra_por_rol():
+    sesion = SesionQueAnota()
+
+    RepositorioUsuarios(sesion).buscar(FiltrosUsuarios(), 0, 12)
+
+    assert len(sesion.consultas) == 2
+    for consulta in sesion.consultas:
+        sql = str(consulta.compile(dialect=postgresql.dialect()))
+        assert "users.role =" not in sql and "users.role IN" not in sql
