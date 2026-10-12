@@ -56,7 +56,7 @@ describe("estados del listado", () => {
       }),
     );
     const user = userEvent.setup();
-    abrir("/?q=zzz&status=DRAFT");
+    abrir("/?q=zzz&status=CANCELLED");
     await screen.findByText("No hay eventos que coincidan");
 
     await user.click(screen.getByRole("button", { name: "Quitar filtros" }));
@@ -75,7 +75,7 @@ describe("estados del listado", () => {
     expect(screen.queryByRole("button", { name: "Quitar filtros" })).not.toBeInTheDocument();
   });
 
-  test.each([["/?q=zzz"], ["/?status=DRAFT"]])(
+  test.each([["/?q=zzz"], ["/?status=CANCELLED"]])(
     "el vacío con un solo filtro (%s) ofrece Quitar filtros",
     async (ruta) => {
       server.use(http.get(`${API}/events`, () => responder("/events", "get", 200, pagina([]))));
@@ -218,6 +218,21 @@ describe("opciones del filtro de estado", () => {
 
     await screen.findByRole("link", { name: "PyCon Bogotá" });
     expect(opciones()).toEqual(["Todos", "Publicado", "Cancelado"]);
+  });
+
+  test("quien no ve borradores y abre ?status=DRAFT: ni la lista ni el select lo aplican", async () => {
+    const pedidos: string[] = [];
+    server.use(
+      http.get(`${API}/events`, ({ request }) => {
+        pedidos.push(new URL(request.url).search);
+        return responder("/events", "get", 200, pagina());
+      }),
+    );
+    abrir("/?status=DRAFT");
+
+    await screen.findByRole("link", { name: "PyCon Bogotá" });
+    expect(pedidos).toEqual([""]);
+    expect(screen.getByLabelText("Estado")).toHaveValue("");
   });
 
   test("un organizador también ofrece Borrador", async () => {
