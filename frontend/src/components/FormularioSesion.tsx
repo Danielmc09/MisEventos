@@ -84,9 +84,21 @@ export function FormularioSesion({
     name,
     value: valores[name],
     error: errores[name],
-    onChange: (e: { target: { value: string } }) =>
-      setValores((v) => ({ ...v, [name]: e.target.value })),
+    onChange: (e: { target: { value: string } }) => {
+      setValores((v) => ({ ...v, [name]: e.target.value }));
+      setErrores((previos) => {
+        const resto = { ...previos };
+        delete resto[name];
+        return resto;
+      });
+      setGeneral(null);
+    },
   });
+
+  const cambiarPonentes = (nuevos: PonenteDeSesion[]) => {
+    setPonentes(nuevos);
+    setGeneral(null);
+  };
 
   async function enviar(e: FormEvent) {
     e.preventDefault();
@@ -139,7 +151,7 @@ export function FormularioSesion({
       <Input label="Inicio" type="datetime-local" {...campo("start_at")} />
       <Input label="Fin" type="datetime-local" {...campo("end_at")} />
       <Input label="Capacidad" type="number" {...campo("capacity")} />
-      <SelectorPonentes seleccionados={ponentes} onChange={setPonentes} />
+      <SelectorPonentes seleccionados={ponentes} onChange={cambiarPonentes} />
       {general && (
         <p role="alert" className="text-red-700">
           <strong>{general.title}</strong>
