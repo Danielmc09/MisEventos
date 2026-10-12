@@ -70,3 +70,34 @@ test("con sesión, /perfil muestra el perfil", async () => {
   expect(await screen.findByRole("heading", { name: "Perfil" })).toBeInTheDocument();
   expect(screen.getByLabelText("ubicación")).toHaveTextContent(/^\/perfil$/);
 });
+
+describe("ruta desconocida", () => {
+  test.each(["/eventos", "/cualquier-cosa"])(
+    "%s muestra la página 404 con un enlace al inicio",
+    async (ruta) => {
+      render(
+        <MemoryRouter initialEntries={[ruta]}>
+          <App />
+        </MemoryRouter>,
+      );
+
+      expect(
+        await screen.findByRole("heading", { name: "No encontramos esa página" }),
+      ).toBeInTheDocument();
+      expect(screen.getByRole("link", { name: "Volver al inicio" })).toHaveAttribute("href", "/");
+    },
+  );
+
+  test("una ruta existente no cae en la 404", async () => {
+    render(
+      <MemoryRouter initialEntries={["/login"]}>
+        <App />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByRole("heading", { name: "Iniciar sesión" })).toBeInTheDocument();
+    expect(
+      screen.queryByRole("heading", { name: "No encontramos esa página" }),
+    ).not.toBeInTheDocument();
+  });
+});
