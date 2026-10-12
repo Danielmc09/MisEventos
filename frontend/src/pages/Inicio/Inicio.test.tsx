@@ -267,13 +267,18 @@ describe("opciones del filtro de estado", () => {
     expect(screen.getByLabelText("Estado")).toHaveValue("publicados");
   });
 
-  test("un valor desconocido en ?estado= cae en Publicados", async () => {
-    guardarPedidos([]);
-    abrir("/?estado=otra-cosa");
+  test.each(["otra-cosa", "toString", "constructor", "__proto__"])(
+    "un valor desconocido en ?estado=%s cae en Publicados y pide status=PUBLISHED",
+    async (valor) => {
+      const pedidos: string[] = [];
+      guardarPedidos(pedidos);
+      abrir(`/?estado=${valor}`);
 
-    await screen.findByRole("link", { name: "PyCon Bogotá" });
-    expect(screen.getByLabelText("Estado")).toHaveValue("publicados");
-  });
+      await screen.findByRole("link", { name: "PyCon Bogotá" });
+      expect(screen.getByLabelText("Estado")).toHaveValue("publicados");
+      expect(pedidos).toEqual(["?status=PUBLISHED"]);
+    },
+  );
 
   test("un organizador también ofrece Borradores y Todos", async () => {
     useSession.getState().iniciarSesion(organizador, "token", 3600);
