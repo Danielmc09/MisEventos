@@ -320,14 +320,14 @@ export interface paths {
     post?: never;
     /**
      * Eliminar una sesión
-     * @description El dueño del evento o el admin.
+     * @description El dueño del evento o el admin. Con reservas activas no se elimina (`session-has-reservations`).
      */
     delete: operations["eliminar_sessions__id_sesion__delete"];
     options?: never;
     head?: never;
     /**
      * Editar una sesión
-     * @description Se manda solo lo que cambia; `speaker_ids`, si viene, reemplaza la lista. El dueño del evento o el admin.
+     * @description Se manda solo lo que cambia; `speaker_ids`, si viene, reemplaza la lista. Con reservas activas, el horario no cambia (`session-has-reservations`) y la capacidad no baja de lo reservado (`capacity-below-reservations`). El dueño del evento o el admin.
      */
     patch: operations["editar_sessions__id_sesion__patch"];
     trace?: never;
@@ -454,6 +454,46 @@ export interface paths {
     options?: never;
     head?: never;
     patch?: never;
+    trace?: never;
+  };
+  "/admin/users": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Listar y buscar usuarios
+     * @description Solo el admin. Cada usuario trae sus inscripciones activas. Ordenados por email.
+     */
+    get: operations["listar_admin_users_get"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/admin/users/{id_usuario}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    /**
+     * Cambiar el nombre, el rol o el estado de un usuario
+     * @description Solo el admin. Acepta solo `full_name`, `role` e `is_active`: el email y la contraseña no se cambian por acá (422). El admin no puede cambiarse el rol ni desactivarse a sí mismo (409 `cannot-modify-self`), y siempre queda al menos un admin activo (409 `last-admin`). Desactivar corta la sesión en el siguiente request.
+     */
+    patch: operations["cambiar_admin_users__id_usuario__patch"];
     trace?: never;
   };
 }
@@ -822,6 +862,19 @@ export interface components {
     Pagina_PonenteSalida_: {
       /** Items */
       items: components["schemas"]["PonenteSalida"][];
+      /** Total */
+      total: number;
+      /** Page */
+      page: number;
+      /** Page Size */
+      page_size: number;
+      /** Pages */
+      pages: number;
+    };
+    /** Pagina[UsuarioAdmin] */
+    Pagina_UsuarioAdmin_: {
+      /** Items */
+      items: components["schemas"]["UsuarioAdmin"][];
       /** Total */
       total: number;
       /** Page */
@@ -1203,6 +1256,47 @@ export interface components {
       token_type: "bearer";
       /** Expires In */
       expires_in: number;
+    };
+    /** UsuarioAdmin */
+    UsuarioAdmin: {
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string;
+      /** Email */
+      email: string;
+      /** Full Name */
+      full_name: string | null;
+      role: components["schemas"]["Rol"];
+      /** Is Active */
+      is_active: boolean;
+      /** Must Change Password */
+      must_change_password: boolean;
+      /**
+       * Created At
+       * Format: date-time
+       */
+      created_at: string;
+      /**
+       * Updated At
+       * Format: date-time
+       */
+      updated_at: string;
+      /** Active Registrations */
+      active_registrations: number;
+    };
+    /**
+     * UsuarioEdicion
+     * @description Lo que el admin le cambia a un usuario: el nombre, el rol y si está activo. El email, la
+     *     contraseña y cualquier otro campo responden 422.
+     */
+    UsuarioEdicion: {
+      /** Full Name */
+      full_name?: string | null;
+      role?: components["schemas"]["Rol"] | null;
+      /** Is Active */
+      is_active?: boolean | null;
     };
   };
   responses: never;
@@ -2821,6 +2915,143 @@ export interface operations {
       };
       /** @description Necesitás iniciar sesión */
       401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problema"];
+          "application/json": components["schemas"]["Problema"];
+        };
+      };
+      /** @description No encontramos lo que buscás */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problema"];
+          "application/json": components["schemas"]["Problema"];
+        };
+      };
+      /** @description La operación choca con el estado actual */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problema"];
+          "application/json": components["schemas"]["Problema"];
+        };
+      };
+      /** @description Los datos enviados no son válidos */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problema"];
+          "application/json": components["schemas"]["Problema"];
+        };
+      };
+    };
+  };
+  listar_admin_users_get: {
+    parameters: {
+      query?: {
+        /** @description Nombre o email, o parte de ellos */
+        q?: string | null;
+        /** @description Solo los de este rol */
+        role?: components["schemas"]["Rol"] | null;
+        /** @description Solo activos o solo inactivos */
+        is_active?: boolean | null;
+        /** @description Página, desde 1 hasta 10000 */
+        page?: number;
+        /** @description Elementos por página, hasta 100 */
+        page_size?: number;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Pagina_UsuarioAdmin_"];
+        };
+      };
+      /** @description Necesitás iniciar sesión */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problema"];
+          "application/json": components["schemas"]["Problema"];
+        };
+      };
+      /** @description No tenés permiso para hacer esto */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problema"];
+          "application/json": components["schemas"]["Problema"];
+        };
+      };
+      /** @description Los datos enviados no son válidos */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problema"];
+          "application/json": components["schemas"]["Problema"];
+        };
+      };
+    };
+  };
+  cambiar_admin_users__id_usuario__patch: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id_usuario: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["UsuarioEdicion"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["UsuarioAdmin"];
+        };
+      };
+      /** @description Necesitás iniciar sesión */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problema"];
+          "application/json": components["schemas"]["Problema"];
+        };
+      };
+      /** @description No tenés permiso para hacer esto */
+      403: {
         headers: {
           [name: string]: unknown;
         };
