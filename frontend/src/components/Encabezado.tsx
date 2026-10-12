@@ -1,5 +1,4 @@
 import { useCerrarSesion } from "../lib/useCerrarSesion";
-import { useEsAngosto } from "../lib/useEsAngosto";
 import { useSesionVigente, useSession, useTienePermiso } from "../stores/session";
 import { Enlace } from "./ui/Enlace";
 import { MenuAcciones, type ItemMenu } from "./ui/MenuAcciones";
@@ -9,7 +8,6 @@ export function Encabezado() {
   const puedeCrear = useTienePermiso("evento:crear");
   const vigente = useSesionVigente();
   const cerrarSesion = useCerrarSesion();
-  const angosto = useEsAngosto();
   const nombre = user && (user.full_name || user.email);
   const sesion = !!user && vigente;
 
@@ -17,11 +15,6 @@ export function Encabezado() {
     { texto: "Mi perfil", to: "/perfil" },
     { texto: "Cambiar contraseña", to: "/cambiar-contrasena" },
     { texto: "Cerrar sesión", onSelect: cerrarSesion, separado: true },
-  ];
-
-  const itemsVisitante: ItemMenu[] = [
-    { texto: "Iniciar sesión", to: "/login" },
-    { texto: "Registrarse", to: "/registro" },
   ];
 
   return (
@@ -54,17 +47,12 @@ export function Encabezado() {
               {(nombre ?? "?").charAt(0).toLocaleUpperCase("es")}
             </MenuAcciones>
           </>
-        ) : angosto ? (
-          // «Mis Eventos», «Iniciar sesión» y «Registrarse» miden unos 347 px con sus márgenes: en 320 px no entran.
-          <MenuAcciones etiqueta="Menú de la cuenta" alinear="fin" items={itemsVisitante}>
-            Entrar
-          </MenuAcciones>
         ) : (
           <>
             <Enlace to="/login" variante="navegacion">
-              Iniciar sesión
+              Ingresar
             </Enlace>
-            <Enlace to="/registro" variante="navegacion">
+            <Enlace to="/registro" variante="navegacionOpcional">
               Registrarse
             </Enlace>
           </>

@@ -155,6 +155,12 @@ function ContenidoEvento({
   const vigente = evento.status !== "CANCELLED" && !evento.is_finished;
 
   const itemsDueno: ItemMenu[] = [
+    ...(situacion === "libre"
+      ? [{ texto: "Inscribirme a mi evento", onSelect: inscripcion.inscribirse }]
+      : []),
+    ...(situacion === "inscrito"
+      ? [{ texto: "Cancelar mi inscripción", onSelect: inscripcion.pedirCancelar }]
+      : []),
     ...(evento.status === "DRAFT" && !evento.is_finished
       ? [{ texto: "Publicar", onSelect: () => onAccion("publish") }]
       : []),
@@ -162,15 +168,16 @@ function ContenidoEvento({
       ? [{ texto: "Despublicar", onSelect: () => onAccion("unpublish") }]
       : []),
     ...(vigente
-      ? [{ texto: "Cancelar evento", onSelect: () => onPedir("cancel"), peligro: true }]
+      ? [
+          {
+            texto: "Cancelar evento",
+            onSelect: () => onPedir("cancel"),
+            peligro: true,
+            separado: true,
+          },
+        ]
       : []),
-    { texto: "Eliminar", onSelect: () => onPedir("delete"), peligro: true },
-    ...(situacion === "libre"
-      ? [{ texto: "Inscribirme a mi evento", onSelect: inscripcion.inscribirse }]
-      : []),
-    ...(situacion === "inscrito"
-      ? [{ texto: "Cancelar mi inscripción", onSelect: inscripcion.pedirCancelar }]
-      : []),
+    { texto: "Eliminar", onSelect: () => onPedir("delete"), peligro: true, separado: !vigente },
   ];
 
   const seccionSesiones = (

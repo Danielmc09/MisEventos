@@ -1,6 +1,9 @@
 @import "tailwindcss";
 
 @theme {
+  /* Móviles chicos: desde acá entran «Ingresar» y «Registrarse» juntos en el encabezado. */
+  --breakpoint-xs: 375px;
+
   /* Marca */
   --color-primario: #6f2277;
   --color-primario-hover: #5a1b61;
