@@ -8,7 +8,7 @@ import { API } from "./test/helpers";
 import { responder } from "./test/msw";
 import App from "./App";
 
-const usuario: components["schemas"]["UsuarioSalida"] = {
+const usuario: components["schemas"]["PerfilConPermisos"] = {
   id: "7c9e6679-7425-40de-944b-e07fc1f90ae7",
   email: "ana@mail.com",
   full_name: "Ana",
@@ -16,6 +16,7 @@ const usuario: components["schemas"]["UsuarioSalida"] = {
   is_active: true,
   must_change_password: false,
   created_at: "2026-10-11T15:30:00Z",
+  permisos: [],
 };
 
 // El perfil pide "Mis inscripciones": sin respuesta simulada, esa petición quedaba colgada y afectaba al test siguiente.

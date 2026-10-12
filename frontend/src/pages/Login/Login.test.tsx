@@ -171,6 +171,7 @@ const organizador = {
   id: "11111111-2222-4333-8444-555555555555",
   email: "org@mail.com",
   role: "ORGANIZER" as const,
+  permisos: ["evento:crear" as const],
 };
 
 test("con la sesión de otro usuario en el store, el login deja el usuario y el token de la cuenta nueva", async () => {

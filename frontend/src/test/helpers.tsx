@@ -5,7 +5,7 @@ import type { components } from "../api/schema";
 
 export const API = "http://localhost:8000";
 
-export const usuario: components["schemas"]["UsuarioSalida"] = {
+export const usuario: components["schemas"]["PerfilConPermisos"] = {
   id: "7c9e6679-7425-40de-944b-e07fc1f90ae7",
   email: "ana@mail.com",
   full_name: "Ana",
@@ -13,6 +13,7 @@ export const usuario: components["schemas"]["UsuarioSalida"] = {
   is_active: true,
   must_change_password: false,
   created_at: "2026-10-11T15:30:00Z",
+  permisos: [],
 };
 
 function Ubicacion() {

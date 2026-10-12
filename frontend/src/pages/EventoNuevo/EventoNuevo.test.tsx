@@ -11,7 +11,7 @@ import EventoNuevo from "./EventoNuevo";
 const server = setupServer();
 beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
 beforeEach(() =>
-  useSession.getState().iniciarSesion({ ...usuario, role: "ORGANIZER" }, "token", 3600),
+  useSession.getState().iniciarSesion({ ...usuario, permisos: ["evento:crear"] }, "token", 3600),
 );
 afterEach(() => {
   server.resetHandlers();
@@ -42,8 +42,10 @@ async function completar(
 const crear = (user: Usuario) => user.click(screen.getByRole("button", { name: "Crear evento" }));
 
 describe("permiso para crear", () => {
-  test("un asistente que entra por la URL ve un mensaje y no el formulario", () => {
-    useSession.getState().iniciarSesion(usuario, "token", 3600);
+  test("sin el permiso, aunque sea organizador, ve un mensaje y no el formulario", () => {
+    useSession
+      .getState()
+      .iniciarSesion({ ...usuario, role: "ORGANIZER", permisos: [] }, "token", 3600);
     abrir();
 
     expect(screen.getByText("No tenés permiso para crear eventos")).toBeInTheDocument();
@@ -51,7 +53,7 @@ describe("permiso para crear", () => {
     expect(screen.queryByLabelText("Nombre")).not.toBeInTheDocument();
   });
 
-  test("un organizador ve el formulario", () => {
+  test("con el permiso, aunque el rol sea de asistente, ve el formulario", () => {
     abrir();
 
     expect(screen.getByLabelText("Nombre")).toBeInTheDocument();
