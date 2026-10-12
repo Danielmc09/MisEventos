@@ -3,8 +3,11 @@ import { api } from "../api/client";
 import { ApiError } from "../api/errors";
 import { diaBogota, etiquetaDia, horaBogota } from "../lib/fechas";
 import type { Sesion } from "../lib/useSesiones";
+import type { Evento } from "../stores/eventos";
+import { FormularioSesion } from "./FormularioSesion";
 import { Button } from "./ui/Button";
 import { DialogoConfirmacion } from "./ui/DialogoConfirmacion";
+import { Modal } from "./ui/Modal";
 import { Spinner } from "./ui/Spinner";
 import { Toast, type ToastProps } from "./ui/Toast";
 
@@ -12,8 +15,11 @@ interface Props {
   cargando: boolean;
   sesiones?: Sesion[];
   error?: ApiError;
-  /** El dueño del evento o el admin. */
+  evento: Pick<Evento, "id" | "start_at" | "end_at" | "capacity">;
+  /** El dueño del evento o el admin, y el evento todavía admite cambios. */
   puede: boolean;
+  /** Se llama con la sesión que el servidor creó o actualizó. */
+  onGuardada: (sesion: Sesion) => void;
   /** Se llama cuando el servidor confirmó el borrado. */
   onEliminada: (id: string) => void;
 }
@@ -28,7 +34,19 @@ function agruparPorDia(sesiones: Sesion[]) {
   return [...dias.entries()];
 }
 
-export function SeccionSesiones({ cargando, sesiones, error, puede, onEliminada }: Props) {
+/** `null`: cerrado. `"nueva"`: crear. Una sesión: editarla. */
+type Formulario = "nueva" | Sesion | null;
+
+export function SeccionSesiones({
+  cargando,
+  sesiones,
+  error,
+  evento,
+  puede,
+  onGuardada,
+  onEliminada,
+}: Props) {
+  const [formulario, setFormulario] = useState<Formulario>(null);
   const [pendiente, setPendiente] = useState<Sesion | null>(null);
   const [trabajando, setTrabajando] = useState(false);
   const [aviso, setAviso] = useState<Pick<ToastProps, "message" | "tone"> | null>(null);
@@ -54,7 +72,11 @@ export function SeccionSesiones({ cargando, sesiones, error, puede, onEliminada 
         <h2 id="titulo-sesiones" className="text-xl font-semibold">
           Sesiones
         </h2>
-        {puede && <Button type="button">Agregar sesión</Button>}
+        {puede && (
+          <Button type="button" onClick={() => setFormulario("nueva")}>
+            Agregar sesión
+          </Button>
+        )}
       </div>
       {cargando && (
         <div className="flex justify-center p-6">
@@ -93,6 +115,7 @@ export function SeccionSesiones({ cargando, sesiones, error, puede, onEliminada 
                         type="button"
                         aria-label={`Editar sesión ${s.title}`}
                         className="rounded-md border border-gray-300 px-3 py-1"
+                        onClick={() => setFormulario(s)}
                       >
                         Editar
                       </button>
@@ -111,6 +134,26 @@ export function SeccionSesiones({ cargando, sesiones, error, puede, onEliminada 
             </ul>
           </div>
         ))}
+      {formulario && (
+        <Modal
+          titulo={formulario === "nueva" ? "Agregar sesión" : "Editar sesión"}
+          onCerrar={() => setFormulario(null)}
+        >
+          <FormularioSesion
+            evento={evento}
+            sesion={formulario === "nueva" ? undefined : formulario}
+            onGuardada={(guardada) => {
+              onGuardada(guardada);
+              setAviso({
+                message: formulario === "nueva" ? "Sesión creada" : "Sesión actualizada",
+                tone: "exito",
+              });
+              setFormulario(null);
+            }}
+            onCancelar={() => setFormulario(null)}
+          />
+        </Modal>
+      )}
       {pendiente && (
         <DialogoConfirmacion
           titulo="Eliminar la sesión"

@@ -41,6 +41,17 @@ export function useSesiones(id: string | undefined) {
     cargando: !actual,
     sesiones: actual?.sesiones,
     error: actual?.error,
+    /** Agrega la sesión, o reemplaza la que tenga el mismo id. */
+    guardar: (sesion: Sesion) =>
+      setCarga(
+        (c) =>
+          c && {
+            ...c,
+            sesiones: c.sesiones?.some((s) => s.id === sesion.id)
+              ? c.sesiones.map((s) => (s.id === sesion.id ? sesion : s))
+              : [...(c.sesiones ?? []), sesion],
+          },
+      ),
     quitar: (sesionId: string) =>
       setCarga((c) => c && { ...c, sesiones: c.sesiones?.filter((s) => s.id !== sesionId) }),
   };
