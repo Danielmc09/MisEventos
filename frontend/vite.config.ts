@@ -6,6 +6,10 @@ import { defineConfig } from "vite";
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   server: { port: 5173 },
+  build: {
+    // Las imágenes salen como archivos con hash: una de 4 kB incrustada en el JS no se cachea aparte.
+    assetsInlineLimit: (archivo) => (archivo.endsWith(".webp") ? false : undefined),
+  },
   test: {
     environment: "jsdom",
     globals: true,

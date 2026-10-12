@@ -4,6 +4,7 @@ import { ApiError } from "../../api/errors";
 import { EventoCard } from "../../components/EventoCard";
 import { AlertaError } from "../../components/ui/AlertaError";
 import { EstadoVacio } from "../../components/ui/EstadoVacio";
+import { ImagenPortada } from "../../components/ui/ImagenPortada";
 import { Input } from "../../components/ui/Input";
 import { Pagina, TituloPagina } from "../../components/ui/Pagina";
 import { Paginacion } from "../../components/ui/Paginacion";
@@ -111,6 +112,7 @@ export default function Inicio() {
 
   return (
     <Pagina ancho="ancho">
+      <ImagenPortada />
       <div className="flex flex-col gap-1">
         <TituloPagina>Próximos eventos</TituloPagina>
         <TextoSecundario>Encontrá un evento e inscribite en un minuto</TextoSecundario>
