@@ -56,6 +56,8 @@ export default function Inicio() {
     setParams({});
   };
 
+  const hayFiltros = !!(params.get("q") || params.get("status"));
+
   const irAPagina = (pagina: number) =>
     setParams((previos) => {
       const nuevos = new URLSearchParams(previos);
@@ -122,9 +124,11 @@ export default function Inicio() {
         {actual?.pagina && actual.pagina.items.length === 0 && (
           <div className="flex flex-col items-start gap-3">
             <TextoSecundario>No hay eventos que coincidan</TextoSecundario>
-            <Button variante="secundario" onClick={quitarFiltros}>
-              Quitar filtros
-            </Button>
+            {hayFiltros && (
+              <Button variante="secundario" onClick={quitarFiltros}>
+                Quitar filtros
+              </Button>
+            )}
           </div>
         )}
         {actual?.pagina && actual.pagina.items.length > 0 && (
