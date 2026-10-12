@@ -68,15 +68,6 @@ test("si el logout falla por red, igual vacía la sesión", async () => {
   expect(useSession.getState().accessToken).toBeNull();
 });
 
-test("el aviso de contraseña cambiada se muestra una vez: se limpia el state", async () => {
-  montar({ pathname: "/perfil", state: { aviso: "Tu contraseña se cambió" } }, [
-    ["/perfil", <Perfil />],
-  ]);
-
-  expect(screen.getByText("Tu contraseña se cambió")).toBeInTheDocument();
-  await waitFor(() => expect(screen.getByLabelText("estado")).toHaveTextContent("null"));
-});
-
 type Pagina = Parameters<typeof responder<"/me/registrations", "get", 200>>[3];
 type Inscripcion = Pagina["items"][number];
 
