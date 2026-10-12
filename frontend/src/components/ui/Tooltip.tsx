@@ -11,7 +11,7 @@ export function Tooltip({ texto, children }: TooltipProps) {
   const [posicion, setPosicion] = useState<{ top: number; left: number }>();
   const ancla = useRef<HTMLSpanElement>(null);
   const visible = posicion !== undefined;
-  const mostrar = () => {
+  const colocar = () => {
     const caja = ancla.current?.getBoundingClientRect();
     if (caja) setPosicion({ top: caja.bottom, left: caja.left });
   };
@@ -20,21 +20,21 @@ export function Tooltip({ texto, children }: TooltipProps) {
   useEffect(() => {
     if (!visible) return;
     const alTeclear = (e: globalThis.KeyboardEvent) => e.key === "Escape" && ocultar();
-    // Con la posición fija, un scroll la dejaría desfasada del botón.
     document.addEventListener("keydown", alTeclear);
-    document.addEventListener("scroll", ocultar, true);
+    // Con la posición fija, un scroll la dejaría desfasada: se recalcula. (El Tab que revela un botón fuera de vista también hace scroll.)
+    document.addEventListener("scroll", colocar, true);
     return () => {
       document.removeEventListener("keydown", alTeclear);
-      document.removeEventListener("scroll", ocultar, true);
+      document.removeEventListener("scroll", colocar, true);
     };
   }, [visible]);
   return (
     <span
       ref={ancla}
       className="inline-flex"
-      onMouseEnter={mostrar}
+      onMouseEnter={colocar}
       onMouseLeave={ocultar}
-      onFocus={mostrar}
+      onFocus={colocar}
       onBlur={ocultar}
     >
       {children}
