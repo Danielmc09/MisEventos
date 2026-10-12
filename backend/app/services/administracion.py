@@ -1,5 +1,5 @@
-"""Gestión de usuarios por el administrador: listarlos y cambiarles el nombre, el email, el rol o
-el estado.
+"""Gestión de usuarios por el administrador: crearlos, listarlos y cambiarles el nombre, el
+email, el rol o el estado.
 
 Lanza excepciones de dominio; no sabe nada de HTTP."""
 
@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from typing import Protocol
 from uuid import UUID
 
+from app.core.contrasenas import generar_contrasena_temporal, hashear
 from app.core.excepciones import Conflict, Forbidden, NotFound
 from app.core.permisos import PERMISOS_POR_ROL, Permiso, Rol, tiene_permiso
 from app.models.usuario import User
@@ -107,10 +108,40 @@ def cambiar(
         setattr(usuario, campo, valor)
     guardado = repo.guardar(usuario)
     if guardado is None:
-        raise Conflict(tipo="email-taken", titulo="Ese email ya está registrado")
+        raise _email_tomado()
     usuario = guardado
     return ConInscripciones(usuario, repo.inscripciones_activas([usuario.id])[usuario.id])
 
 
-def crear(repo: Usuarios, actor: User, datos: UsuarioAlta) -> None:
-    return None
+@dataclass(frozen=True)
+class ConContrasenaTemporal:
+    """Un usuario y la contraseña temporal que se le acaba de dar, en claro: solo vive en la
+    respuesta, nunca en la base ni en un log."""
+
+    usuario: User
+    contrasena_temporal: str
+
+
+def _email_tomado() -> Conflict:
+    return Conflict(tipo="email-taken", titulo="Ese email ya está registrado")
+
+
+def crear(repo: Usuarios, actor: User, datos: UsuarioAlta) -> ConContrasenaTemporal:
+    """Crea un usuario con el rol que indica el admin y una contraseña temporal que genera el
+    sistema; en su primer login tiene que cambiarla.
+
+    El email tomado lo decide el índice único al guardar (`email-taken`), así que también pierde
+    el segundo de dos altas simultáneas con el mismo email."""
+    _exigir_permiso(actor)
+    temporal = generar_contrasena_temporal()
+    usuario = User(
+        email=datos.email,
+        full_name=datos.full_name,
+        role=datos.role,
+        password_hash=hashear(temporal),
+        must_change_password=True,
+    )
+    guardado = repo.guardar(usuario)
+    if guardado is None:
+        raise _email_tomado()
+    return ConContrasenaTemporal(guardado, temporal)

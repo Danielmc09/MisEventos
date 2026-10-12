@@ -31,9 +31,15 @@ class UsuarioEdicion(EntradaBase):
 
 
 class UsuarioAlta(EntradaBase):
-    email: str
+    """El usuario que crea el admin. La contraseña la genera el sistema: mandarla, o cualquier
+    otro campo, responde 422."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    # Validado y normalizado igual que en el registro.
+    email: Email
+    full_name: str | None = Field(default=None, max_length=120)
     role: Rol
-    full_name: str | None = None
 
 
 class UsuarioAdmin(BaseModel):
@@ -46,6 +52,12 @@ class UsuarioAdmin(BaseModel):
     created_at: FechaUTC
     updated_at: FechaUTC
     active_registrations: int
+
+
+class UsuarioCreado(UsuarioAdmin):
+    """El usuario recién creado y su contraseña temporal: es la única vez que se ve."""
+
+    temporary_password: str
 
 
 @dataclass(frozen=True)
