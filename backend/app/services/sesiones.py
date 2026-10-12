@@ -2,11 +2,13 @@
 
 Lanza excepciones de dominio; no sabe nada de HTTP."""
 
+from datetime import datetime, timedelta, timezone
 from typing import Protocol
 from uuid import UUID
 
-from app.core.excepciones import DatosInvalidos, NotFound
-from app.models.evento import Event
+from app.core.excepciones import Conflict, DatosInvalidos, NotFound
+from app.core.horarios import se_cruzan
+from app.models.evento import EstadoEvento, Event
 from app.models.ponente import Speaker
 from app.models.sesion import Session as Sesion
 from app.models.usuario import User
@@ -16,6 +18,8 @@ from app.services.eventos import Eventos
 from app.services.ponentes import Ponentes
 
 SesionConPonentes = tuple[Sesion, list[Speaker]]
+# Bogotá no tiene horario de verano: un desfase fijo alcanza y no depende de tzdata.
+BOGOTA = timezone(timedelta(hours=-5))
 
 
 class Sesiones(Protocol):
@@ -51,6 +55,67 @@ def _bloquear_ponentes(ponentes: Ponentes, ids: list[UUID]) -> list[Speaker]:
     return bloqueados
 
 
+def _exigir_abierto(evento: Event) -> None:
+    if evento.status == EstadoEvento.CANCELLED or servicio_eventos.finalizado(evento):
+        raise Conflict(titulo="Un evento cancelado o finalizado no acepta cambios en sus sesiones")
+
+
+def _hora(fecha: datetime, formato: str = "%H:%M") -> str:
+    return fecha.astimezone(BOGOTA).strftime(formato)
+
+
+def _sala(sala: str | None) -> str:
+    return (sala or "").strip().casefold()
+
+
+def _validar_horario(
+    eventos: Eventos,
+    sesiones: Sesiones,
+    evento: Event,
+    inicio: datetime,
+    fin: datetime,
+    sala: str | None,
+    asignados: list[Speaker],
+    excluir: UUID | None = None,
+) -> None:
+    """Dentro del evento, sin cruces de sus ponentes (en cualquier evento no cancelado) ni de su
+    sala (en el mismo evento). `excluir` es la propia sesión al editar: no choca consigo misma."""
+    if inicio < evento.start_at or fin > evento.end_at:
+        con_dia = "%d/%m %H:%M"
+        raise Conflict(
+            f"El evento va del {_hora(evento.start_at, con_dia)} al {_hora(evento.end_at, con_dia)}"
+            " (hora de Bogotá)",
+            tipo="session-outside-event",
+            titulo="La sesión no cae dentro del evento",
+        )
+    for ponente, otra, su_evento in sesiones.sesiones_de_ponentes([p.id for p in asignados]):
+        if (
+            otra.id != excluir
+            and su_evento.status != EstadoEvento.CANCELLED
+            and se_cruzan(inicio, fin, otra.start_at, otra.end_at)
+        ):
+            raise Conflict(
+                f"{ponente.full_name} ya está en «{otra.title}», "
+                f"{_hora(otra.start_at)} a {_hora(otra.end_at)}",
+                tipo="speaker-conflict",
+                titulo="El ponente ya tiene otra sesión en ese horario",
+            )
+    normalizada = _sala(sala)
+    if not normalizada:  # las sesiones sin sala no chocan
+        return
+    for otra in eventos.sesiones_de(evento.id):
+        if (
+            otra.id != excluir
+            and _sala(otra.room) == normalizada
+            and se_cruzan(inicio, fin, otra.start_at, otra.end_at)
+        ):
+            raise Conflict(
+                f"«{otra.title}» ocupa {sala} de {_hora(otra.start_at)} a {_hora(otra.end_at)}",
+                tipo="room-conflict",
+                titulo="La sala ya está ocupada en ese horario",
+            )
+
+
 def _validar_capacidad(evento: Event, capacidad: int | None) -> None:
     if capacidad is not None and capacidad > evento.capacity:
         raise DatosInvalidos("capacity", f"No puede superar la del evento ({evento.capacity})")
@@ -66,9 +131,13 @@ def crear(
 ) -> SesionConPonentes:
     # Primero el evento y después los ponentes: el orden de los bloqueos es siempre ese.
     evento = servicio_eventos.para_escribir(eventos, usuario, id_evento)
+    _exigir_abierto(evento)
     _validar_capacidad(evento, datos.capacity)
     asignados = _bloquear_ponentes(ponentes, datos.speaker_ids)
     sesion = Sesion(**datos.model_dump(exclude={"speaker_ids"}), event_id=evento.id)
+    _validar_horario(
+        eventos, sesiones, evento, sesion.start_at, sesion.end_at, sesion.room, asignados
+    )
     creada = sesiones.crear(sesion, [p.id for p in asignados])
     return creada, sesiones.ponentes_de([creada.id])[creada.id]
 
@@ -97,13 +166,25 @@ def editar(
     datos: SesionEdicion,
 ) -> SesionConPonentes:
     evento, sesion = _para_escribir(eventos, sesiones, usuario, id_sesion)
+    _exigir_abierto(evento)
     cambios = datos.model_dump(exclude_unset=True)
     ids_nuevos = cambios.pop("speaker_ids", None)
     if cambios.get("end_at", sesion.end_at) <= cambios.get("start_at", sesion.start_at):
         raise DatosInvalidos("end_at", "Tiene que ser posterior al inicio")
     _validar_capacidad(evento, cambios.get("capacity", sesion.capacity))
     actuales = [p.id for p in sesiones.ponentes_de([sesion.id])[sesion.id]]
-    _bloquear_ponentes(ponentes, actuales if ids_nuevos is None else ids_nuevos)
+    asignados = _bloquear_ponentes(ponentes, actuales if ids_nuevos is None else ids_nuevos)
+    # Se valida antes de tocar la sesión: si algo choca, queda como estaba.
+    _validar_horario(
+        eventos,
+        sesiones,
+        evento,
+        cambios.get("start_at", sesion.start_at),
+        cambios.get("end_at", sesion.end_at),
+        cambios.get("room", sesion.room),
+        asignados,
+        excluir=sesion.id,
+    )
     for campo, valor in cambios.items():
         setattr(sesion, campo, valor)
     ids_a_guardar = None if ids_nuevos is None else sorted(set(ids_nuevos))
@@ -112,5 +193,6 @@ def editar(
 
 
 def eliminar(eventos: Eventos, sesiones: Sesiones, usuario: User, id_sesion: UUID) -> None:
-    _, sesion = _para_escribir(eventos, sesiones, usuario, id_sesion)
+    evento, sesion = _para_escribir(eventos, sesiones, usuario, id_sesion)
+    _exigir_abierto(evento)
     sesiones.eliminar(sesion)
