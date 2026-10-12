@@ -148,4 +148,26 @@ def crear(repo: Usuarios, actor: User, datos: UsuarioAlta) -> ConContrasenaTempo
 
 
 def restablecer_contrasena(repo: Usuarios, actor: User, id_usuario: UUID) -> str:
-    return ""
+    """Le da a otro usuario una contraseña temporal nueva y lo obliga a cambiarla en su próximo
+    login. La anterior deja de servir. Devuelve la temporal en claro, para mostrarla una vez.
+
+    El admin no se la restablece a sí mismo: para eso está el cambio de contraseña, que le pide
+    la actual. A un usuario desactivado tampoco: no podría usarla, y primero hay que decidir
+    reactivarlo. La fila se bloquea antes de mirarla, así no se cruza con un PATCH que lo
+    desactiva al mismo tiempo."""
+    _exigir_permiso(actor)
+    if id_usuario == actor.id:
+        raise Forbidden(
+            tipo="cannot-modify-self",
+            titulo="Para cambiar tu propia contraseña usá «Cambiar contraseña»",
+        )
+    usuario = repo.por_id_para_escribir(id_usuario)
+    if usuario is None:
+        raise NotFound()
+    if not usuario.is_active:
+        raise Conflict(tipo="user-inactive", titulo="El usuario está desactivado: reactivalo antes")
+    temporal = generar_contrasena_temporal()
+    usuario.password_hash = hashear(temporal)
+    usuario.must_change_password = True
+    repo.guardar(usuario)
+    return temporal

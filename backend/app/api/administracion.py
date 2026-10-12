@@ -8,6 +8,7 @@ from app.api.errores import respuestas_de_error
 from app.api.paginacion import ParametrosPagina, parametros_pagina
 from app.core.permisos import Rol
 from app.schemas.administracion import (
+    ContrasenaTemporal,
     FiltrosUsuarios,
     UsuarioAdmin,
     UsuarioAlta,
@@ -99,3 +100,22 @@ def crear(
         creado.usuario.model_dump()
         | {"active_registrations": 0, "temporary_password": creado.contrasena_temporal}
     )
+
+
+@router.post(
+    "/users/{id_usuario}/reset-password",
+    summary="Restablecer la contraseña de un usuario",
+    description=(
+        "Solo el admin. Genera una contraseña temporal nueva, que se devuelve una sola vez y no "
+        "se guarda en caché; la anterior deja de servir y el usuario tiene que cambiarla en su "
+        "próximo login. El admin no se la restablece a sí mismo (403 `cannot-modify-self`), y a "
+        "un usuario desactivado tampoco (409 `user-inactive`)."
+    ),
+    responses=respuestas_de_error(401, 403, 404, 409),
+)
+def restablecer_contrasena(
+    id_usuario: UUID, usuario: UsuarioActual, repo: RepoUsuarios, response: Response
+) -> ContrasenaTemporal:
+    temporal = administracion.restablecer_contrasena(repo, usuario, id_usuario)
+    _sin_cache(response)
+    return ContrasenaTemporal(temporary_password=temporal)

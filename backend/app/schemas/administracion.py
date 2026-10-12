@@ -60,6 +60,12 @@ class UsuarioCreado(UsuarioAdmin):
     temporary_password: str
 
 
+class ContrasenaTemporal(BaseModel):
+    """La contraseña temporal que se acaba de generar: es la única vez que se ve."""
+
+    temporary_password: str
+
+
 @dataclass(frozen=True)
 class FiltrosUsuarios:
     """Lo que se pide al listar usuarios."""
