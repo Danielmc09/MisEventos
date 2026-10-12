@@ -23,7 +23,8 @@ async def sin_caracter_nulo(request: Request) -> None:
     """Dependencia de toda la app: rechaza el carácter nulo en la query y en los formularios,
     que no pasan por un esquema de entrada. Los cuerpos JSON los cubre EntradaBase."""
     lugares = [("query", request.query_params)]
-    if request.headers.get("content-type", "").startswith(FORMULARIOS):
+    # El tipo de contenido no distingue mayúsculas: Starlette parsea el formulario igual.
+    if request.headers.get("content-type", "").lower().startswith(FORMULARIOS):
         lugares.append(("body", await request.form()))
     errores = [
         {
