@@ -304,4 +304,44 @@ describe("acciones", () => {
     );
     expect(useSession.getState().user?.full_name).toBe("Administradora");
   });
+
+  test("el vacío ofrece Quitar filtros, que limpia búsqueda, rol y estado y vuelve a la página 1", async () => {
+    entrarComo(admin);
+    const pedidos: URLSearchParams[] = [];
+    server.use(
+      http.get(`${API}/admin/users`, ({ request }) => {
+        const p = new URL(request.url).searchParams;
+        pedidos.push(p);
+        const filtrado = p.has("q") || p.has("role") || p.has("is_active");
+        const items = filtrado ? [] : [adminFila, beto];
+        return responder("/admin/users", "get", 200, {
+          items,
+          total: items.length,
+          page: 1,
+          page_size: 20,
+          pages: 1,
+        });
+      }),
+    );
+    const user = userEvent.setup();
+    montarAdmin();
+    await screen.findByText("beto@mail.com");
+
+    await user.type(screen.getByRole("searchbox", { name: "Buscar" }), "zzz");
+    await user.selectOptions(screen.getByRole("combobox", { name: "Rol" }), "ORGANIZER");
+    await user.selectOptions(screen.getByRole("combobox", { name: "Estado" }), "false");
+    await screen.findByText("No hay usuarios que coincidan con la búsqueda");
+
+    await user.click(screen.getByRole("button", { name: "Quitar filtros" }));
+
+    await screen.findByText("beto@mail.com");
+    expect(screen.getByRole("searchbox", { name: "Buscar" })).toHaveValue("");
+    expect(screen.getByRole("combobox", { name: "Rol" })).toHaveValue("");
+    expect(screen.getByRole("combobox", { name: "Estado" })).toHaveValue("");
+    const ultimo = pedidos.at(-1);
+    expect(ultimo?.get("page")).toBe("1");
+    expect(ultimo?.has("q")).toBe(false);
+    expect(ultimo?.has("role")).toBe(false);
+    expect(ultimo?.has("is_active")).toBe(false);
+  });
 });
