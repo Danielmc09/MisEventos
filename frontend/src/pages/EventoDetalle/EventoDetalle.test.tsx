@@ -1158,6 +1158,11 @@ describe("panel de inscripciones del dueño", () => {
     abrir();
 
     await screen.findByRole("heading", { name: "PyCon Bogotá" });
+    expect(screen.queryByRole("tablist")).not.toBeInTheDocument();
+    expect(screen.queryByRole("tab", { name: "Inscripciones" })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Más acciones del evento" }),
+    ).not.toBeInTheDocument();
     expect(screen.queryByRole("region", { name: "Inscripciones" })).not.toBeInTheDocument();
     expect(pedidos.stats).toBe(0);
     expect(pedidos.inscritos).toHaveLength(0);
