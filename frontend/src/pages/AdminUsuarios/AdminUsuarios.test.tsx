@@ -154,6 +154,39 @@ describe("tabla", () => {
     expect(within(propia).getByRole("button", { name: /Editar nombre/ })).toBeInTheDocument();
   });
 
+  test("el rol de cada fila se nombra con aria-label, sin texto visible", async () => {
+    entrarComo(admin);
+    servirUsuarios();
+    montarAdmin();
+    const filaBeto = (await screen.findByText("beto@mail.com")).closest("tr") as HTMLElement;
+    expect(within(filaBeto).getByRole("combobox", { name: "Rol de Beto" })).toHaveAttribute(
+      "aria-label",
+      "Rol de Beto",
+    );
+    expect(within(filaBeto).queryByText("Rol de Beto")).not.toBeInTheDocument();
+  });
+
+  test("los botones de cada fila van uno al lado del otro, sin saltar de línea", async () => {
+    entrarComo(admin);
+    servirUsuarios();
+    montarAdmin();
+    const editar = await screen.findByRole("button", { name: "Editar nombre de Beto" });
+    const desactivar = screen.getByRole("button", { name: "Desactivar a Beto" });
+    expect(editar.parentElement).toBe(desactivar.parentElement);
+    expect(editar.parentElement).toHaveClass("flex");
+    expect(editar.parentElement).not.toHaveClass("flex-wrap");
+  });
+
+  test("Desactivar usa la variante de peligro y Reactivar no", async () => {
+    entrarComo(admin);
+    servirUsuarios([adminFila, beto, fila({ id: "u-2", full_name: "Cata", is_active: false })]);
+    montarAdmin();
+    expect(await screen.findByRole("button", { name: "Desactivar a Beto" })).toHaveClass(
+      "bg-error",
+    );
+    expect(screen.getByRole("button", { name: "Reactivar a Cata" })).not.toHaveClass("bg-error");
+  });
+
   test("el buscador espera 300 ms y manda q; los filtros mandan role e is_active", async () => {
     entrarComo(admin);
     const pedidos = servirUsuarios();
@@ -170,6 +203,90 @@ describe("tabla", () => {
     await waitFor(() => expect(pedidos.at(-1)?.get("role")).toBe("ORGANIZER"));
     await user.selectOptions(screen.getByRole("combobox", { name: "Estado" }), "false");
     await waitFor(() => expect(pedidos.at(-1)?.get("is_active")).toBe("false"));
+  });
+});
+
+describe("pestañas", () => {
+  const todos = [
+    adminFila,
+    fila({ id: "o-1", email: "olga@mail.com", full_name: "Olga", role: "ORGANIZER" }),
+    beto,
+  ];
+
+  function servirPorRol() {
+    const pedidos: URLSearchParams[] = [];
+    server.use(
+      http.get(`${API}/admin/users`, ({ request }) => {
+        const p = new URL(request.url).searchParams;
+        pedidos.push(p);
+        const roles = p.getAll("role");
+        const items = roles.length ? todos.filter((u) => roles.includes(u.role)) : todos;
+        return responder("/admin/users", "get", 200, {
+          items,
+          total: items.length,
+          page: 1,
+          page_size: 20,
+          pages: 1,
+        });
+      }),
+    );
+    return pedidos;
+  }
+
+  test("cada pestaña pide su grupo de roles y muestra solo ese grupo", async () => {
+    entrarComo(admin);
+    const pedidos = servirPorRol();
+    const user = userEvent.setup();
+    montarAdmin();
+    await screen.findByText("beto@mail.com");
+    expect(screen.getByRole("tab", { name: "Todos" })).toHaveAttribute("aria-selected", "true");
+    expect(pedidos.at(-1)?.has("role")).toBe(false);
+
+    await user.click(screen.getByRole("tab", { name: "Equipo" }));
+    await waitFor(() => expect(screen.queryByText("beto@mail.com")).not.toBeInTheDocument());
+    expect(pedidos.at(-1)?.getAll("role")).toEqual(["ADMIN", "ORGANIZER"]);
+    expect(screen.getByText("olga@mail.com")).toBeInTheDocument();
+    expect(screen.getByText("admin@mail.com")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("tab", { name: "Asistentes" }));
+    await screen.findByText("beto@mail.com");
+    expect(pedidos.at(-1)?.getAll("role")).toEqual(["ATTENDEE"]);
+    expect(screen.queryByText("olga@mail.com")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("tab", { name: "Todos" }));
+    await screen.findByText("olga@mail.com");
+    expect(pedidos.at(-1)?.has("role")).toBe(false);
+  });
+
+  test("el select de rol filtra dentro de la pestaña y se limpia al cambiar de pestaña", async () => {
+    entrarComo(admin);
+    const pedidos = servirPorRol();
+    const user = userEvent.setup();
+    montarAdmin();
+    await screen.findByText("beto@mail.com");
+
+    await user.click(screen.getByRole("tab", { name: "Equipo" }));
+    const rol = await screen.findByRole("combobox", { name: "Rol" });
+    expect(within(rol).queryByRole("option", { name: "Asistente" })).not.toBeInTheDocument();
+    await user.selectOptions(rol, "ORGANIZER");
+    await waitFor(() => expect(pedidos.at(-1)?.getAll("role")).toEqual(["ORGANIZER"]));
+
+    await user.click(screen.getByRole("tab", { name: "Todos" }));
+    await waitFor(() => expect(pedidos.at(-1)?.has("role")).toBe(false));
+    expect(screen.getByRole("combobox", { name: "Rol" })).toHaveValue("");
+  });
+
+  test("en Asistentes no hay select de rol, porque el grupo ya es un solo rol", async () => {
+    entrarComo(admin);
+    servirPorRol();
+    const user = userEvent.setup();
+    montarAdmin();
+    await screen.findByText("beto@mail.com");
+
+    await user.click(screen.getByRole("tab", { name: "Asistentes" }));
+
+    await screen.findByText("beto@mail.com");
+    expect(screen.queryByRole("combobox", { name: "Rol" })).not.toBeInTheDocument();
   });
 });
 
@@ -207,13 +324,14 @@ describe("acciones", () => {
 
     await user.click(await screen.findByRole("button", { name: "Desactivar a Beto" }));
     const dialogo = screen.getByRole("alertdialog");
-    expect(dialogo).toHaveTextContent("Se va a cerrar su sesión");
+    expect(dialogo).toHaveTextContent("¿Desactivar a Beto?");
+    expect(dialogo).toHaveTextContent("No va a poder iniciar sesión.");
     await user.click(within(dialogo).getByRole("button", { name: "Volver" }));
     expect(cuerpos).toHaveLength(0);
 
     await user.click(screen.getByRole("button", { name: "Desactivar a Beto" }));
     await user.click(
-      within(screen.getByRole("alertdialog")).getByRole("button", { name: "Desactivar" }),
+      within(screen.getByRole("alertdialog")).getByRole("button", { name: "Sí, desactivar" }),
     );
     expect(await screen.findByText("Desactivaste a Beto")).toBeInTheDocument();
     expect(cuerpos).toEqual([{ is_active: false }]);
@@ -228,7 +346,7 @@ describe("acciones", () => {
 
     await user.click(await screen.findByRole("button", { name: "Desactivar a Beto" }));
     await user.click(
-      within(screen.getByRole("alertdialog")).getByRole("button", { name: "Desactivar" }),
+      within(screen.getByRole("alertdialog")).getByRole("button", { name: "Sí, desactivar" }),
     );
     expect(
       await screen.findByText("Tiene que quedar al menos un administrador activo"),
