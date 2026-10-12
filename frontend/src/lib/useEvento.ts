@@ -1,11 +1,14 @@
 import { useEffect, useState } from "react";
 import { api } from "../api/client";
 import { ApiError } from "../api/errors";
+import type { components } from "../api/schema";
 import type { Evento } from "../stores/eventos";
+
+export type EventoDetalle = components["schemas"]["EventoDetalle"];
 
 interface Carga {
   id: string;
-  evento?: Evento;
+  evento?: EventoDetalle;
   error?: ApiError;
 }
 
@@ -14,7 +17,7 @@ export function useEvento(id: string | undefined) {
   const [carga, setCarga] = useState<Carga | null>(null);
   useEffect(() => {
     let vigente = true;
-    api<Evento>(`/events/${id}`).then(
+    api<EventoDetalle>(`/events/${id}`).then(
       (evento) => vigente && setCarga({ id: id!, evento }),
       (e) =>
         vigente &&
@@ -34,11 +37,26 @@ export function useEvento(id: string | undefined) {
       vigente = false;
     };
   }, [id]);
+  /** Vuelve a pedir el evento (por ejemplo, tras un 409): el estado del servidor manda. */
+  async function refrescar() {
+    try {
+      const evento = await api<EventoDetalle>(`/events/${id}`);
+      setCarga({ id: id!, evento });
+    } catch {
+      // Se conserva lo que ya se mostraba.
+    }
+  }
   const actual = carga?.id === id ? carga : null;
   return {
     cargando: !actual,
     evento: actual?.evento,
     error: actual?.error,
-    setEvento: (evento: Evento) => setCarga({ id: evento.id, evento }),
+    refrescar,
+    /** Las acciones del dueño devuelven el evento sin `is_registered`: se conserva el que ya había. */
+    setEvento: (nuevo: Evento | EventoDetalle) =>
+      setCarga((previo) => ({
+        id: nuevo.id,
+        evento: { is_registered: false, ...previo?.evento, ...nuevo },
+      })),
   };
 }

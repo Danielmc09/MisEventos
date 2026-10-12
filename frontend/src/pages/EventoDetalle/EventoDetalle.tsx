@@ -9,6 +9,7 @@ import { Spinner } from "../../components/ui/Spinner";
 import { formatearFecha } from "../../lib/fechas";
 import { SeccionSesiones } from "../../components/SeccionSesiones";
 import { Toast, type ToastProps } from "../../components/ui/Toast";
+import { AccionInscripcion } from "../../components/AccionInscripcion";
 import { useEvento } from "../../lib/useEvento";
 import { useSesiones } from "../../lib/useSesiones";
 import { useEventos, type Evento } from "../../stores/eventos";
@@ -38,7 +39,7 @@ const CONFIRMACION = {
 
 export default function EventoDetalle() {
   const { id } = useParams();
-  const { cargando, evento, error, setEvento } = useEvento(id);
+  const { cargando, evento, error, setEvento, refrescar } = useEvento(id);
   const sesiones = useSesiones(id);
   const navigate = useNavigate();
   const user = useSession((s) => s.user);
@@ -94,6 +95,14 @@ export default function EventoDetalle() {
           {evento.location && <p className="text-gray-600">{evento.location}</p>}
           {evento.description && <p className="whitespace-pre-line">{evento.description}</p>}
           <p className="font-medium">Quedan {evento.available_spots} cupos</p>
+          <div className="flex flex-wrap items-center gap-3">
+            <AccionInscripcion
+              evento={evento}
+              onEvento={setEvento}
+              onRefrescar={refrescar}
+              onAviso={setAviso}
+            />
+          </div>
           {puede && (
             <div className="mt-2 flex flex-wrap gap-3">
               {evento.status !== "CANCELLED" && !evento.is_finished && (

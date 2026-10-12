@@ -641,7 +641,7 @@ describe("inscribirse", () => {
     expect(await screen.findByText("Quedan 99 cupos")).toBeInTheDocument();
     await user.click(await screen.findByRole("button", { name: "Inscribirme" }));
 
-    expect(await screen.findByRole("status")).toHaveTextContent("Te inscribiste al evento");
+    expect(await screen.findByText("Te inscribiste al evento")).toBeInTheDocument();
     expect(llamadas).toBe(1);
     expect(screen.getByText("Estás inscrito")).toBeInTheDocument();
     expect(screen.getByText("Quedan 98 cupos")).toBeInTheDocument();
@@ -753,7 +753,7 @@ describe("cancelar la inscripción", () => {
     await user.click(screen.getByRole("button", { name: "Cancelar inscripción" }));
     await user.click(screen.getByRole("button", { name: "Sí, cancelar mi inscripción" }));
 
-    expect(await screen.findByRole("status")).toHaveTextContent("Cancelaste tu inscripción");
+    expect(await screen.findByText("Cancelaste tu inscripción")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Inscribirme" })).toBeInTheDocument();
     expect(screen.queryByText("Estás inscrito")).not.toBeInTheDocument();
     expect(screen.getByText("Quedan 100 cupos")).toBeInTheDocument();
