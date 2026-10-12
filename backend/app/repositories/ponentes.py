@@ -33,6 +33,13 @@ class RepositorioPonentes:
         consulta = select(Speaker).where(Speaker.id == id_ponente).with_for_update()
         return self.session.exec(consulta).first()
 
+    def por_email_y_creador(self, email: str, creador: UUID) -> Speaker | None:
+        """Sin distinguir mayúsculas: el seed lo usa para no duplicar sus ponentes."""
+        consulta = select(Speaker).where(
+            func.lower(Speaker.email) == email.strip().lower(), Speaker.created_by == creador
+        )
+        return self.session.exec(consulta).first()
+
     def tiene_sesiones(self, id_ponente: UUID) -> bool:
         consulta = select(SessionSpeaker.session_id).where(SessionSpeaker.speaker_id == id_ponente)
         return self.session.exec(consulta.limit(1)).first() is not None
