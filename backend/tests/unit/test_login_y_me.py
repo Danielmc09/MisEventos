@@ -9,8 +9,9 @@ import pytest
 
 from app.core.contrasenas import hashear
 from app.core.excepciones import Unauthorized
-from app.core.permisos import Rol
+from app.core.permisos import PERMISOS_POR_ROL, Permiso, Rol
 from app.models.usuario import User
+from app.schemas.auth import UsuarioSalida
 from app.services import autenticacion
 from tests.unit.dobles import RepositorioUsuariosFalso
 
@@ -147,6 +148,7 @@ def test_me_con_un_token_valido_devuelve_el_usuario(repo, usuario, cliente, sett
         "is_active": True,
         "must_change_password": False,
         "created_at": "2026-10-11T15:30:00Z",
+        "permisos": [],
     }
 
 
@@ -176,3 +178,45 @@ def test_me_de_un_usuario_desactivado_responde_401(repo, usuario, cliente, setti
 
     assert respuesta.status_code == 401
     assert respuesta.headers["www-authenticate"] == "Bearer"
+
+
+# --- Permisos en /auth/me ------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("rol", list(Rol))
+def test_me_trae_exactamente_los_permisos_del_rol_ordenados(con_repo, cliente, settings, rol):
+    usuario = nuevo_usuario(role=rol)
+    con_repo(RepositorioUsuariosFalso(usuario))
+
+    respuesta = me(cliente, firmar(str(usuario.id), settings.jwt_secret))
+
+    assert respuesta.status_code == 200
+    assert respuesta.json().get("permisos") == sorted(PERMISOS_POR_ROL[rol])
+
+
+def test_me_refleja_un_permiso_que_se_agrega_al_mapa(con_repo, cliente, settings, monkeypatch):
+    usuario = nuevo_usuario(role=Rol.ATTENDEE)
+    con_repo(RepositorioUsuariosFalso(usuario))
+    monkeypatch.setitem(
+        PERMISOS_POR_ROL, Rol.ATTENDEE, frozenset({Permiso.AUDITORIA_VER, Permiso.EVENTO_CREAR})
+    )
+
+    respuesta = me(cliente, firmar(str(usuario.id), settings.jwt_secret))
+
+    assert respuesta.json().get("permisos") == ["auditoria:ver", "evento:crear"]
+
+
+def test_el_openapi_tipa_los_permisos_de_me_como_lista_del_enum(cliente):
+    esquema = cliente.get("/openapi.json").json()
+    ref = esquema["paths"]["/auth/me"]["get"]["responses"]["200"]["content"]["application/json"][
+        "schema"
+    ]["$ref"]
+    salida = esquema["components"]["schemas"][ref.rsplit("/", 1)[-1]]
+
+    assert "permisos" in salida["properties"]
+    permisos = salida["properties"]["permisos"]
+    assert permisos["type"] == "array"
+    enum = esquema["components"]["schemas"][permisos["items"]["$ref"].rsplit("/", 1)[-1]]
+    assert sorted(enum["enum"]) == sorted(p.value for p in Permiso)
+    assert "permisos" in salida["required"]
+    assert "permisos" not in UsuarioSalida.model_fields
