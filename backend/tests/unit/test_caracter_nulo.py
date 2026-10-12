@@ -7,11 +7,13 @@ import secrets
 from uuid import uuid4
 
 import pytest
+from pydantic import BaseModel, ValidationError
 
 from app.api.dependencias import repositorio_eventos, repositorio_usuarios
 from app.core.permisos import Rol
 from app.core.tokens import crear_access_token
 from app.models.usuario import User
+from app.schemas.comunes import EntradaBase
 from tests.campos_de_texto import CampoDeTexto, campos_de_texto
 from tests.unit.dobles import RepositorioEventosFalso, RepositorioUsuariosFalso
 
@@ -63,3 +65,48 @@ def test_ningun_campo_de_texto_acepta_el_caracter_nulo(app, cliente, token):
 
     assert all(revisados.values()), f"faltó recorrer algún tipo de campo: {revisados}"
     assert fallas == []
+
+
+# --- El esquema base, sin HTTP --------------------------------------------------------------
+
+
+class Sub(BaseModel):  # un submodelo cualquiera, que no hereda de la base
+    nota: str
+
+
+class ConAnidados(EntradaBase):
+    etiquetas: list[str] = []
+    extras: dict[str, str] = {}
+    sub: Sub | None = None
+    pares: list[tuple[str, int]] = []
+
+
+@pytest.mark.parametrize(
+    ("datos", "campo"),
+    [
+        ({"etiquetas": ["python", "py\x00con"]}, "etiquetas"),
+        ({"extras": {"ciudad": "Bogo\x00tá"}}, "extras"),
+        ({"extras": {"ciu\x00dad": "Bogotá"}}, "extras"),
+        ({"sub": {"nota": "\x00"}}, "sub"),
+        ({"pares": [["a\x00", 1]]}, "pares"),
+    ],
+    ids=["lista", "valor-de-dict", "clave-de-dict", "submodelo", "tupla-en-lista"],
+)
+def test_la_base_rechaza_el_nulo_tambien_en_textos_anidados(datos, campo):
+    with pytest.raises(ValidationError) as error:
+        ConAnidados.model_validate(datos)
+
+    assert [(e["loc"][0], e["msg"]) for e in error.value.errors()] == [
+        (campo, f"Value error, {MENSAJE}")
+    ]
+
+
+def test_la_base_deja_pasar_los_anidados_sin_nulo():
+    datos = {
+        "etiquetas": ["python"],
+        "extras": {"ciudad": "Bogotá"},
+        "sub": {"nota": "ok"},
+        "pares": [["a", 1]],
+    }
+
+    assert ConAnidados.model_validate(datos).model_dump() == datos | {"pares": [("a", 1)]}
