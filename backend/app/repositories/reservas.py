@@ -1,7 +1,7 @@
 from datetime import datetime
 from uuid import UUID
 
-from sqlmodel import Session, col, func, select
+from sqlmodel import Session, col, func, select, update
 
 from app.models.reserva import EstadoReserva, SessionRegistration
 from app.models.sesion import Session as Sesion
@@ -49,6 +49,24 @@ class RepositorioReservas:
             .order_by(col(Sesion.start_at), col(Sesion.id))
         )
         return list(self.session.exec(consulta).all())
+
+    def cancelar_del_evento(self, id_usuario: UUID, id_evento: UUID, cuando: datetime) -> None:
+        """Cancela, en una sola sentencia, las reservas activas del usuario en las sesiones del
+        evento. Las de otros eventos no se tocan."""
+        del_evento = select(Sesion.id).where(Sesion.event_id == id_evento)
+        sentencia = (
+            update(SessionRegistration)
+            .where(
+                col(SessionRegistration.user_id) == id_usuario,
+                col(SessionRegistration.status) == EstadoReserva.ACTIVE,
+                col(SessionRegistration.session_id).in_(del_evento),
+            )
+            .values(status=EstadoReserva.CANCELLED, cancelled_at=cuando)
+            # Si alguna de esas reservas está cargada en la sesión, se actualiza con lo que
+            # devuelve la base: el subselect no se puede evaluar en Python.
+            .execution_options(synchronize_session="fetch")
+        )
+        self.session.exec(sentencia)
 
     def crear(self, reserva: SessionRegistration) -> SessionRegistration:
         return self.guardar(reserva)
