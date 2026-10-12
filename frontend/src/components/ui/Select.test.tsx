@@ -27,3 +27,14 @@ test("con error lo marca como inválido y lo asocia al campo", () => {
   expect(campo).toHaveAttribute("aria-invalid", "true");
   expect(campo).toHaveAccessibleDescription("Elegí un estado");
 });
+
+test("sin label visible se nombra con aria-label", () => {
+  render(
+    <Select aria-label="Rol de Ana">
+      <option value="">Todos</option>
+    </Select>,
+  );
+
+  expect(screen.getByRole("combobox", { name: "Rol de Ana" })).toBeInTheDocument();
+  expect(screen.queryByText("Rol de Ana")).not.toBeInTheDocument();
+});
