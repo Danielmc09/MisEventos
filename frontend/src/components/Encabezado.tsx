@@ -23,7 +23,7 @@ export function Encabezado() {
               Crear evento
             </Link>
             <Link to="/perfil" className={`${enlace} max-w-full truncate`}>
-              {user.email}
+              {user.full_name || user.email}
             </Link>
             <button type="button" onClick={cerrarSesion} className={enlace}>
               Cerrar sesión

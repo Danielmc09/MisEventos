@@ -44,12 +44,33 @@ test("sin sesión ofrece Iniciar sesión y Registrarse", async () => {
   expect(nav.queryByRole("button", { name: "Cerrar sesión" })).not.toBeInTheDocument();
 });
 
-test("con sesión muestra el email como enlace a /perfil y Cerrar sesión", async () => {
+test("con sesión muestra el nombre y no el email", () => {
+  useSession
+    .getState()
+    .iniciarSesion({ ...usuario, full_name: "Oscar Organizador" }, "token-abc", 3600);
+  montar("/");
+
+  const nav = within(encabezado());
+  expect(nav.getByRole("link", { name: "Oscar Organizador" })).toHaveAttribute("href", "/perfil");
+  expect(nav.queryByText(usuario.email)).not.toBeInTheDocument();
+});
+
+test.each([null, ""])("sin nombre (%j) muestra el email", (nombre) => {
+  useSession.getState().iniciarSesion({ ...usuario, full_name: nombre }, "token-abc", 3600);
+  montar("/");
+
+  expect(within(encabezado()).getByRole("link", { name: usuario.email })).toHaveAttribute(
+    "href",
+    "/perfil",
+  );
+});
+
+test("con sesión muestra el enlace a /perfil y Cerrar sesión", async () => {
   useSession.getState().iniciarSesion(usuario, "token-abc", 3600);
   montar("/");
 
   const nav = within(encabezado());
-  expect(nav.getByRole("link", { name: "ana@mail.com" })).toHaveAttribute("href", "/perfil");
+  expect(nav.getByRole("link", { name: "Ana" })).toHaveAttribute("href", "/perfil");
   expect(nav.getByRole("button", { name: "Cerrar sesión" })).toBeInTheDocument();
   expect(nav.queryByRole("link", { name: "Iniciar sesión" })).not.toBeInTheDocument();
 });
