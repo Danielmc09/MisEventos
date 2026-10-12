@@ -1,9 +1,10 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http } from "msw";
 import { setupServer } from "msw/node";
 import { MemoryRouter, useLocation } from "react-router-dom";
 import App from "./App";
+import { api } from "./api/client";
 import type { components } from "./api/schema";
 import { useSession } from "./stores/session";
 import { API, usuario } from "./test/helpers";
@@ -102,4 +103,28 @@ test("con la contraseña temporal pendiente, el menú de la cuenta y Cerrar sesi
   expect(await screen.findByRole("heading", { name: "Iniciar sesión" })).toBeInTheDocument();
   expect(ubicacion()).toHaveTextContent(/^\/login$/);
   expect(useSession.getState().accessToken).toBeNull();
+});
+
+test("un 403 password-change-required de la API lleva a /cambiar-contrasena", async () => {
+  server.use(
+    http.get(`${API}/auth/me`, () => responder("/auth/me", "get", 200, usuario)),
+    http.get(`${API}/me/registrations`, () =>
+      responder("/me/registrations", "get", 403, {
+        type: "password-change-required",
+        title: "Tenés que cambiar tu contraseña temporal",
+        status: 403,
+        trace_id: "t-1",
+      }),
+    ),
+  );
+  useSession.getState().iniciarSesion(usuario, "token-abc", 3600);
+  montar("/perfil");
+  await screen.findByRole("heading", { name: "Perfil" });
+
+  await api("/me/registrations").catch(() => undefined);
+
+  await waitFor(() => expect(ubicacion()).toHaveTextContent(/^\/cambiar-contrasena$/));
+  await screen.findByRole("heading", { name: "Cambiar contraseña" });
+  expect(avisoDeCambio()).toBeDefined();
+  expect(useSession.getState().accessToken).toBe("token-abc");
 });
