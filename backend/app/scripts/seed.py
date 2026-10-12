@@ -126,7 +126,7 @@ EVENTOS_DEMO = [
         "Universidad Nacional, Bogotá",
         10,
         4,
-        10,
+        3,
         EstadoEvento.PUBLISHED,
     ),
     EventoDemo(
@@ -360,17 +360,10 @@ INSCRIPCIONES_DEL_ASISTENTE = [
     ("Jornada de seguridad web", EstadoInscripcion.CANCELLED),
 ]
 
-# Asistentes que solo existen para ocupar el casi lleno: nueve, sobre una capacidad de diez.
+# Asistentes que solo existen para ocupar el casi lleno: dos, sobre una capacidad de tres.
 INSCRITOS_DEMO = [
     ("Camila Torres", "camila.torres@asistentes.example"),
     ("Julián Herrera", "julian.herrera@asistentes.example"),
-    ("Valentina Ríos", "valentina.rios@asistentes.example"),
-    ("Santiago Castro", "santiago.castro@asistentes.example"),
-    ("Mariana López", "mariana.lopez@asistentes.example"),
-    ("Andrés Moreno", "andres.moreno@asistentes.example"),
-    ("Daniela Vargas", "daniela.vargas@asistentes.example"),
-    ("Felipe Ramírez", "felipe.ramirez@asistentes.example"),
-    ("Isabela Cárdenas", "isabela.cardenas@asistentes.example"),
 ]
 
 
