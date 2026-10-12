@@ -97,6 +97,8 @@ def assert_conflicto(respuesta, tipo: str) -> None:
     cuerpo = respuesta.json()
     assert cuerpo["type"] == tipo
     assert cuerpo["title"]
+    assert cuerpo.get("detail"), "el 409 explica en el detalle qué pasó"
+    assert cuerpo["detail"] != cuerpo["title"]
     assert cuerpo["trace_id"]
 
 
