@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { api } from "../api/client";
 import type { components } from "../api/schema";
+import { useSession } from "./session";
 
 export type Evento = components["schemas"]["EventoSalida"];
 export type PaginaEventos = components["schemas"]["Pagina_EventoSalida_"];
@@ -26,3 +27,10 @@ export const useEventos = create<EventosState>()((set, get) => ({
   },
   invalidar: () => set({ list: {} }),
 }));
+
+// El listado depende de quién consulta (el admin y el organizador ven borradores). Cualquier cambio de
+// identidad (login, logout, cierre por 401 o vencimiento) pasa por el store de sesión y vacía la caché.
+// Renovar el token del mismo usuario no cambia el id, así que no la vacía.
+useSession.subscribe((estado, previo) => {
+  if (estado.user?.id !== previo.user?.id) useEventos.getState().invalidar();
+});
