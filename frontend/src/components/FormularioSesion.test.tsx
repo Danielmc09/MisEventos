@@ -220,7 +220,9 @@ describe("errores de la API", () => {
     await completar(user);
     await guardar(user);
 
-    expect(await screen.findByRole("alert")).toHaveTextContent("Los datos enviados no son válidos");
+    const alerta = await screen.findByRole("alert");
+    expect(alerta).toHaveTextContent("Los datos enviados no son válidos");
+    expect(alerta).toHaveTextContent("La descripción es demasiado larga");
     expect(screen.getByRole("button", { name: "Crear sesión" })).toBeEnabled();
   });
 
