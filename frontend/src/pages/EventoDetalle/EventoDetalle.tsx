@@ -2,11 +2,10 @@ import { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { api } from "../../api/client";
 import { ApiError } from "../../api/errors";
-import { ChipDisponibilidad } from "../../components/ChipDisponibilidad";
+import { ChipCupos } from "../../components/ChipCupos";
 import { InsigniaEstado } from "../../components/InsigniaEstado";
 import { AlertaError } from "../../components/ui/AlertaError";
 import { MenuAcciones } from "../../components/ui/MenuAcciones";
-import { Chip } from "../../components/ui/Chip";
 import { DialogoConfirmacion } from "../../components/ui/DialogoConfirmacion";
 import { EnlaceBoton } from "../../components/ui/EnlaceBoton";
 import { Pagina, TituloPagina } from "../../components/ui/Pagina";
@@ -18,7 +17,6 @@ import { SeccionSesiones } from "../../components/SeccionSesiones";
 import { useAvisos } from "../../components/ui/Avisos";
 import { PanelInscripciones } from "../../components/PanelInscripciones";
 import { AccionInscripcion } from "../../components/AccionInscripcion";
-import { quedan } from "../../lib/plural";
 import { useEvento } from "../../lib/useEvento";
 import { useSesiones } from "../../lib/useSesiones";
 import { useEventos, type Evento } from "../../stores/eventos";
@@ -112,9 +110,8 @@ export default function EventoDetalle() {
             </div>
             <div className="flex flex-wrap items-center gap-3">
               {evento.status === "PUBLISHED" && !evento.is_finished && (
-                <ChipDisponibilidad capacidad={evento.capacity} libres={evento.available_spots} />
+                <ChipCupos capacidad={evento.capacity} libres={evento.available_spots} />
               )}
-              <Chip tono="acento">{quedan(evento.available_spots, "cupo", "cupos")}</Chip>
               <AccionInscripcion
                 evento={evento}
                 onEvento={setEvento}

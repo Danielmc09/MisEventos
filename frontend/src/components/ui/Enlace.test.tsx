@@ -22,3 +22,17 @@ test("BotonEnlace es un botón para una acción, no un enlace", async () => {
   expect(onClick).toHaveBeenCalledTimes(1);
   expect(screen.queryByRole("link")).not.toBeInTheDocument();
 });
+
+test("la variante tarjeta extiende su área a toda la tarjeta, sin subrayado", () => {
+  render(
+    <MemoryRouter>
+      <Enlace to="/eventos/1" variante="tarjeta">
+        PyCon
+      </Enlace>
+    </MemoryRouter>,
+  );
+
+  const enlace = screen.getByRole("link", { name: "PyCon" });
+  expect(enlace).toHaveClass("after:absolute", "after:inset-0");
+  expect(enlace).not.toHaveClass("underline");
+});
