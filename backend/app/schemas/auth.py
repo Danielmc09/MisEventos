@@ -5,7 +5,7 @@ from email_validator import EmailNotValidError, validate_email
 from pydantic import AfterValidator, BaseModel, ConfigDict, Field
 
 from app.core.permisos import Rol
-from app.schemas.comunes import FechaUTC
+from app.schemas.comunes import EntradaBase, FechaUTC
 
 
 def _email_valido(valor: str) -> str:
@@ -19,7 +19,7 @@ def _email_valido(valor: str) -> str:
 Email = Annotated[str, AfterValidator(_email_valido)]
 
 
-class RegistroEntrada(BaseModel):
+class RegistroEntrada(EntradaBase):
     # El rol (y cualquier otro campo) no se acepta: el registro público siempre crea ATTENDEE.
     model_config = ConfigDict(extra="forbid")
 
@@ -28,7 +28,7 @@ class RegistroEntrada(BaseModel):
     full_name: str | None = Field(default=None, max_length=120)
 
 
-class CambioContrasenaEntrada(BaseModel):
+class CambioContrasenaEntrada(EntradaBase):
     model_config = ConfigDict(extra="forbid")
 
     current_password: str = Field(min_length=8, max_length=128)

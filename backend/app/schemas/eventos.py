@@ -15,18 +15,16 @@ from pydantic import (
 )
 
 from app.models.evento import EstadoEvento
-from app.schemas.comunes import FechaUTC, SinNul, Texto
+from app.schemas.comunes import EntradaBase, FechaUTC
 
 
-class EventoEntrada(BaseModel):
+class EventoEntrada(EntradaBase):
     # status y organizer_id (y cualquier otro campo) no se aceptan: los decide el servidor.
     model_config = ConfigDict(extra="forbid")
 
-    name: Annotated[
-        str, StringConstraints(strip_whitespace=True, min_length=3, max_length=150), SinNul
-    ]
-    description: Texto | None = Field(default=None, max_length=5000)
-    location: Texto | None = Field(default=None, max_length=200)
+    name: Annotated[str, StringConstraints(strip_whitespace=True, min_length=3, max_length=150)]
+    description: str | None = Field(default=None, max_length=5000)
+    location: str | None = Field(default=None, max_length=200)
     start_at: FechaUTC
     end_at: FechaUTC
     capacity: int = Field(ge=1, le=100_000)
@@ -40,19 +38,17 @@ class EventoEntrada(BaseModel):
         return end_at
 
 
-class EventoEdicion(BaseModel):
+class EventoEdicion(EntradaBase):
     """Solo lo que cambia. Las fechas se comparan con lo guardado en el servicio."""
 
     model_config = ConfigDict(extra="forbid")
 
     name: (
-        Annotated[
-            str, StringConstraints(strip_whitespace=True, min_length=3, max_length=150), SinNul
-        ]
+        Annotated[str, StringConstraints(strip_whitespace=True, min_length=3, max_length=150)]
         | None
     ) = None
-    description: Texto | None = Field(default=None, max_length=5000)
-    location: Texto | None = Field(default=None, max_length=200)
+    description: str | None = Field(default=None, max_length=5000)
+    location: str | None = Field(default=None, max_length=200)
     start_at: FechaUTC | None = None
     end_at: FechaUTC | None = None
     capacity: int | None = Field(default=None, ge=1, le=100_000)
