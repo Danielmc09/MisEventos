@@ -151,6 +151,29 @@ describe.each([
   });
 });
 
+test("Cerrar sesión avisa a la API con el token de la sesión y deja la sesión vacía", async () => {
+  const autorizaciones: (string | null)[] = [];
+  server.use(
+    http.post(`${API}/auth/logout`, ({ request }) => {
+      autorizaciones.push(request.headers.get("Authorization"));
+      return new Response(null, { status: 204 });
+    }),
+    http.get(`${API}/auth/me`, () => responder("/auth/me", "get", 200, usuario)),
+  );
+  useSession.getState().iniciarSesion(usuario, "token-abc", 3600);
+  const user = userEvent.setup();
+  montar("/perfil");
+  await screen.findByRole("heading", { name: "Perfil" });
+
+  const nav = await abrirCuenta(user);
+  await user.click(nav.getByRole("menuitem", { name: "Cerrar sesión" }));
+
+  expect(await screen.findByRole("heading", { name: "Iniciar sesión" })).toBeInTheDocument();
+  expect(autorizaciones).toEqual(["Bearer token-abc"]);
+  expect(useSession.getState().accessToken).toBeNull();
+  expect(useSession.getState().user).toBeNull();
+});
+
 test("/cambiar-contrasena es una ruta protegida", async () => {
   montar("/cambiar-contrasena");
 
