@@ -2,7 +2,7 @@ import { useState, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../api/client";
 import { errorDeFormulario } from "../lib/errores";
-import { aISOBogota } from "../lib/fechas";
+import { aInputBogota, aISOBogota } from "../lib/fechas";
 import { useEventos, type Evento } from "../stores/eventos";
 import { Button } from "./ui/Button";
 import { Input } from "./ui/Input";
@@ -28,10 +28,29 @@ function validar(v: Valores): Record<string, string> {
   return errores;
 }
 
-export function FormularioEvento() {
+const desdeEvento = (e: Evento): Valores => ({
+  name: e.name,
+  description: e.description ?? "",
+  location: e.location ?? "",
+  start_at: aInputBogota(e.start_at),
+  end_at: aInputBogota(e.end_at),
+  capacity: String(e.capacity),
+});
+
+/** Los valores del formulario, como los espera la API. */
+const aCuerpo = (v: Valores) => ({
+  name: v.name.trim(),
+  description: v.description || null,
+  location: v.location || null,
+  start_at: aISOBogota(v.start_at),
+  end_at: aISOBogota(v.end_at),
+  capacity: Number(v.capacity),
+});
+
+export function FormularioEvento({ evento }: { evento?: Evento }) {
   const navigate = useNavigate();
   const invalidar = useEventos((s) => s.invalidar);
-  const [valores, setValores] = useState<Valores>(VACIO);
+  const [valores, setValores] = useState<Valores>(evento ? desdeEvento(evento) : VACIO);
   const [errores, setErrores] = useState<Record<string, string>>({});
   const [general, setGeneral] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
@@ -52,19 +71,30 @@ export function FormularioEvento() {
     setGeneral(null);
     setEnviando(true);
     try {
-      const creado = await api<Evento>("/events", {
-        method: "POST",
-        body: JSON.stringify({
-          name: valores.name.trim(),
-          description: valores.description || null,
-          location: valores.location || null,
-          start_at: aISOBogota(valores.start_at),
-          end_at: aISOBogota(valores.end_at),
-          capacity: Number(valores.capacity),
-        }),
-      });
+      let id = evento?.id;
+      if (!evento) {
+        const creado = await api<Evento>("/events", {
+          method: "POST",
+          body: JSON.stringify(aCuerpo(valores)),
+        });
+        id = creado.id;
+      } else {
+        // PATCH: solo lo que cambió.
+        const antes = desdeEvento(evento);
+        const nuevo = aCuerpo(valores);
+        const cambios = Object.fromEntries(
+          (Object.keys(antes) as (keyof Valores)[])
+            .filter((k) => antes[k] !== valores[k])
+            .map((k) => [k, nuevo[k]]),
+        );
+        if (Object.keys(cambios).length)
+          await api<Evento>(`/events/${evento.id}`, {
+            method: "PATCH",
+            body: JSON.stringify(cambios),
+          });
+      }
       invalidar();
-      navigate(`/eventos/${creado.id}`);
+      navigate(`/eventos/${id}`);
     } catch (e) {
       const { campos, general } = errorDeFormulario(e);
       setErrores(campos);
@@ -98,7 +128,7 @@ export function FormularioEvento() {
         </p>
       )}
       <Button type="submit" loading={enviando} className="self-start">
-        Crear evento
+        {evento ? "Guardar cambios" : "Crear evento"}
       </Button>
     </form>
   );
