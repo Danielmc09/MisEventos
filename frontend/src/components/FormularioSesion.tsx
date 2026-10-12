@@ -1,5 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { api } from "../api/client";
+import { ApiError } from "../api/errors";
+import { errorDeFormulario } from "../lib/errores";
 import { aInputBogota, aISOBogota } from "../lib/fechas";
 import type { Sesion } from "../lib/useSesiones";
 import type { Evento } from "../stores/eventos";
@@ -63,6 +65,7 @@ export function FormularioSesion({
   const [valores, setValores] = useState<Valores>(VACIO);
   const [ponentes, setPonentes] = useState<PonenteDeSesion[]>([]);
   const [errores, setErrores] = useState<Record<string, string>>({});
+  const [general, setGeneral] = useState<{ title: string; detail?: string } | null>(null);
   const [enviando, setEnviando] = useState(false);
 
   const campo = (name: keyof Valores) => ({
@@ -78,6 +81,7 @@ export function FormularioSesion({
     const invalidos = validar(valores, evento);
     setErrores(invalidos);
     if (Object.keys(invalidos).length) return;
+    setGeneral(null);
     setEnviando(true);
     try {
       const guardada = await api<Sesion>(`/events/${evento.id}/sessions`, {
@@ -85,6 +89,11 @@ export function FormularioSesion({
         body: JSON.stringify(aCuerpo(valores, ponentes)),
       });
       onGuardada(guardada);
+    } catch (e) {
+      const { campos, general } = errorDeFormulario(e);
+      setErrores(campos);
+      if (general)
+        setGeneral({ title: general, detail: e instanceof ApiError ? e.detail : undefined });
     } finally {
       setEnviando(false);
     }
@@ -98,6 +107,12 @@ export function FormularioSesion({
       <Input label="Fin" type="datetime-local" {...campo("end_at")} />
       <Input label="Capacidad" type="number" {...campo("capacity")} />
       <SelectorPonentes seleccionados={ponentes} onChange={setPonentes} />
+      {general && (
+        <p role="alert" className="text-red-700">
+          <strong>{general.title}</strong>
+          {general.detail && <span className="block">{general.detail}</span>}
+        </p>
+      )}
       <Button type="submit" loading={enviando}>
         {sesion ? "Guardar cambios" : "Crear sesión"}
       </Button>
