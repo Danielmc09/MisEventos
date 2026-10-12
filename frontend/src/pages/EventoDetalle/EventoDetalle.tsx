@@ -11,6 +11,7 @@ import { SeccionSesiones } from "../../components/SeccionSesiones";
 import { Toast, type ToastProps } from "../../components/ui/Toast";
 import { PanelInscripciones } from "../../components/PanelInscripciones";
 import { AccionInscripcion } from "../../components/AccionInscripcion";
+import { quedan } from "../../lib/plural";
 import { useEvento } from "../../lib/useEvento";
 import { useSesiones } from "../../lib/useSesiones";
 import { useEventos, type Evento } from "../../stores/eventos";
@@ -98,7 +99,7 @@ export default function EventoDetalle() {
           </p>
           {evento.location && <p className="text-gray-600">{evento.location}</p>}
           {evento.description && <p className="whitespace-pre-line">{evento.description}</p>}
-          <p className="font-medium">Quedan {evento.available_spots} cupos</p>
+          <p className="font-medium">{quedan(evento.available_spots, "cupo", "cupos")}</p>
           <div className="flex flex-wrap items-center gap-3">
             <AccionInscripcion
               evento={evento}

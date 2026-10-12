@@ -953,7 +953,7 @@ describe("panel de inscripciones del dueño", () => {
     await user.click(await screen.findByRole("button", { name: "Inscribirme" }));
 
     expect(await within(panel).findByRole("table")).toHaveTextContent("luisa@mail.com");
-    expect(within(panel).getByText("Inscritos").nextElementSibling).toHaveTextContent("1");
+    expect(within(panel).getByText("Inscrito").nextElementSibling).toHaveTextContent("1");
   });
 
   test("un organizador ajeno con evento:gestionar_todos también ve el panel", async () => {
@@ -1324,8 +1324,39 @@ describe("reservas de sesiones", () => {
     });
   });
 
+  test("con un solo lugar en una sesión dice Queda 1 lugar", async () => {
+    useSession.getState().iniciarSesion(usuario, "token", 3600);
+    servir(inscrito);
+    servirLista([{ ...conLugar, reserved_count: 4, available_spots: 1 }]);
+    abrir();
+
+    const item = await fila("Taller de Pytest");
+    expect(item.getByText("Queda 1 lugar")).toBeInTheDocument();
+  });
+
+  test("con un solo cupo en el evento dice Queda 1 cupo", async () => {
+    servir({ ...abierto, available_spots: 1 });
+    abrir();
+
+    expect(await screen.findByText("Queda 1 cupo")).toBeInTheDocument();
+  });
+
   describe("cancelar la inscripción con reservas", () => {
     beforeEach(() => useSession.getState().iniciarSesion(usuario, "token", 3600));
+
+    test("con una sola reserva el aviso va en singular", async () => {
+      servir(inscrito);
+      servirLista([reservada, conLugar]);
+      const user = userEvent.setup();
+      abrir();
+
+      await fila("Charla de mocks");
+      await user.click(screen.getByRole("button", { name: "Cancelar inscripción" }));
+
+      expect(screen.getByRole("alertdialog")).toHaveTextContent(
+        "También se cancelará tu reserva de sesión",
+      );
+    });
 
     test("avisa cuántas reservas se cancelan y refresca las sesiones", async () => {
       servir(inscrito);

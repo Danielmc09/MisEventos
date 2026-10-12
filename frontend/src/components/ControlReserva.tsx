@@ -1,4 +1,5 @@
 import type { Sesion } from "../lib/useSesiones";
+import { quedan } from "../lib/plural";
 import { Button } from "./ui/Button";
 import { Insignia } from "./ui/Insignia";
 import { TextoSecundario } from "./ui/TextoSecundario";
@@ -35,7 +36,7 @@ export function ControlReserva({
         <Button variante="secundario" loading={trabajando} onClick={onCancelar}>
           Cancelar reserva
         </Button>
-        <TextoSecundario>Quedan {sesion.available_spots} lugares</TextoSecundario>
+        <TextoSecundario>{quedan(sesion.available_spots, "lugar", "lugares")}</TextoSecundario>
       </div>
     );
   }
@@ -47,7 +48,7 @@ export function ControlReserva({
       <Button loading={trabajando} onClick={onReservar}>
         Reservar lugar
       </Button>
-      <TextoSecundario>Quedan {sesion.available_spots} lugares</TextoSecundario>
+      <TextoSecundario>{quedan(sesion.available_spots, "lugar", "lugares")}</TextoSecundario>
     </div>
   );
 }

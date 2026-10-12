@@ -3,10 +3,12 @@ import { api } from "../api/client";
 import { ApiError } from "../api/errors";
 import type { components } from "../api/schema";
 import { formatearFecha } from "../lib/fechas";
+import { palabra } from "../lib/plural";
 import { AlertaError } from "./ui/AlertaError";
 import { BarraProgreso } from "./ui/BarraProgreso";
 import { Insignia } from "./ui/Insignia";
 import { Cifra } from "./ui/Cifra";
+import { Lista } from "./ui/Lista";
 import { Paginacion } from "./ui/Paginacion";
 import { Spinner } from "./ui/Spinner";
 import { Tabla } from "./ui/Tabla";
@@ -64,15 +66,30 @@ function Estadisticas({ eventoId, version }: { eventoId: string; version: number
   const stats = useConsulta<Estadisticas>(`/events/${eventoId}/stats`, version);
   if (!stats) return <Cargando />;
   if (stats.error || !stats.datos) return <AlertaError title={stats.error ?? ""} />;
-  const { active, cancelled, occupancy_pct } = stats.datos;
+  const { active, cancelled, occupancy_pct, sessions } = stats.datos;
   return (
     <div className="flex flex-col gap-3">
       <dl className="grid grid-cols-3 gap-4">
-        <Cifra etiqueta="Inscritos">{active}</Cifra>
-        <Cifra etiqueta="Cancelados">{cancelled}</Cifra>
+        <Cifra etiqueta={palabra(active, "Inscrito", "Inscritos")}>{active}</Cifra>
+        <Cifra etiqueta={palabra(cancelled, "Cancelado", "Cancelados")}>{cancelled}</Cifra>
         <Cifra etiqueta="Ocupación">{occupancy_pct.toLocaleString("es-CO")} %</Cifra>
       </dl>
       <BarraProgreso etiqueta="Ocupación" valor={occupancy_pct} />
+      {sessions.length > 0 && (
+        <div role="group" aria-label="Ocupación por sesión" className="flex flex-col gap-2">
+          <TextoSecundario>Ocupación por sesión</TextoSecundario>
+          <Lista etiqueta="Sesiones">
+            {sessions.map((s) => (
+              <li key={s.id} className="flex flex-col gap-1">
+                <span>
+                  {s.title}: {s.reserved} / {s.capacity}
+                </span>
+                <BarraProgreso etiqueta={`Ocupación de ${s.title}`} valor={s.occupancy_pct} />
+              </li>
+            ))}
+          </Lista>
+        </div>
+      )}
     </div>
   );
 }
