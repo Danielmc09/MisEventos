@@ -1,4 +1,5 @@
 import logging
+import secrets
 from datetime import UTC, datetime, timedelta
 
 import pytest
@@ -33,8 +34,8 @@ from tests.unit.dobles import (
 
 CREDENCIALES = {
     "ADMIN_EMAIL": "admin@miseventos.local",
-    "ADMIN_PASSWORD": "Admin-Demo-2026",
-    "DEMO_PASSWORD": "Demo-Local-2026",
+    "ADMIN_PASSWORD": secrets.token_urlsafe(),
+    "DEMO_PASSWORD": secrets.token_urlsafe(),
 }
 BASE = {
     "DATABASE_URL": "postgresql+psycopg://u:p@localhost:5432/x",
@@ -49,8 +50,8 @@ def settings(**valores: str) -> Settings:
 def test_con_las_tres_variables_devuelve_las_credenciales():
     assert credenciales_demo(settings(**CREDENCIALES)) == CredencialesDemo(
         admin_email="admin@miseventos.local",
-        admin_password="Admin-Demo-2026",
-        demo_password="Demo-Local-2026",
+        admin_password=CREDENCIALES["ADMIN_PASSWORD"],
+        demo_password=CREDENCIALES["DEMO_PASSWORD"],
     )
 
 
@@ -160,10 +161,12 @@ def test_al_arrancar_con_seed_demo_siembra(entorno, base_doble):
 
 # --- Usuarios demo -------------------------------------------------------------------------
 
+CLAVE_ADMIN = secrets.token_urlsafe()
+CLAVE_DEMO = secrets.token_urlsafe()
 DEMO = CredencialesDemo(
     admin_email="Admin@MisEventos.local",
-    admin_password="Admin-Test-2026",
-    demo_password="Demo-Test-2026",
+    admin_password=CLAVE_ADMIN,
+    demo_password=CLAVE_DEMO,
 )
 
 
@@ -180,9 +183,9 @@ def test_crea_el_admin_y_los_dos_usuarios_demo_con_sus_roles():
         "asistente@miseventos.local": Rol.ATTENDEE,
     }
     assert all(u.is_active and not u.must_change_password for u in repo.creados)
-    assert verificar(por_email["admin@miseventos.local"].password_hash, "Admin-Test-2026")
-    assert verificar(por_email["organizador@miseventos.local"].password_hash, "Demo-Test-2026")
-    assert verificar(por_email["asistente@miseventos.local"].password_hash, "Demo-Test-2026")
+    assert verificar(por_email["admin@miseventos.local"].password_hash, CLAVE_ADMIN)
+    assert verificar(por_email["organizador@miseventos.local"].password_hash, CLAVE_DEMO)
+    assert verificar(por_email["asistente@miseventos.local"].password_hash, CLAVE_DEMO)
 
 
 def test_crea_a_cada_usuario_demo_con_su_nombre():
@@ -198,7 +201,7 @@ def test_crea_a_cada_usuario_demo_con_su_nombre():
 
 
 def test_no_toca_un_usuario_que_ya_existe_aunque_cambio_su_contrasena():
-    hash_propio = hashear("Clave-Propia-1")
+    hash_propio = hashear(secrets.token_urlsafe())
     admin = User(email="admin@miseventos.local", password_hash=hash_propio, role=Rol.ADMIN)
     asistente = User(
         email="asistente@miseventos.local",
@@ -218,7 +221,7 @@ def test_no_toca_un_usuario_que_ya_existe_aunque_cambio_su_contrasena():
 
 @pytest.mark.parametrize("sin_nombre", [None, ""])
 def test_completa_el_nombre_de_un_usuario_demo_que_existe_sin_nombre(sin_nombre):
-    hash_propio = hashear("Clave-Propia-1")
+    hash_propio = hashear(secrets.token_urlsafe())
     admin = User(
         email="admin@miseventos.local",
         password_hash=hash_propio,
