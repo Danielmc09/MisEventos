@@ -1,4 +1,5 @@
-"""Tabla registrations: inscripciones de un usuario a un evento.
+"""Tabla registrations, con el índice único parcial de la inscripción activa y el trigger de
+updated_at.
 
 Revision ID: 0005
 Revises: 0004
@@ -39,13 +40,33 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(
             ["user_id"], ["users.id"], name=op.f("fk_registrations_user_id_users")
         ),
+        # Borrar un evento se lleva sus inscripciones; el servicio decide cuándo se puede.
         sa.ForeignKeyConstraint(
-            ["event_id"], ["events.id"], name=op.f("fk_registrations_event_id_events")
+            ["event_id"],
+            ["events.id"],
+            name=op.f("fk_registrations_event_id_events"),
+            ondelete="CASCADE",
         ),
         sa.PrimaryKeyConstraint("id", name=op.f("pk_registrations")),
+    )
+    # La última defensa: aunque el servicio fallara, no entra una segunda inscripción activa de
+    # la misma persona al mismo evento. Las canceladas no cuentan: se puede volver a inscribir.
+    op.create_index(
+        "uq_registrations_activa",
+        "registrations",
+        ["user_id", "event_id"],
+        unique=True,
+        postgresql_where=sa.text("status = 'ACTIVE'"),
+    )
+    op.create_index(op.f("ix_registrations_event_id"), "registrations", ["event_id"])
+    op.create_index(op.f("ix_registrations_user_id"), "registrations", ["user_id"])
+    op.execute(
+        "CREATE TRIGGER registrations_set_updated_at BEFORE UPDATE ON registrations"
+        " FOR EACH ROW EXECUTE FUNCTION set_updated_at()"
     )
 
 
 def downgrade() -> None:
+    # El trigger, los índices y las FK caen con la tabla; el tipo enum no, se borra aparte.
     op.drop_table("registrations")
     estado.drop(op.get_bind())
