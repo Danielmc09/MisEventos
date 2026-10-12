@@ -1,10 +1,28 @@
 import { render, screen } from "@testing-library/react";
+import { http } from "msw";
+import { setupServer } from "msw/node";
 import { MemoryRouter, useLocation } from "react-router-dom";
 import App from "../App";
 import { useSession } from "../stores/session";
-import { usuario } from "../test/helpers";
+import { API, usuario } from "../test/helpers";
+import { responder } from "../test/msw";
 
+const server = setupServer(
+  http.get(`${API}/auth/me`, () => responder("/auth/me", "get", 200, usuario)),
+  http.get(`${API}/me/registrations`, () =>
+    responder("/me/registrations", "get", 200, {
+      items: [],
+      total: 0,
+      page: 1,
+      page_size: 12,
+      pages: 0,
+    }),
+  ),
+);
+
+beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
 afterEach(() => useSession.getState().cerrarSesion());
+afterAll(() => server.close());
 
 function Ubicacion() {
   const { pathname, search } = useLocation();
