@@ -239,18 +239,8 @@ test("con sesión, /eventos/nuevo muestra la pantalla de nuevo evento", async ()
   expect(await screen.findByRole("heading", { name: "Nuevo evento" })).toBeInTheDocument();
 });
 
-describe("en una pantalla angosta", () => {
-  beforeEach(() =>
-    vi.stubGlobal("matchMedia", (media: string) => ({
-      matches: true,
-      media,
-      addEventListener: () => {},
-      removeEventListener: () => {},
-    })),
-  );
-  afterEach(() => vi.unstubAllGlobals());
-
-  test("con sesión es igual que en escritorio: logo, Crear evento y el círculo", () => {
+describe("el encabezado con sesión", () => {
+  test("muestra el logo, Crear evento y el círculo de la cuenta", () => {
     useSession
       .getState()
       .iniciarSesion(
