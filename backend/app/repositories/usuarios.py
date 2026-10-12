@@ -4,6 +4,7 @@ from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, select
 
+from app.core.permisos import Rol
 from app.models.usuario import User
 
 INDICE_EMAIL = "uq_users_email"
@@ -20,6 +21,9 @@ class RepositorioUsuarios:
 
     def por_id(self, id_usuario: UUID) -> User | None:
         return self.session.get(User, id_usuario)
+
+    def activos_para_escribir(self, roles: list[Rol]) -> list[User]:
+        return []
 
     def crear(self, usuario: User) -> bool:
         """False si el email ya existía: otro registro ganó la carrera contra el índice único."""
