@@ -415,6 +415,10 @@ def sembrar_inscripciones(
         )
 
 
+def sembrar_reservas(usuarios, eventos, sesiones, inscripciones, reservas) -> None:
+    """Las reservas demo de sesiones. Todavía no siembra nada."""
+
+
 def _motivo(error: DomainError) -> str:
     """El porqué legible: el detalle, o el mensaje de cada campo si fue un dato rechazado."""
     if error.errores:
