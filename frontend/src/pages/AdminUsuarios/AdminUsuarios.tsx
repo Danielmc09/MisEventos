@@ -10,12 +10,14 @@ import {
   nombreDe,
   type UsuarioAdmin,
 } from "../../components/FormularioUsuario";
+import { RestablecerContrasena } from "../../components/RestablecerContrasena";
 import { AlertaError } from "../../components/ui/AlertaError";
 import { BotonIcono } from "../../components/ui/BotonIcono";
 import { Button } from "../../components/ui/Button";
 import { Chip } from "../../components/ui/Chip";
 import { EstadoVacio } from "../../components/ui/EstadoVacio";
 import { IconoLapiz } from "../../components/ui/iconos/IconoLapiz";
+import { IconoLlave } from "../../components/ui/iconos/IconoLlave";
 import { Input } from "../../components/ui/Input";
 import { Pagina, TituloPagina } from "../../components/ui/Pagina";
 import { Paginacion } from "../../components/ui/Paginacion";
@@ -60,6 +62,7 @@ export default function AdminUsuarios() {
   const [error, setError] = useState<string>();
   const [editando, setEditando] = useState<UsuarioAdmin>();
   const [creando, setCreando] = useState(false);
+  const [restableciendo, setRestableciendo] = useState<UsuarioAdmin>();
 
   useEffect(() => {
     if (!vigente || !puede) return;
@@ -195,13 +198,22 @@ export default function AdminUsuarios() {
                           {u.is_active ? "Activo" : "Inactivo"}
                         </Chip>,
                         u.active_registrations,
-                        <BotonIcono
-                          key="acciones"
-                          etiqueta={`Editar a ${nombre}`}
-                          texto="Editar"
-                          icono={<IconoLapiz />}
-                          onClick={() => setEditando(u)}
-                        />,
+                        <div key="acciones" className="flex flex-wrap gap-2">
+                          <BotonIcono
+                            etiqueta={`Editar a ${nombre}`}
+                            texto="Editar"
+                            icono={<IconoLapiz />}
+                            onClick={() => setEditando(u)}
+                          />
+                          {u.id !== propioId && u.is_active && (
+                            <BotonIcono
+                              etiqueta={`Restablecer la contraseña de ${nombre}`}
+                              texto="Restablecer"
+                              icono={<IconoLlave />}
+                              onClick={() => setRestableciendo(u)}
+                            />
+                          )}
+                        </div>,
                       ],
                     };
                   })}
@@ -216,6 +228,12 @@ export default function AdminUsuarios() {
         <FormularioNuevoUsuario
           onCreado={() => setVersion((v) => v + 1)}
           onCerrar={() => setCreando(false)}
+        />
+      )}
+      {restableciendo && (
+        <RestablecerContrasena
+          usuario={restableciendo}
+          onTerminado={() => setRestableciendo(undefined)}
         />
       )}
       {editando && (
