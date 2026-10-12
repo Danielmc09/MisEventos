@@ -3,6 +3,7 @@
 Lanza excepciones de dominio; no sabe nada de HTTP."""
 
 from datetime import UTC, datetime
+from decimal import Decimal
 from typing import Protocol
 from uuid import UUID
 
@@ -87,3 +88,7 @@ def mias(
 ) -> tuple[list[tuple[Registration, Event]], int]:
     """Las inscripciones del usuario del token, con su evento. Nunca las de otra persona."""
     return inscripciones.del_usuario(usuario.id, estado, cuando, offset, limite)
+
+
+def porcentaje_de_ocupacion(activas: int, capacidad: int) -> Decimal:
+    return Decimal(0)

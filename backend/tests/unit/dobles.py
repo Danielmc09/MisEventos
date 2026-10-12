@@ -218,10 +218,14 @@ class RepositorioSesionesFalso:
 
 
 class RepositorioInscripcionesFalso:
-    """Guarda las inscripciones en el doble de eventos, que es el que las cuenta."""
+    """Guarda las inscripciones en el doble de eventos, que es el que las cuenta. Los datos de
+    cada inscrito salen del doble de usuarios."""
 
-    def __init__(self, eventos: RepositorioEventosFalso) -> None:
+    def __init__(
+        self, eventos: RepositorioEventosFalso, usuarios: RepositorioUsuariosFalso | None = None
+    ) -> None:
         self.eventos = eventos
+        self.usuarios = usuarios or RepositorioUsuariosFalso()
         # Con qué se pidieron las inscripciones de un usuario; el filtro real lo hace la base.
         self.consultas_del_usuario: list[dict] = []
 
@@ -240,6 +244,20 @@ class RepositorioInscripcionesFalso:
             and (self.eventos.eventos[i.event_id].end_at < ahora) == (cuando == "past")
         ]
         return filas[offset : offset + limite], len(filas)
+
+    def del_evento(
+        self, id_evento: UUID, offset: int, limite: int
+    ) -> tuple[list[tuple[Registration, User]], int]:
+        filas = [
+            (i, self.usuarios.usuarios[i.user_id])
+            for i in sorted(self.eventos.inscripciones.values(), key=lambda i: i.created_at)
+            if i.event_id == id_evento
+        ]
+        return filas[offset : offset + limite], len(filas)
+
+    def por_estado(self, id_evento: UUID) -> dict[EstadoInscripcion, int]:
+        del_evento = [i for i in self.eventos.inscripciones.values() if i.event_id == id_evento]
+        return {e: sum(1 for i in del_evento if i.status == e) for e in EstadoInscripcion}
 
     def activa_de(self, id_usuario: UUID, id_evento: UUID) -> Registration | None:
         return next(

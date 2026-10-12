@@ -410,3 +410,53 @@ def test_mis_inscripciones_trae_el_resumen_del_evento(cliente_db, conexion, usua
         "status": "PUBLISHED",
         "is_finished": False,
     }
+
+
+# --- Inscritos y estadísticas del evento ------------------------------------------------------
+
+
+@pytest.mark.parametrize("recurso", ["registrations", "stats"])
+def test_inscritos_y_estadisticas_dueno_200_admin_200_otro_403_y_borrador_ajeno_404(
+    cliente_db, conexion, usuarios, prefijo, recurso
+):
+    admin = usuario_con_rol(cliente_db, conexion, f"{prefijo}admin@mail.com", "ADMIN")
+    id_evento = crear_evento(cliente_db, usuarios["orga"])
+    borrador = crear_evento(cliente_db, usuarios["orga"], publicar=False)
+    assert inscribirse(cliente_db, usuarios["ana"], id_evento).status_code == 201
+
+    def pedir(token: str | None, evento: str = id_evento) -> int:
+        return cliente_db.get(f"/events/{evento}/{recurso}", headers=auth(token)).status_code
+
+    assert pedir(usuarios["orga"]) == 200
+    assert pedir(admin) == 200
+    assert pedir(usuarios["ana"]) == 403
+    assert pedir(usuarios["beto"]) == 403
+    assert pedir(usuarios["beto"], borrador) == 404
+    assert pedir(None) == 401
+
+
+def test_las_estadisticas_y_la_lista_de_inscritos_reflejan_la_base(
+    cliente_db, conexion, usuarios, prefijo
+):
+    id_evento = crear_evento(cliente_db, usuarios["orga"], capacidad=3)
+    assert inscribirse(cliente_db, usuarios["ana"], id_evento).status_code == 201
+    assert inscribirse(cliente_db, usuarios["beto"], id_evento).status_code == 201
+    assert cancelar(cliente_db, usuarios["beto"], id_evento).status_code == 204
+
+    estadisticas = cliente_db.get(f"/events/{id_evento}/stats", headers=auth(usuarios["orga"]))
+    lista = cliente_db.get(f"/events/{id_evento}/registrations", headers=auth(usuarios["orga"]))
+
+    assert estadisticas.status_code == 200, estadisticas.text
+    assert estadisticas.json() == {
+        "active": 1,
+        "cancelled": 1,
+        "capacity": 3,
+        "available_spots": 2,
+        "occupancy_pct": 33.3,
+    }
+    assert lista.status_code == 200, lista.text
+    assert lista.json()["total"] == 2
+    assert sorted((i["email"], i["status"]) for i in lista.json()["items"]) == [
+        (f"{prefijo}ana@mail.com", "ACTIVE"),
+        (f"{prefijo}beto@mail.com", "CANCELLED"),
+    ]
