@@ -187,7 +187,7 @@ Lo que el código hace hoy:
 - **Minificación:** `npm run build` usa el build de producción de Vite, que minifica el JavaScript y el CSS y les pone un hash al nombre para que el navegador los guarde.
 - **Caché del listado:** 60 segundos por combinación de filtros (ver "Estado").
 - **Búsquedas con espera:** el buscador del inicio, el de usuarios y el de ponentes esperan 300 ms sin teclear antes de llamar a la API.
-- **Sin imágenes:** la interfaz no usa imágenes de mapa de bits. Los íconos son SVG en línea y la portada de cada tarjeta es un degradé de CSS.
+- **Una sola imagen, en WebP:** la ilustración de la cabecera del inicio (`src/assets/portada.svg`, dibujada para el proyecto) se exporta a 480, 960 y 1440 px. Pesa 10,3, 23,2 y 36,1 kB en PNG y 4,2, 7,5 y 11,7 kB en WebP (23,4 kB en total contra 69,6 kB). Se sirve con `srcset` y `sizes`, así que cada pantalla baja solo su ancho; lleva `width` y `height` para que la página no salte, `fetchpriority="high"` y sin `loading="lazy"`, porque está arriba de todo. Los íconos son SVG en línea y la portada de cada tarjeta es un degradé de CSS.
 
 **Por qué no se ofusca el código.** Todo lo que llega al navegador es público: cualquiera puede leerlo, ofuscado o no. Ofuscarlo es seguridad por oscuridad: complica la depuración sin proteger nada. Lo que protege es la API: valida cada permiso en el servidor y nunca confía en lo que decide el cliente. Por eso el frontend no guarda secretos.
 
