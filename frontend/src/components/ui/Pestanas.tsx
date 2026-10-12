@@ -40,7 +40,7 @@ export function Pestanas({ etiqueta, pestanas, activa, onCambiar, children }: Pe
               tabIndex={seleccionada ? 0 : -1}
               onClick={() => onCambiar(p.id)}
               onKeyDown={(e) => moverConFlechas(e, i)}
-              className={`-mb-px border-b-2 px-4 py-2 font-medium focus-visible:outline-3 focus-visible:outline-acento min-h-11 md:min-h-10 ${
+              className={`-mb-px border-b-2 px-4 py-2 font-medium focus-visible:outline-3 focus-visible:outline-foco min-h-11 md:min-h-10 ${
                 seleccionada
                   ? "border-primario text-primario"
                   : "border-transparent text-texto-suave hover:text-texto"

@@ -31,7 +31,7 @@ export function Chip({ tono = "neutro", onQuitar, etiquetaQuitar, children }: Ch
           type="button"
           onClick={onQuitar}
           aria-label={etiquetaQuitar}
-          className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-md focus-visible:outline-3 focus-visible:outline-acento md:min-h-10 md:min-w-10"
+          className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-md focus-visible:outline-3 focus-visible:outline-foco md:min-h-10 md:min-w-10"
         >
           <span aria-hidden="true">×</span>
         </button>
