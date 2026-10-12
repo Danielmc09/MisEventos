@@ -18,5 +18,7 @@ test("nombres distintos cubren más de un gradiente", () => {
 });
 
 test("el gradiente se arma solo con colores del tema", () => {
-  expect(claseGradiente("Hackatón")).toMatch(/^bg-linear-to-br from-[a-z-]+ to-[a-z-]+$/);
+  expect(claseGradiente("Hackatón")).toMatch(
+    /^bg-linear-to-(br|tr|bl|tl) from-[a-z-]+ to-[a-z-]+$/,
+  );
 });

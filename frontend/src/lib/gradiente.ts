@@ -2,9 +2,9 @@
 const GRADIENTES = [
   "bg-linear-to-br from-primario to-tinta",
   "bg-linear-to-br from-tinta to-acento",
-  "bg-linear-to-br from-acento to-tinta",
-  "bg-linear-to-br from-primario to-acento",
-  "bg-linear-to-br from-tinta to-primario",
+  "bg-linear-to-tr from-acento to-primario",
+  "bg-linear-to-bl from-primario to-acento",
+  "bg-linear-to-tl from-acento to-tinta",
 ] as const;
 
 /** Hash estable (djb2) del nombre: el mismo evento tiene siempre el mismo gradiente. */
