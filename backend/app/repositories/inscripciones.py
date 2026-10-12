@@ -87,6 +87,21 @@ class RepositorioInscripciones:
         )
         return self.session.exec(consulta).first()
 
+    def activa_para_escribir(self, id_usuario: UUID, id_evento: UUID) -> Registration | None:
+        """La inscripción activa, bloqueada hasta el fin de la transacción, y releída: si otra
+        transacción la canceló mientras se esperaba el bloqueo, ya no aparece."""
+        consulta = (
+            select(Registration)
+            .where(
+                Registration.user_id == id_usuario,
+                Registration.event_id == id_evento,
+                Registration.status == EstadoInscripcion.ACTIVE,
+            )
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        )
+        return self.session.exec(consulta).first()
+
     def crear(self, inscripcion: Registration) -> Registration:
         return self.guardar(inscripcion)
 

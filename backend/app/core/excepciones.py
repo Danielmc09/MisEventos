@@ -8,12 +8,21 @@ class DomainError(Exception):
     titulo: str = "La solicitud no es válida"
     headers: dict[str, str] | None = None
     errores: dict[str, str] | None = None  # campo → mensaje, para errores de un campo puntual
+    # Miembros de extensión del problem+json (RFC 9457 §3.2), como `conflicts`.
+    extensiones: dict[str, object] | None = None
 
     def __init__(
-        self, detalle: str | None = None, *, tipo: str | None = None, titulo: str | None = None
+        self,
+        detalle: str | None = None,
+        *,
+        tipo: str | None = None,
+        titulo: str | None = None,
+        extensiones: dict[str, object] | None = None,
     ) -> None:
         super().__init__(detalle or self.titulo)
         self.detalle = detalle
+        if extensiones:
+            self.extensiones = extensiones
         if tipo:
             self.tipo = tipo
         if titulo:
