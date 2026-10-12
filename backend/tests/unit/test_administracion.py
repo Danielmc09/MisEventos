@@ -338,19 +338,69 @@ def test_lo_que_no_saca_a_un_admin_activo_pasa_aunque_quede_uno_solo(gente):
     assert (orga.role, orga.is_active) == (Rol.ADMIN, False)
 
 
-def test_un_admin_activo_que_sigue_siendo_admin_activo_no_choca_con_el_ultimo_admin(gente):
+def test_un_actor_que_ya_no_es_admin_activo_al_bloquear_es_403_sin_cambiar_nada(gente):
+    """El actor llegó admin, pero otro lo degradó mientras esperaba el bloqueo: lo que manda es
+    la base con los admins ya bloqueados, no el usuario leído antes."""
     admin = gente["admin"]
     otro = gente["otro_admin"]
     actor_en_la_base = nuevo("admin@mail.com", Rol.ATTENDEE)
     actor_en_la_base.id = admin.id
     repo = RepositorioUsuariosFalso(actor_en_la_base, otro)
 
-    resultado = administracion.cambiar(
-        repo, admin, otro.id, UsuarioEdicion(role=Rol.ADMIN, is_active=True)
-    )
+    with pytest.raises(Forbidden):
+        administracion.cambiar(repo, admin, otro.id, UsuarioEdicion(role=Rol.ADMIN, is_active=True))
 
-    assert resultado.usuario is otro
-    assert [op[0] for op in repo.operaciones] == ["bloquear", "leer para escribir", "guardar"]
+    assert not any(op[0] == "guardar" for op in repo.operaciones)
+
+
+@pytest.mark.parametrize(
+    "como_lo_sacaron",
+    [{"role": Rol.ATTENDEE}, {"is_active": False}],
+    ids=["degradado", "desactivado"],
+)
+def test_con_tres_admins_el_que_perdio_el_permiso_en_paralelo_no_puede_dar_admin(
+    gente, como_lo_sacaron
+):
+    """A, B y C son admins. A degrada (o desactiva) a B y, a la vez, B le da ADMIN a X. A ganó el
+    bloqueo: cuando B lo obtiene ya no es admin activo, así que X no se convierte en admin."""
+    a = gente["admin"]
+    b_en_memoria = gente["otro_admin"]
+    c = nuevo("tercer.admin@mail.com", Rol.ADMIN)
+    b_en_la_base = nuevo("otro.admin@mail.com", Rol.ADMIN)
+    b_en_la_base.id = b_en_memoria.id
+    for campo, valor in como_lo_sacaron.items():
+        setattr(b_en_la_base, campo, valor)
+    x = gente["ana"]
+    repo = RepositorioUsuariosFalso(a, b_en_la_base, c, x)
+
+    with pytest.raises(Forbidden):
+        administracion.cambiar(repo, b_en_memoria, x.id, UsuarioEdicion(role=Rol.ADMIN))
+
+    assert x.role == Rol.ATTENDEE
+    assert not any(op[0] == "guardar" for op in repo.operaciones)
+
+
+def test_un_actor_que_ya_no_es_admin_activo_es_403_aunque_el_usuario_no_exista(gente):
+    admin = gente["admin"]
+    actor_en_la_base = nuevo("admin@mail.com", Rol.ATTENDEE)
+    actor_en_la_base.id = admin.id
+    repo = RepositorioUsuariosFalso(actor_en_la_base, gente["otro_admin"])
+
+    with pytest.raises(Forbidden):
+        administracion.cambiar(repo, admin, uuid4(), UsuarioEdicion(role=Rol.ADMIN))
+
+
+def test_con_tres_admins_uno_degrada_a_otro_y_el_que_queda_admin_sigue_pudiendo(gente):
+    a, b = gente["admin"], gente["otro_admin"]
+    c = nuevo("tercer.admin@mail.com", Rol.ADMIN)
+    x = gente["ana"]
+    repo = RepositorioUsuariosFalso(a, b, c, x)
+
+    administracion.cambiar(repo, a, b.id, UsuarioEdicion(role=Rol.ATTENDEE))
+    resultado = administracion.cambiar(repo, c, x.id, UsuarioEdicion(role=Rol.ADMIN))
+
+    assert resultado.usuario is x
+    assert (b.role, x.role) == (Rol.ATTENDEE, Rol.ADMIN)
 
 
 def test_un_usuario_inexistente_es_not_found_despues_de_bloquear(repo, gente):
