@@ -48,7 +48,7 @@ test("la ruta de inicio carga de forma diferida y muestra el título", async () 
   );
 
   expect(screen.getByRole("status", { name: "Cargando" })).toBeInTheDocument();
-  expect(await screen.findByRole("heading", { name: "Mis Eventos" })).toBeInTheDocument();
+  expect(await screen.findByRole("heading", { name: "Próximos eventos" })).toBeInTheDocument();
 });
 
 test.each([

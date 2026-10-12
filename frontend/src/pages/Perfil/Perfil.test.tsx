@@ -1,6 +1,6 @@
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { http, HttpResponse } from "msw";
+import { http } from "msw";
 import { setupServer } from "msw/node";
 import { useSession } from "../../stores/session";
 import { API, evento, montar, usuario } from "../../test/helpers";
@@ -38,34 +38,11 @@ test("muestra el email, el nombre y el rol, y un enlace a cambiar la contraseña
   );
 });
 
-test('"Cerrar sesión" llama a logout, vacía la sesión y lleva a /login', async () => {
-  let autorizacion: string | null = null;
-  server.use(
-    http.post(`${API}/auth/logout`, ({ request }) => {
-      autorizacion = request.headers.get("Authorization");
-      return new HttpResponse(null, { status: 204 });
-    }),
-  );
-  const user = userEvent.setup();
+test("el perfil no tiene Cerrar sesión: vive en el menú de la cuenta", () => {
   montarPerfil();
 
-  await user.click(screen.getByRole("button", { name: "Cerrar sesión" }));
-
-  expect(await screen.findByRole("heading", { name: "Iniciar sesión" })).toBeInTheDocument();
-  expect(autorizacion).toBe("Bearer token-abc");
-  expect(useSession.getState().accessToken).toBeNull();
-  expect(useSession.getState().user).toBeNull();
-});
-
-test("si el logout falla por red, igual vacía la sesión", async () => {
-  server.use(http.post(`${API}/auth/logout`, () => HttpResponse.error()));
-  const user = userEvent.setup();
-  montarPerfil();
-
-  await user.click(screen.getByRole("button", { name: "Cerrar sesión" }));
-
-  expect(await screen.findByRole("heading", { name: "Iniciar sesión" })).toBeInTheDocument();
-  expect(useSession.getState().accessToken).toBeNull();
+  expect(screen.queryByRole("button", { name: "Cerrar sesión" })).not.toBeInTheDocument();
+  expect(screen.getByRole("link", { name: "Cambiar contraseña" })).toBeInTheDocument();
 });
 
 type Pagina = Parameters<typeof responder<"/me/registrations", "get", 200>>[3];

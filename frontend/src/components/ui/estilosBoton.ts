@@ -8,4 +8,12 @@ export const VARIANTES_BOTON = {
   secundario: "bg-acento-suave text-tinta hover:brightness-95",
 } as const;
 
+/** Cuánto ocupa un botón dentro de una fila flex: se estira, o solo en pantallas angostas. */
+export const ANCHO_BOTON = {
+  estirado: "flex-1",
+  "estirado-angosto": "max-md:flex-1",
+} as const;
+
+export type AnchoBoton = keyof typeof ANCHO_BOTON;
+
 export type VarianteBoton = keyof typeof VARIANTES_BOTON;

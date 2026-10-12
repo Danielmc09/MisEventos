@@ -9,8 +9,18 @@ import { Pagina, TituloPagina } from "../../components/ui/Pagina";
 import { Paginacion } from "../../components/ui/Paginacion";
 import { Select } from "../../components/ui/Select";
 import { Spinner } from "../../components/ui/Spinner";
+import { TextoSecundario } from "../../components/ui/TextoSecundario";
 import { useEventos, type PaginaEventos } from "../../stores/eventos";
 import { useTienePermiso } from "../../stores/session";
+
+/** Filtros de estado del inicio: la clave viaja en la URL (`?estado=`), `status` es lo que pide la API. */
+const ESTADOS = {
+  publicados: { etiqueta: "Publicados", status: "PUBLISHED", soloBorradores: false },
+  cancelados: { etiqueta: "Cancelados", status: "CANCELLED", soloBorradores: false },
+  borradores: { etiqueta: "Borradores", status: "DRAFT", soloBorradores: true },
+  todos: { etiqueta: "Todos", status: "", soloBorradores: true },
+} as const;
+type Estado = keyof typeof ESTADOS;
 
 interface Resultado {
   consulta: string;
@@ -57,7 +67,13 @@ export default function Inicio() {
     setParams({});
   };
 
-  const hayFiltros = !!(params.get("q") || params.get("status"));
+  // Un valor desconocido o no permitido se trata como "publicados": así lista y select coinciden.
+  const pedido = params.get("estado") ?? "";
+  const estado: Estado =
+    Object.hasOwn(ESTADOS, pedido) && (veBorradores || !ESTADOS[pedido as Estado].soloBorradores)
+      ? (pedido as Estado)
+      : "publicados";
+  const hayFiltros = !!(params.get("q") || estado !== "publicados");
 
   const irAPagina = (pagina: number) =>
     setParams((previos) => {
@@ -68,7 +84,11 @@ export default function Inicio() {
     });
 
   const consulta = new URLSearchParams(
-    ["q", "status", "page"].flatMap((k) => (params.get(k) ? [[k, params.get(k)!]] : [])),
+    [
+      ["q", params.get("q")],
+      ["status", ESTADOS[estado].status],
+      ["page", params.get("page")],
+    ].flatMap(([k, v]) => (v ? [[k!, v]] : [])),
   ).toString();
 
   useEffect(() => {
@@ -91,7 +111,10 @@ export default function Inicio() {
 
   return (
     <Pagina ancho="ancho">
-      <TituloPagina>Mis Eventos</TituloPagina>
+      <div className="flex flex-col gap-1">
+        <TituloPagina>Próximos eventos</TituloPagina>
+        <TextoSecundario>Encontrá un evento e inscribite en un minuto</TextoSecundario>
+      </div>
       <div className="flex flex-wrap items-end gap-4">
         <div className="w-full max-w-md">
           <Input
@@ -106,13 +129,16 @@ export default function Inicio() {
         <Select
           id="estado"
           label="Estado"
-          value={params.get("status") ?? ""}
-          onChange={(e) => filtrar("status", e.target.value)}
+          value={estado}
+          onChange={(e) => filtrar("estado", e.target.value === "publicados" ? "" : e.target.value)}
         >
-          <option value="">Todos</option>
-          <option value="PUBLISHED">Publicado</option>
-          {veBorradores && <option value="DRAFT">Borrador</option>}
-          <option value="CANCELLED">Cancelado</option>
+          {(Object.keys(ESTADOS) as Estado[])
+            .filter((clave) => veBorradores || !ESTADOS[clave].soloBorradores)
+            .map((clave) => (
+              <option key={clave} value={clave}>
+                {ESTADOS[clave].etiqueta}
+              </option>
+            ))}
         </Select>
       </div>
       <div className="flex flex-col gap-6">

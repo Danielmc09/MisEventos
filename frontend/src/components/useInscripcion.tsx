@@ -1,16 +1,12 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { api } from "../api/client";
 import type { components } from "../api/schema";
 import { ApiError } from "../api/errors";
-import { conservarNext } from "../lib/next";
 import { plural } from "../lib/plural";
 import type { EventoDetalle } from "../lib/useEvento";
 import { useEventos } from "../stores/eventos";
 import { useSession } from "../stores/session";
-import { Button } from "./ui/Button";
-import { Chip } from "./ui/Chip";
 import { DialogoConfirmacion } from "./ui/DialogoConfirmacion";
-import { EnlaceBoton } from "./ui/EnlaceBoton";
 import { useAvisos } from "./ui/Avisos";
 
 const avisoReservas = (n: number) =>
@@ -18,7 +14,7 @@ const avisoReservas = (n: number) =>
     ? "También se cancelará tu reserva de sesión."
     : `También se cancelarán tus ${plural(n, "reserva", "reservas")} de sesiones.`;
 
-interface Props {
+interface Opciones {
   evento: EventoDetalle;
   onEvento: (evento: EventoDetalle) => void;
   onRefrescar: () => void;
@@ -28,8 +24,27 @@ interface Props {
   onCancelada: () => void;
 }
 
-/** Inscribirse o cancelar la inscripción, según la situación de quien mira y del evento. */
-export function AccionInscripcion({ evento, onEvento, onRefrescar, reservas, onCancelada }: Props) {
+/** La situación de quien mira frente a la inscripción. `cerrado`: ya no se puede inscribir ni cancelar. */
+export type SituacionInscripcion = "cerrado" | "anonimo" | "inscrito" | "sin-cupos" | "libre";
+
+export interface Inscripcion {
+  situacion: SituacionInscripcion;
+  trabajando: boolean;
+  inscribirse: () => void;
+  /** Abre el diálogo para cancelar la inscripción. */
+  pedirCancelar: () => void;
+  /** El diálogo de confirmación, o `false`: se pinta una vez, donde sea. */
+  dialogo: ReactNode;
+}
+
+/** Inscribirse o cancelar la inscripción: la lógica, para que cada pantalla la muestre donde le toque. */
+export function useInscripcion({
+  evento,
+  onEvento,
+  onRefrescar,
+  reservas,
+  onCancelada,
+}: Opciones): Inscripcion {
   const user = useSession((s) => s.user);
   const invalidar = useEventos((s) => s.invalidar);
   const avisar = useAvisos();
@@ -38,15 +53,15 @@ export function AccionInscripcion({ evento, onEvento, onRefrescar, reservas, onC
 
   const cerrado =
     evento.status !== "PUBLISHED" || evento.is_finished || new Date(evento.start_at) <= new Date();
-  if (cerrado) return null;
-
-  if (!user) {
-    return (
-      <EnlaceBoton to={`/login${conservarNext(`/eventos/${evento.id}`)}`}>
-        Iniciá sesión para inscribirte
-      </EnlaceBoton>
-    );
-  }
+  const situacion: SituacionInscripcion = cerrado
+    ? "cerrado"
+    : !user
+      ? "anonimo"
+      : evento.is_registered
+        ? "inscrito"
+        : evento.available_spots <= 0
+          ? "sin-cupos"
+          : "libre";
 
   async function ejecutar(accion: "inscribirse" | "cancelar") {
     setTrabajando(true);
@@ -83,36 +98,22 @@ export function AccionInscripcion({ evento, onEvento, onRefrescar, reservas, onC
     }
   }
 
-  if (evento.is_registered) {
-    return (
-      <>
-        <Chip tono="exito">Estás inscrito</Chip>
-        <Button variante="secundario" onClick={() => setConfirmando(true)}>
-          Cancelar inscripción
-        </Button>
-        {confirmando && (
-          <DialogoConfirmacion
-            titulo="Cancelar tu inscripción"
-            mensaje={`Vas a liberar tu cupo. Después podés volver a inscribirte si todavía queda lugar.${
-              reservas > 0 ? ` ${avisoReservas(reservas)}` : ""
-            }`}
-            confirmar="Sí, cancelar mi inscripción"
-            cargando={trabajando}
-            onConfirmar={() => ejecutar("cancelar")}
-            onVolver={() => setConfirmando(false)}
-          />
-        )}
-      </>
-    );
-  }
-
-  if (evento.available_spots <= 0) {
-    return <Button disabled>Sin cupos</Button>;
-  }
-
-  return (
-    <Button loading={trabajando} onClick={() => ejecutar("inscribirse")}>
-      Inscribirme
-    </Button>
-  );
+  return {
+    situacion,
+    trabajando,
+    inscribirse: () => void ejecutar("inscribirse"),
+    pedirCancelar: () => setConfirmando(true),
+    dialogo: confirmando && (
+      <DialogoConfirmacion
+        titulo="Cancelar tu inscripción"
+        mensaje={`Vas a liberar tu cupo. Después podés volver a inscribirte si todavía queda lugar.${
+          reservas > 0 ? ` ${avisoReservas(reservas)}` : ""
+        }`}
+        confirmar="Sí, cancelar mi inscripción"
+        cargando={trabajando}
+        onConfirmar={() => void ejecutar("cancelar")}
+        onVolver={() => setConfirmando(false)}
+      />
+    ),
+  };
 }

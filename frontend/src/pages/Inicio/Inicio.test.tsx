@@ -26,6 +26,15 @@ afterAll(() => server.close());
 
 const abrir = (ruta = "/") => montar(ruta, [["/", <Inicio />]]);
 
+test("el título es Próximos eventos y la bajada invita a inscribirse", async () => {
+  server.use(http.get(`${API}/events`, () => responder("/events", "get", 200, pagina([]))));
+  abrir();
+
+  expect(await screen.findByRole("heading", { name: "Próximos eventos" })).toBeInTheDocument();
+  expect(screen.getByText("Encontrá un evento e inscribite en un minuto")).toBeInTheDocument();
+  expect(screen.queryByRole("heading", { name: "Mis Eventos" })).not.toBeInTheDocument();
+});
+
 describe("estados del listado", () => {
   test("muestra el spinner mientras carga y después las tarjetas", async () => {
     server.use(
@@ -52,11 +61,11 @@ describe("estados del listado", () => {
     server.use(
       http.get(`${API}/events`, ({ request }) => {
         const url = new URL(request.url);
-        return responder("/events", "get", 200, pagina(url.search ? [] : [evento]));
+        return responder("/events", "get", 200, pagina(url.searchParams.has("q") ? [] : [evento]));
       }),
     );
     const user = userEvent.setup();
-    abrir("/?q=zzz&status=DRAFT");
+    abrir("/?q=zzz&estado=cancelados");
     await screen.findByText("No hay eventos que coincidan");
 
     await user.click(screen.getByRole("button", { name: "Quitar filtros" }));
@@ -64,7 +73,7 @@ describe("estados del listado", () => {
     expect(await screen.findByRole("link", { name: "PyCon Bogotá" })).toBeInTheDocument();
     expect(screen.getByLabelText("ubicación")).toHaveTextContent(/^\/$/);
     expect(screen.getByRole("searchbox", { name: "Buscar eventos" })).toHaveValue("");
-    expect(screen.getByRole("combobox", { name: "Estado" })).toHaveValue("");
+    expect(screen.getByRole("combobox", { name: "Estado" })).toHaveValue("publicados");
   });
 
   test("el vacío sin filtros solo explica, sin Quitar filtros", async () => {
@@ -75,7 +84,7 @@ describe("estados del listado", () => {
     expect(screen.queryByRole("button", { name: "Quitar filtros" })).not.toBeInTheDocument();
   });
 
-  test.each([["/?q=zzz"], ["/?status=DRAFT"]])(
+  test.each([["/?q=zzz"], ["/?estado=cancelados"]])(
     "el vacío con un solo filtro (%s) ofrece Quitar filtros",
     async (ruta) => {
       server.use(http.get(`${API}/events`, () => responder("/events", "get", 200, pagina([]))));
@@ -128,13 +137,13 @@ describe("buscador", () => {
     act(() => vi.advanceTimersByTime(299));
 
     expect(screen.getByLabelText("ubicación")).toHaveTextContent(/^\/$/);
-    expect(pedidos).toEqual([""]);
+    expect(pedidos).toEqual(["?status=PUBLISHED"]);
 
     act(() => vi.advanceTimersByTime(1));
 
     expect(screen.getByLabelText("ubicación")).toHaveTextContent(/^\/\?q=pyth$/);
     vi.useRealTimers();
-    await waitFor(() => expect(pedidos).toEqual(["", "?q=pyth"]));
+    await waitFor(() => expect(pedidos).toEqual(["?status=PUBLISHED", "?q=pyth&status=PUBLISHED"]));
   });
 });
 
@@ -162,7 +171,7 @@ describe("paginación", () => {
 
     expect(await screen.findByText("Página 2 de 3")).toBeInTheDocument();
     expect(screen.getByLabelText("ubicación")).toHaveTextContent(/^\/\?page=2$/);
-    expect(pedidos).toEqual(["", "?page=2"]);
+    expect(pedidos).toEqual(["?status=PUBLISHED", "?status=PUBLISHED&page=2"]);
 
     await user.click(screen.getByRole("button", { name: "Anterior" }));
 
@@ -179,55 +188,120 @@ describe("paginación", () => {
   });
 });
 
+const guardarPedidos = (pedidos: string[]) =>
+  server.use(
+    http.get(`${API}/events`, ({ request }) => {
+      pedidos.push(new URL(request.url).search);
+      return responder("/events", "get", 200, pagina());
+    }),
+  );
+
 describe("filtro de estado", () => {
-  test("elegir un estado lo pone en la URL, pide status y vuelve a la página 1", async () => {
+  test("sin filtro elegido pide solo los publicados y el select muestra Publicados", async () => {
     const pedidos: string[] = [];
-    server.use(
-      http.get(`${API}/events`, ({ request }) => {
-        pedidos.push(new URL(request.url).search);
-        return responder("/events", "get", 200, pagina());
-      }),
-    );
+    guardarPedidos(pedidos);
+    abrir();
+
+    await screen.findByRole("link", { name: "PyCon Bogotá" });
+    expect(pedidos).toEqual(["?status=PUBLISHED"]);
+    expect(screen.getByRole("combobox", { name: "Estado" })).toHaveValue("publicados");
+  });
+
+  test("elegir Cancelados lo pone en la URL, pide status=CANCELLED y vuelve a la página 1", async () => {
+    const pedidos: string[] = [];
+    guardarPedidos(pedidos);
     const user = userEvent.setup();
     abrir("/?page=2");
     await screen.findByRole("link", { name: "PyCon Bogotá" });
 
-    await user.selectOptions(screen.getByRole("combobox", { name: "Estado" }), "Cancelado");
+    await user.selectOptions(screen.getByRole("combobox", { name: "Estado" }), "Cancelados");
 
-    await waitFor(() => expect(pedidos).toEqual(["?page=2", "?status=CANCELLED"]));
-    expect(screen.getByLabelText("ubicación")).toHaveTextContent(/^\/\?status=CANCELLED$/);
+    await waitFor(() => expect(pedidos).toEqual(["?status=PUBLISHED&page=2", "?status=CANCELLED"]));
+    expect(screen.getByLabelText("ubicación")).toHaveTextContent(/^\/\?estado=cancelados$/);
+  });
+
+  test("abrir ?estado=cancelados selecciona Cancelados y pide status=CANCELLED", async () => {
+    const pedidos: string[] = [];
+    guardarPedidos(pedidos);
+    abrir("/?estado=cancelados");
+
+    await screen.findByRole("link", { name: "PyCon Bogotá" });
+    expect(pedidos).toEqual(["?status=CANCELLED"]);
+    expect(screen.getByRole("combobox", { name: "Estado" })).toHaveValue("cancelados");
   });
 });
 
 describe("opciones del filtro de estado", () => {
   afterEach(() => useSession.getState().cerrarSesion());
   const opciones = () => screen.getAllByRole("option").map((o) => o.textContent);
+  const organizador = {
+    ...usuario,
+    role: "ORGANIZER" as const,
+    permisos: ["evento:crear" as const],
+  };
 
-  test("sin sesión solo ofrece Publicado y Cancelado", async () => {
-    server.use(http.get(`${API}/events`, () => responder("/events", "get", 200, pagina())));
+  test("sin sesión solo ofrece Publicados y Cancelados", async () => {
+    guardarPedidos([]);
     abrir();
 
     await screen.findByRole("link", { name: "PyCon Bogotá" });
-    expect(opciones()).toEqual(["Todos", "Publicado", "Cancelado"]);
+    expect(opciones()).toEqual(["Publicados", "Cancelados"]);
   });
 
-  test("quien no crea eventos tampoco ve Borrador", async () => {
+  test("quien no crea eventos tampoco ve Borradores ni Todos", async () => {
     useSession.getState().iniciarSesion(usuario, "token", 3600);
-    server.use(http.get(`${API}/events`, () => responder("/events", "get", 200, pagina())));
+    guardarPedidos([]);
     abrir();
 
     await screen.findByRole("link", { name: "PyCon Bogotá" });
-    expect(opciones()).toEqual(["Todos", "Publicado", "Cancelado"]);
+    expect(opciones()).toEqual(["Publicados", "Cancelados"]);
   });
 
-  test("un organizador también ofrece Borrador", async () => {
-    useSession
-      .getState()
-      .iniciarSesion({ ...usuario, role: "ORGANIZER", permisos: ["evento:crear"] }, "token", 3600);
-    server.use(http.get(`${API}/events`, () => responder("/events", "get", 200, pagina())));
+  test("quien no ve borradores y abre ?estado=borradores cae en Publicados", async () => {
+    const pedidos: string[] = [];
+    guardarPedidos(pedidos);
+    abrir("/?estado=borradores");
+
+    await screen.findByRole("link", { name: "PyCon Bogotá" });
+    expect(pedidos).toEqual(["?status=PUBLISHED"]);
+    expect(screen.getByLabelText("Estado")).toHaveValue("publicados");
+  });
+
+  test.each(["otra-cosa", "toString", "constructor", "__proto__"])(
+    "un valor desconocido en ?estado=%s cae en Publicados y pide status=PUBLISHED",
+    async (valor) => {
+      const pedidos: string[] = [];
+      guardarPedidos(pedidos);
+      abrir(`/?estado=${valor}`);
+
+      await screen.findByRole("link", { name: "PyCon Bogotá" });
+      expect(screen.getByLabelText("Estado")).toHaveValue("publicados");
+      expect(pedidos).toEqual(["?status=PUBLISHED"]);
+    },
+  );
+
+  test("un organizador también ofrece Borradores y Todos", async () => {
+    useSession.getState().iniciarSesion(organizador, "token", 3600);
+    guardarPedidos([]);
     abrir();
 
     await screen.findByRole("link", { name: "PyCon Bogotá" });
-    expect(opciones()).toEqual(["Todos", "Publicado", "Borrador", "Cancelado"]);
+    expect(opciones()).toEqual(["Publicados", "Cancelados", "Borradores", "Todos"]);
+  });
+
+  test("con permiso, Todos no manda status y Borradores manda DRAFT", async () => {
+    useSession.getState().iniciarSesion(organizador, "token", 3600);
+    const pedidos: string[] = [];
+    guardarPedidos(pedidos);
+    const user = userEvent.setup();
+    abrir();
+    await screen.findByRole("link", { name: "PyCon Bogotá" });
+
+    await user.selectOptions(screen.getByRole("combobox", { name: "Estado" }), "Todos");
+    await waitFor(() => expect(pedidos).toEqual(["?status=PUBLISHED", ""]));
+    expect(screen.getByLabelText("ubicación")).toHaveTextContent(/^\/\?estado=todos$/);
+
+    await user.selectOptions(screen.getByRole("combobox", { name: "Estado" }), "Borradores");
+    await waitFor(() => expect(pedidos).toEqual(["?status=PUBLISHED", "", "?status=DRAFT"]));
   });
 });

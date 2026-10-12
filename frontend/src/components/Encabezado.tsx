@@ -1,7 +1,6 @@
 import { useCerrarSesion } from "../lib/useCerrarSesion";
-import { useEsAngosto } from "../lib/useEsAngosto";
 import { useSesionVigente, useSession, useTienePermiso } from "../stores/session";
-import { BotonEnlace, Enlace } from "./ui/Enlace";
+import { Enlace } from "./ui/Enlace";
 import { MenuAcciones, type ItemMenu } from "./ui/MenuAcciones";
 
 export function Encabezado() {
@@ -10,15 +9,13 @@ export function Encabezado() {
   const puedeAdministrar = useTienePermiso("usuarios:gestionar");
   const vigente = useSesionVigente();
   const cerrarSesion = useCerrarSesion();
-  const angosto = useEsAngosto();
   const nombre = user && (user.full_name || user.email);
   const sesion = !!user && vigente;
 
   const itemsCuenta: ItemMenu[] = [
-    ...(puedeCrear ? [{ texto: "Crear evento", to: "/eventos/nuevo" }] : []),
     ...(puedeAdministrar ? [{ texto: "Administración", to: "/admin/usuarios" }] : []),
     { texto: "Mi perfil", to: "/perfil" },
-    { texto: "Cerrar sesión", onSelect: cerrarSesion },
+    { texto: "Cerrar sesión", onSelect: cerrarSesion, separado: true },
   ];
 
   return (
@@ -33,39 +30,30 @@ export function Encabezado() {
             Mis Eventos
           </Enlace>
         </div>
-        {sesion && angosto ? (
-          <MenuAcciones
-            etiqueta="Menú de la cuenta"
-            variante="circulo"
-            alinear="fin"
-            titulo={nombre ?? undefined}
-            items={itemsCuenta}
-          >
-            {(nombre ?? "?").charAt(0).toLocaleUpperCase("es")}
-          </MenuAcciones>
-        ) : sesion ? (
+        {sesion ? (
           <>
             {puedeCrear && (
               <Enlace to="/eventos/nuevo" variante="navegacion">
                 Crear evento
               </Enlace>
             )}
-            {puedeAdministrar && (
-              <Enlace to="/admin/usuarios" variante="navegacion">
-                Administración
-              </Enlace>
-            )}
-            <Enlace to="/perfil" variante="navegacion" title={nombre ?? undefined}>
-              {nombre}
-            </Enlace>
-            <BotonEnlace onClick={cerrarSesion}>Cerrar sesión</BotonEnlace>
+            <MenuAcciones
+              etiqueta="Menú de la cuenta"
+              variante="circulo"
+              alinear="fin"
+              titulo={nombre ?? undefined}
+              subtitulo={user.full_name ? user.email : undefined}
+              items={itemsCuenta}
+            >
+              {(nombre ?? "?").charAt(0).toLocaleUpperCase("es")}
+            </MenuAcciones>
           </>
         ) : (
           <>
             <Enlace to="/login" variante="navegacion">
-              Iniciar sesión
+              Ingresar
             </Enlace>
-            <Enlace to="/registro" variante="navegacion">
+            <Enlace to="/registro" variante="navegacionOpcional">
               Registrarse
             </Enlace>
           </>

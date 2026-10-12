@@ -9,7 +9,9 @@ const ESTILOS = {
   navegacion: `${BASE} font-medium text-primario hover:underline hover:underline-offset-4`,
   /** El título de una tarjeta: su área cubre toda la tarjeta (que tiene que ser `relative`). */
   tarjeta:
-    "inline-flex min-h-11 max-w-full min-w-0 items-center font-bold break-words text-tinta after:absolute after:inset-0 after:rounded-lg focus-visible:outline-none focus-visible:after:outline-3 focus-visible:after:outline-offset-2 focus-visible:after:outline-foco md:min-h-10",
+    "inline-flex min-h-11 max-w-full min-w-0 items-center font-bold break-words text-tinta after:absolute after:inset-0 after:rounded-lg focus-visible:outline-none focus-visible:after:outline-3 focus-visible:after:-outline-offset-3 focus-visible:after:outline-foco md:min-h-10",
+  /** Como `navegacion`, pero desaparece por debajo de 375 px, donde no entra junto al resto. */
+  navegacionOpcional: `${BASE.replace("inline-flex ", "")} hidden xs:inline-flex font-medium text-primario hover:underline hover:underline-offset-4`,
   marca: `${BASE} text-lg font-bold text-tinta hover:underline hover:underline-offset-4`,
 } as const;
 

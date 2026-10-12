@@ -7,11 +7,13 @@ interface Props {
   libres: number;
   /** Los eventos hablan de cupos; las sesiones, de lugares. */
   unidad?: "cupo" | "lugar";
+  /** Un borrador: nadie puede inscribirse, así que solo cuenta los cupos, sin avisos de urgencia. */
+  soloConteo?: boolean;
 }
 
 /** El único chip de cupos: "Sin cupos", "Últimos lugares · queda 1" o "Quedan N cupos". */
-export function ChipCupos({ capacidad, libres, unidad = "cupo" }: Props) {
-  const estado = disponibilidad(capacidad, libres);
+export function ChipCupos({ capacidad, libres, unidad = "cupo", soloConteo }: Props) {
+  const estado = soloConteo ? null : disponibilidad(capacidad, libres);
   if (estado === "agotado") return <Chip tono="error">Sin cupos</Chip>;
   if (estado === "ultimos") {
     return (
