@@ -3,6 +3,7 @@ import { formatearFecha } from "../lib/fechas";
 import { quedan } from "../lib/plural";
 import type { components } from "../api/schema";
 import type { Evento } from "../stores/eventos";
+import { ChipDisponibilidad } from "./ChipDisponibilidad";
 import { InsigniaEstado } from "./InsigniaEstado";
 import { Chip } from "./ui/Chip";
 import { Enlace } from "./ui/Enlace";
@@ -42,7 +43,7 @@ export function EventoCard({ evento, indice, children }: Props) {
       </div>
       {conCupos && (
         <div className="mt-auto flex flex-wrap gap-2">
-          {evento.available_spots === 0 && <Chip tono="error">Sin cupos</Chip>}
+          <ChipDisponibilidad capacidad={evento.capacity} libres={evento.available_spots} />
           <Chip tono={evento.available_spots === 0 ? "neutro" : "acento"}>
             {quedan(evento.available_spots, "cupo", "cupos")}
           </Chip>
