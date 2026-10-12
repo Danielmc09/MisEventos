@@ -2,6 +2,7 @@
 
 Lanza excepciones de dominio; no sabe nada de HTTP."""
 
+from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Protocol
 from uuid import UUID
@@ -34,14 +35,54 @@ class Sesiones(Protocol):
     def eliminar(self, sesion: Sesion) -> None: ...
 
 
+class OcupacionDeSesiones(Protocol):
+    def ocupacion(
+        self, ids_sesion: list[UUID], id_usuario: UUID | None
+    ) -> dict[UUID, tuple[int, bool]]: ...
+
+
+def capacidad_efectiva(sesion: Sesion, evento: Event) -> int:
+    """La capacidad propia de la sesión o, si no tiene, la del evento."""
+    return sesion.capacity if sesion.capacity is not None else evento.capacity
+
+
+@dataclass(frozen=True)
+class SesionDelListado:
+    sesion: Sesion
+    ponentes: list[Speaker]
+    reservadas: int
+    lugares: int
+    reservada: bool  # por quien pregunta; un anónimo no tiene reservas
+
+
 def listar(
-    eventos: Eventos, sesiones: Sesiones, usuario: User | None, id_evento: UUID
-) -> list[SesionConPonentes]:
-    """Las sesiones por hora de inicio. Si no puede ver el evento, NotFound."""
-    servicio_eventos.obtener(eventos, usuario, id_evento)
-    propias = eventos.sesiones_de(id_evento)
-    ponentes = sesiones.ponentes_de([s.id for s in propias])
-    return [(s, ponentes[s.id]) for s in propias]
+    eventos: Eventos,
+    sesiones: Sesiones,
+    reservas: OcupacionDeSesiones,
+    usuario: User | None,
+    id_evento: UUID,
+) -> list[SesionDelListado]:
+    """Las sesiones por hora de inicio, cada una con sus reservas activas y sus lugares libres.
+    Los ponentes y las reservas se piden una sola vez para todas. Si no puede ver el evento,
+    NotFound."""
+    evento = servicio_eventos.obtener(eventos, usuario, id_evento)
+    propias = eventos.sesiones_de(evento.id)
+    ids = [s.id for s in propias]
+    ponentes = sesiones.ponentes_de(ids)
+    ocupacion = reservas.ocupacion(ids, None if usuario is None else usuario.id)
+    listado = []
+    for sesion in propias:
+        reservadas, reservada = ocupacion[sesion.id]
+        listado.append(
+            SesionDelListado(
+                sesion=sesion,
+                ponentes=ponentes[sesion.id],
+                reservadas=reservadas,
+                lugares=capacidad_efectiva(sesion, evento) - reservadas,
+                reservada=reservada,
+            )
+        )
+    return listado
 
 
 def _bloquear_ponentes(ponentes: Ponentes, ids: list[UUID]) -> list[Speaker]:

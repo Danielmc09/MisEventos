@@ -1,6 +1,7 @@
 from datetime import datetime
 from uuid import UUID
 
+from sqlalchemy import false
 from sqlmodel import Session, col, func, select, update
 
 from app.models.reserva import EstadoReserva, SessionRegistration
@@ -30,6 +31,49 @@ class RepositorioReservas:
             )
         )
         return self.session.exec(consulta).one()
+
+    def ocupacion(
+        self, ids_sesion: list[UUID], id_usuario: UUID | None
+    ) -> dict[UUID, tuple[int, bool]]:
+        """Por sesión: (reservas activas, si una de ellas es del usuario). Una sola consulta
+        agregada para todas; sin usuario (anónimo), ninguna es suya."""
+        por_sesion = dict.fromkeys(ids_sesion, (0, False))
+        if not ids_sesion:
+            return por_sesion
+        propia = false() if id_usuario is None else col(SessionRegistration.user_id) == id_usuario
+        consulta = (
+            select(SessionRegistration.session_id, func.count(), func.bool_or(propia))
+            .where(
+                col(SessionRegistration.session_id).in_(ids_sesion),
+                SessionRegistration.status == EstadoReserva.ACTIVE,
+            )
+            .group_by(col(SessionRegistration.session_id))
+        )
+        for id_sesion, cantidad, es_propia in self.session.exec(consulta).all():
+            por_sesion[id_sesion] = (cantidad, bool(es_propia))
+        return por_sesion
+
+    def reservadas_por_evento(
+        self, id_usuario: UUID, ids_evento: list[UUID]
+    ) -> dict[UUID, list[Sesion]]:
+        """Por evento: las sesiones con reserva activa del usuario, por hora de inicio. Una sola
+        consulta para todos los eventos."""
+        por_evento: dict[UUID, list[Sesion]] = {id_: [] for id_ in ids_evento}
+        if not ids_evento:
+            return por_evento
+        consulta = (
+            select(Sesion)
+            .join(SessionRegistration, col(SessionRegistration.session_id) == col(Sesion.id))
+            .where(
+                SessionRegistration.user_id == id_usuario,
+                SessionRegistration.status == EstadoReserva.ACTIVE,
+                col(Sesion.event_id).in_(ids_evento),
+            )
+            .order_by(col(Sesion.start_at), col(Sesion.id))
+        )
+        for sesion in self.session.exec(consulta).all():
+            por_evento[sesion.event_id].append(sesion)
+        return por_evento
 
     def cruces(
         self, id_usuario: UUID, id_evento: UUID, inicio: datetime, fin: datetime
