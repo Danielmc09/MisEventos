@@ -171,18 +171,52 @@ def test_desactivar_corta_el_token_vigente_y_reactivar_deja_volver_a_entrar(
     assert cliente_db.get("/auth/me", headers=auth(nuevo_token)).status_code == 200
 
 
+def test_cambiar_el_nombre_de_un_usuario_se_ve_en_el_listado(cliente_db, conexion, tokens, prefijo):
+    id_ana = id_de(conexion, email(prefijo, "ana"))
+    nombre = f"Ana {prefijo} Pérez"
+
+    cambio = cambiar(cliente_db, tokens["admin"], id_ana, {"full_name": nombre})
+
+    assert cambio.status_code == 200, cambio.text
+    respuesta = listar(cliente_db, tokens["admin"], q=nombre)
+    assert respuesta.status_code == 200, respuesta.text
+    [ana] = respuesta.json()["items"]
+    assert (ana["id"], ana["full_name"]) == (id_ana, nombre)
+
+
+@pytest.mark.parametrize("ruta", ["/auth/me", "/me/registrations"])
+def test_desactivado_por_el_admin_su_token_vigente_deja_de_servir_en_el_acto(
+    cliente_db, conexion, tokens, prefijo, ruta
+):
+    login = {"username": email(prefijo, "ana"), "password": CLAVE}
+    entrada = cliente_db.post("/auth/login", data=login)
+    assert entrada.status_code == 200, entrada.text
+    token = entrada.json()["access_token"]
+    assert cliente_db.get(ruta, headers=auth(token)).status_code == 200
+
+    desactivado = cambiar(
+        cliente_db, tokens["admin"], id_de(conexion, email(prefijo, "ana")), {"is_active": False}
+    )
+
+    assert desactivado.status_code == 200, desactivado.text
+    # El mismo token, todavía vigente: el siguiente request ya no pasa.
+    despues = cliente_db.get(ruta, headers=auth(token))
+    assert despues.status_code == 401, despues.text
+    assert despues.headers["www-authenticate"] == "Bearer"
+
+
 def test_un_usuario_inexistente_responde_404(cliente_db, tokens):
     respuesta = cambiar(cliente_db, tokens["admin"], str(uuid4()), {"role": "ADMIN"})
 
     assert respuesta.status_code == 404, respuesta.text
 
 
-def test_un_patch_con_nombre_email_o_contrasena_responde_422_y_no_cambia_nada(
+def test_un_patch_con_email_o_contrasena_responde_422_y_no_cambia_nada(
     cliente_db, conexion, tokens, prefijo
 ):
     id_orga = id_de(conexion, email(prefijo, "orga"))
 
-    for campo, valor in (("full_name", "Otro"), ("email", "otro@mail.com"), ("password", CLAVE)):
+    for campo, valor in (("email", "otro@mail.com"), ("password", CLAVE)):
         respuesta = cambiar(cliente_db, tokens["admin"], id_orga, {"role": "ADMIN", campo: valor})
         assert respuesta.status_code == 422, respuesta.text
 

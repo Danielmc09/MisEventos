@@ -70,14 +70,14 @@ def patch(cliente, auth, actor: User, id_usuario, cuerpo: dict):
 @pytest.mark.parametrize(
     "cuerpo",
     [
-        {"full_name": "Otro Nombre"},
         {"email": "nuevo@mail.com"},
         {"password": secrets.token_urlsafe()},
-        {"role": "ATTENDEE", "full_name": "Otro Nombre"},
+        {"role": "ATTENDEE", "email": "nuevo@mail.com"},
+        {"full_name": "Otro Nombre", "password": secrets.token_urlsafe()},
         {"must_change_password": True},
     ],
 )
-def test_un_patch_con_un_campo_que_no_es_rol_ni_estado_responde_422(
+def test_un_patch_con_un_campo_que_no_es_rol_estado_ni_nombre_responde_422(
     cliente, repo, auth, gente, cuerpo
 ):
     orga = gente["orga"]
@@ -87,7 +87,7 @@ def test_un_patch_con_un_campo_que_no_es_rol_ni_estado_responde_422(
     assert respuesta.status_code == 422, respuesta.text
     assert respuesta.headers["content-type"] == "application/problem+json"
     rechazados = {e["field"] for e in respuesta.json()["errors"]}
-    assert rechazados == set(cuerpo) - {"role"}
+    assert rechazados == set(cuerpo) - {"role", "full_name"}
     assert (orga.role, orga.full_name, orga.email) == (Rol.ORGANIZER, "Orga", "orga@mail.com")
     assert repo.operaciones == []
 
@@ -107,6 +107,49 @@ def test_un_rol_o_estado_invalido_o_nulo_responde_422(cliente, repo, auth, gente
     assert respuesta.status_code == 422, respuesta.text
     assert [e["field"] for e in respuesta.json()["errors"]] == [campo]
     assert repo.operaciones == []
+
+
+def test_el_admin_cambia_el_nombre_de_otro_y_el_suyo(cliente, repo, auth, gente):
+    admin, orga = gente["admin"], gente["orga"]
+
+    de_otro = patch(cliente, auth, admin, orga.id, {"full_name": "Beatriz Gómez"})
+    propio = patch(cliente, auth, admin, admin.id, {"full_name": "Ana Administradora"})
+
+    assert de_otro.status_code == 200, de_otro.text
+    assert de_otro.json()["full_name"] == "Beatriz Gómez"
+    assert orga.full_name == "Beatriz Gómez"
+    assert propio.status_code == 200, propio.text
+    assert propio.json()["full_name"] == "Ana Administradora"
+    assert (admin.full_name, admin.role, admin.is_active) == ("Ana Administradora", Rol.ADMIN, True)
+
+
+def test_cambiarse_el_nombre_junto_con_el_rol_sigue_siendo_cannot_modify_self(repo, gente):
+    admin = gente["admin"]
+
+    with pytest.raises(Conflict) as error:
+        administracion.cambiar(
+            repo, admin, admin.id, UsuarioEdicion(full_name="Otro", role=Rol.ATTENDEE)
+        )
+
+    assert error.value.tipo == "cannot-modify-self"
+    assert (admin.full_name, admin.role) == ("Admin", Rol.ADMIN)
+
+
+@pytest.mark.parametrize(
+    ("valor", "campo"),
+    [("x" * 121, "full_name"), ("con\x00nulo", "full_name")],
+    ids=["largo", "caracter-nulo"],
+)
+def test_un_nombre_invalido_responde_422_como_en_el_registro(
+    cliente, repo, auth, gente, valor, campo
+):
+    orga = gente["orga"]
+
+    respuesta = patch(cliente, auth, gente["admin"], orga.id, {"full_name": valor})
+
+    assert respuesta.status_code == 422, respuesta.text
+    assert [e["field"] for e in respuesta.json()["errors"]] == [campo]
+    assert orga.full_name == "Orga"
 
 
 def test_el_admin_cambia_el_rol_y_recibe_el_usuario_con_sus_inscripciones(
