@@ -57,7 +57,10 @@ export default function Inicio() {
     setParams({});
   };
 
-  const hayFiltros = !!(params.get("q") || params.get("status"));
+  // Quien no ve borradores no puede filtrar por ellos: la URL se ignora, así lista y select coinciden.
+  const estado =
+    params.get("status") === "DRAFT" && !veBorradores ? "" : (params.get("status") ?? "");
+  const hayFiltros = !!(params.get("q") || estado);
 
   const irAPagina = (pagina: number) =>
     setParams((previos) => {
@@ -68,7 +71,11 @@ export default function Inicio() {
     });
 
   const consulta = new URLSearchParams(
-    ["q", "status", "page"].flatMap((k) => (params.get(k) ? [[k, params.get(k)!]] : [])),
+    [
+      ["q", params.get("q")],
+      ["status", estado],
+      ["page", params.get("page")],
+    ].flatMap(([k, v]) => (v ? [[k!, v]] : [])),
   ).toString();
 
   useEffect(() => {
@@ -106,7 +113,7 @@ export default function Inicio() {
         <Select
           id="estado"
           label="Estado"
-          value={params.get("status") ?? ""}
+          value={estado}
           onChange={(e) => filtrar("status", e.target.value)}
         >
           <option value="">Todos</option>
