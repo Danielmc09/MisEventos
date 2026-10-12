@@ -1,12 +1,12 @@
 import type { ReactNode } from "react";
-import { formatearFecha } from "../lib/fechas";
-import { quedan } from "../lib/plural";
+import { diaMesBogota, formatearFecha } from "../lib/fechas";
+import { claseGradiente } from "../lib/gradiente";
 import type { components } from "../api/schema";
 import type { Evento } from "../stores/eventos";
-import { ChipDisponibilidad } from "./ChipDisponibilidad";
+import { ChipCupos } from "./ChipCupos";
 import { InsigniaEstado } from "./InsigniaEstado";
-import { Chip } from "./ui/Chip";
 import { Enlace } from "./ui/Enlace";
+import { FranjaFecha } from "./ui/FranjaFecha";
 import { TextoSecundario } from "./ui/TextoSecundario";
 import { Tarjeta } from "./ui/Tarjeta";
 import { TituloSeccion } from "./ui/TituloSeccion";
@@ -24,34 +24,37 @@ interface Props {
 
 export function EventoCard({ evento, indice, children }: Props) {
   const conCupos = "available_spots" in evento;
+  const { dia, mes } = diaMesBogota(evento.start_at);
   return (
-    <Tarjeta indice={indice}>
-      <div className="flex flex-col gap-2">
-        <InsigniaEstado
-          evento={evento}
-          etiquetaCancelado={conCupos ? undefined : "Evento cancelado"}
-        />
-        <TituloSeccion estilo="tarjeta">
-          <Enlace to={`/eventos/${evento.id}`}>{evento.name}</Enlace>
-        </TituloSeccion>
-      </div>
+    <Tarjeta
+      indice={indice}
+      cabecera={
+        <FranjaFecha dia={dia} mes={mes} gradiente={claseGradiente(evento.name)}>
+          <InsigniaEstado
+            evento={evento}
+            etiquetaCancelado={conCupos ? undefined : "Evento cancelado"}
+          />
+        </FranjaFecha>
+      }
+    >
+      <TituloSeccion estilo="tarjeta">
+        <Enlace to={`/eventos/${evento.id}`} variante="tarjeta">
+          {evento.name}
+        </Enlace>
+      </TituloSeccion>
       <div className="flex flex-col gap-1">
         <TextoSecundario pequeno>
           <time dateTime={evento.start_at}>{formatearFecha(evento.start_at)}</time>
         </TextoSecundario>
         {evento.location && <TextoSecundario pequeno>{evento.location}</TextoSecundario>}
       </div>
-      {conCupos && (
-        <div className="mt-auto flex flex-wrap gap-2">
-          {evento.status === "PUBLISHED" && !evento.is_finished && (
-            <ChipDisponibilidad capacidad={evento.capacity} libres={evento.available_spots} />
-          )}
-          <Chip tono={evento.available_spots === 0 ? "neutro" : "acento"}>
-            {quedan(evento.available_spots, "cupo", "cupos")}
-          </Chip>
+      {conCupos && evento.status === "PUBLISHED" && !evento.is_finished && (
+        <div className="mt-auto">
+          <ChipCupos capacidad={evento.capacity} libres={evento.available_spots} />
         </div>
       )}
-      {children}
+      {/* Por encima del área clickeable del título: lo que cuelga tiene sus propios controles. */}
+      {children && <div className="relative">{children}</div>}
     </Tarjeta>
   );
 }

@@ -57,9 +57,9 @@ test("un evento publicado que ya empezó muestra En curso", () => {
 });
 
 test("muestra cuántos cupos quedan", () => {
-  montar({ ...evento, available_spots: 7 });
+  montar({ ...evento, available_spots: 40 });
 
-  expect(screen.getByText("Quedan 7 cupos")).toBeInTheDocument();
+  expect(screen.getByText("Quedan 40 cupos")).toBeInTheDocument();
 });
 
 test("con un solo cupo dice que son los últimos lugares", () => {

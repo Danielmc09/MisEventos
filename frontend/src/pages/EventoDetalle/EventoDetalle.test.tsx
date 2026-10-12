@@ -787,7 +787,9 @@ describe("inscribirse", () => {
 
     expect(await screen.findByRole("alert")).toHaveTextContent("El evento no tiene cupos");
     expect(await screen.findByRole("button", { name: "Sin cupos" })).toBeDisabled();
-    expect(screen.getByText("Quedan 0 cupos")).toBeInTheDocument();
+    // El botón deshabilitado y el chip de cupos dicen lo mismo.
+    expect(screen.getAllByText("Sin cupos")).toHaveLength(2);
+    expect(screen.queryByText(/Quedan/)).not.toBeInTheDocument();
   });
 
   test("cualquier 409 refresca el evento", async () => {
@@ -1371,14 +1373,15 @@ describe("reservas de sesiones", () => {
     });
   });
 
-  test("con un solo lugar en una sesión dice Queda 1 lugar", async () => {
+  test("con un solo lugar en una sesión el chip dice queda 1", async () => {
     useSession.getState().iniciarSesion(usuario, "token", 3600);
     servir(inscrito);
     servirLista([{ ...conLugar, reserved_count: 4, available_spots: 1 }]);
     abrir();
 
     const item = await fila("Taller de Pytest");
-    expect(item.getByText("Queda 1 lugar")).toBeInTheDocument();
+    expect(item.getByText("Últimos lugares · queda 1")).toBeInTheDocument();
+    expect(item.queryByText("Queda 1 lugar")).not.toBeInTheDocument();
   });
 
   test("una sesión con pocos lugares muestra el chip Últimos lugares", async () => {
@@ -1388,7 +1391,7 @@ describe("reservas de sesiones", () => {
     abrir();
 
     const item = await fila("Taller de Pytest");
-    expect(item.getByText("Últimos lugares")).toBeInTheDocument();
+    expect(item.getByText("Últimos lugares · quedan 2")).toBeInTheDocument();
   });
 
   test("una sesión con lugares de sobra no muestra el chip Últimos lugares", async () => {
@@ -1398,7 +1401,7 @@ describe("reservas de sesiones", () => {
     abrir();
 
     const item = await fila("Taller de Pytest");
-    expect(item.queryByText("Últimos lugares")).not.toBeInTheDocument();
+    expect(item.queryByText(/Últimos lugares/)).not.toBeInTheDocument();
   });
 
   test("una sesión sin capacidad propia usa lo reservado más lo que queda: Últimos lugares", async () => {
@@ -1408,7 +1411,7 @@ describe("reservas de sesiones", () => {
     abrir();
 
     const item = await fila("Taller de Pytest");
-    expect(item.getByText("Últimos lugares")).toBeInTheDocument();
+    expect(item.getByText("Últimos lugares · quedan 5")).toBeInTheDocument();
   });
 
   test("el evento con pocos cupos muestra el chip Últimos lugares", async () => {
@@ -1430,7 +1433,7 @@ describe("reservas de sesiones", () => {
       abrir();
 
       await screen.findByRole("heading", { name: "PyCon Bogotá" });
-      expect(screen.queryByText("Últimos lugares")).not.toBeInTheDocument();
+      expect(screen.queryByText(/Últimos lugares/)).not.toBeInTheDocument();
     },
   );
 

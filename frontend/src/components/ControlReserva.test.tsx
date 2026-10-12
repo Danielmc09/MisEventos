@@ -26,7 +26,7 @@ describe("ControlReserva sin inscripción", () => {
   it("avisa que hay que inscribirse y marca los últimos lugares", () => {
     dibujar(1);
     expect(screen.getByText("Inscribite al evento para reservar sesiones")).toBeInTheDocument();
-    expect(screen.getByText("Últimos lugares")).toBeInTheDocument();
+    expect(screen.getByText("Últimos lugares · queda 1")).toBeInTheDocument();
   });
 
   it("avisa que hay que inscribirse y marca que no hay cupos", () => {
@@ -37,7 +37,7 @@ describe("ControlReserva sin inscripción", () => {
 
   it("no muestra chip si sobran lugares", () => {
     dibujar(3);
-    expect(screen.queryByText("Últimos lugares")).not.toBeInTheDocument();
+    expect(screen.queryByText(/Últimos lugares/)).not.toBeInTheDocument();
     expect(screen.queryByText("Sin cupos")).not.toBeInTheDocument();
   });
 });

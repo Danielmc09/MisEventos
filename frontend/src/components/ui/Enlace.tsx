@@ -7,7 +7,9 @@ const BASE =
 const ESTILOS = {
   texto: `${BASE} text-primario underline underline-offset-4 break-words hover:decoration-2`,
   navegacion: `${BASE} font-medium text-primario hover:underline hover:underline-offset-4`,
-  tarjeta: "",
+  /** El título de una tarjeta: su área cubre toda la tarjeta (que tiene que ser `relative`). */
+  tarjeta:
+    "inline-flex min-h-11 max-w-full min-w-0 items-center font-bold break-words text-tinta after:absolute after:inset-0 after:rounded-lg focus-visible:outline-none focus-visible:after:outline-3 focus-visible:after:outline-offset-2 focus-visible:after:outline-foco md:min-h-10",
   marca: `${BASE} text-lg font-bold text-tinta hover:underline hover:underline-offset-4`,
 } as const;
 
@@ -22,7 +24,11 @@ export interface EnlaceProps extends Omit<ComponentProps<typeof Link>, "classNam
 export function Enlace({ variante = "texto", children, ...props }: EnlaceProps) {
   return (
     <Link {...props} className={ESTILOS[variante]}>
-      {variante === "texto" ? children : <span className="truncate">{children}</span>}
+      {variante === "texto" || variante === "tarjeta" ? (
+        children
+      ) : (
+        <span className="truncate">{children}</span>
+      )}
     </Link>
   );
 }
