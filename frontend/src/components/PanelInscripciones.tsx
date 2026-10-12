@@ -93,7 +93,8 @@ function ListaInscritos({ eventoId }: { eventoId: string }) {
         descripcion="Lista de inscritos"
         columnas={["Nombre", "Correo", "Estado", "Inscripción"]}
         filas={items.map((i) => ({
-          id: i.email,
+          // El correo solo no alcanza: quien se inscribe, cancela y vuelve a inscribirse figura dos veces.
+          id: `${i.email}|${i.created_at}`,
           celdas: [
             i.full_name ?? "—",
             i.email,
