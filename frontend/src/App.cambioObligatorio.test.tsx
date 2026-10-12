@@ -132,3 +132,38 @@ test("un 403 password-change-required de la API lleva a /cambiar-contrasena", as
   expect(avisoDeCambio()).toBeDefined();
   expect(useSession.getState().accessToken).toBe("token-abc");
 });
+
+test("un 403 que no es password-change-required no marca la sesión como pendiente ni cambia la ubicación", async () => {
+  server.use(
+    http.get(`${API}/auth/me`, () => responder("/auth/me", "get", 200, usuario)),
+    http.get(`${API}/me/registrations`, () =>
+      HttpResponse.json(
+        { type: "forbidden", title: "No tenés permiso", status: 403, trace_id: "t-2" },
+        { status: 403, headers: { "Content-Type": "application/problem+json" } },
+      ),
+    ),
+  );
+  useSession.getState().iniciarSesion(usuario, "token-abc", 3600);
+  montar("/perfil");
+  await screen.findByRole("heading", { name: "Perfil" });
+
+  const error = await api("/me/registrations").catch((e: unknown) => e);
+
+  expect(error).toMatchObject({ status: 403, type: "forbidden" });
+  expect(useSession.getState().user?.must_change_password).toBe(false);
+  expect(ubicacion()).toHaveTextContent(/^\/perfil$/);
+  expect(screen.queryByRole("heading", { name: "Cambiar contraseña" })).not.toBeInTheDocument();
+});
+
+test("con el flag persistido y el token vencido, entrar a / no lleva a /cambiar-contrasena", async () => {
+  useSession.setState({
+    user: pendiente,
+    accessToken: "token-viejo",
+    expiresAt: Date.now() - 1000,
+  });
+  montar("/");
+
+  await waitFor(() => expect(useSession.getState().accessToken).toBeNull());
+  expect(ubicacion()).toHaveTextContent(/^\/$/);
+  expect(screen.queryByRole("heading", { name: "Cambiar contraseña" })).not.toBeInTheDocument();
+});
