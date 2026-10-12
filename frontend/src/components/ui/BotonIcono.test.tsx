@@ -79,3 +79,12 @@ test("el tooltip sale debajo del botón, sin tapar el contenido de arriba", asyn
   expect(tooltip).toHaveClass("top-full", "left-0");
   expect(tooltip).not.toHaveClass("bottom-full");
 });
+
+test("soloIcono no muestra el texto junto al ícono en angosto: lo dice solo el tooltip", async () => {
+  const user = userEvent.setup();
+  montar({ soloIcono: true });
+
+  expect(screen.queryByText("Editar")).not.toBeInTheDocument();
+  await user.hover(screen.getByRole("button"));
+  expect(screen.getByRole("tooltip")).toHaveTextContent("Editar");
+});

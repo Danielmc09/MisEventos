@@ -175,3 +175,69 @@ test("mientras trabaja, el foco sigue en el botón, que muestra el spinner y ari
   expect(disparador()).not.toBeDisabled();
   expect(within(disparador()).getByRole("status")).toBeInTheDocument();
 });
+
+describe("encabezado y separador", () => {
+  const abrirConEncabezado = async () => {
+    const user = userEvent.setup();
+    render(
+      <MemoryRouter>
+        <MenuAcciones
+          etiqueta="Menú de la cuenta"
+          titulo="Ana Pérez"
+          subtitulo="ana@mail.com"
+          items={[
+            { texto: "Mi perfil", to: "/perfil" },
+            { texto: "Cerrar sesión", onSelect: () => {}, separado: true },
+          ]}
+        >
+          A
+        </MenuAcciones>
+      </MemoryRouter>,
+    );
+    await user.click(screen.getByRole("button", { name: "Menú de la cuenta" }));
+    return user;
+  };
+
+  test("el título y el subtítulo se ven como encabezado y no son opciones", async () => {
+    await abrirConEncabezado();
+
+    const menu = screen.getByRole("menu");
+    expect(within(menu).getByText("Ana Pérez")).toBeInTheDocument();
+    expect(within(menu).getByText("ana@mail.com")).toBeInTheDocument();
+    expect(within(menu).getAllByRole("menuitem")).toHaveLength(2);
+  });
+
+  test("una opción separada lleva un separador encima y el teclado la sigue alcanzando", async () => {
+    const user = await abrirConEncabezado();
+
+    const menu = screen.getByRole("menu");
+    const separador = within(menu).getByRole("separator");
+    const cerrar = within(menu).getByRole("menuitem", { name: "Cerrar sesión" });
+    expect(separador.nextElementSibling).toBe(cerrar);
+    await user.keyboard("{ArrowDown}");
+    expect(cerrar).toHaveFocus();
+  });
+});
+
+test("la variante icono es un botón cuadrado con tooltip que abre el menú", async () => {
+  const user = userEvent.setup();
+  render(
+    <MemoryRouter>
+      <MenuAcciones
+        etiqueta="Más acciones del evento"
+        variante="icono"
+        items={[{ texto: "Eliminar", onSelect: () => {} }]}
+      >
+        Más acciones
+      </MenuAcciones>
+    </MemoryRouter>,
+  );
+
+  const boton = screen.getByRole("button", { name: "Más acciones del evento" });
+  expect(boton).toHaveAttribute("aria-haspopup", "menu");
+  expect(screen.queryByText("Más acciones")).not.toBeInTheDocument();
+  await user.hover(boton);
+  expect(screen.getByRole("tooltip")).toHaveTextContent("Más acciones");
+  await user.click(boton);
+  expect(screen.getByRole("menuitem", { name: "Eliminar" })).toBeInTheDocument();
+});

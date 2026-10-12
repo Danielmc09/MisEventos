@@ -44,43 +44,77 @@ test("sin sesión ofrece Iniciar sesión y Registrarse", async () => {
   expect(nav.queryByRole("button", { name: "Cerrar sesión" })).not.toBeInTheDocument();
 });
 
-test("con sesión muestra el nombre y no el email", () => {
+const abrirCuenta = async (user: ReturnType<typeof userEvent.setup>) => {
+  await user.click(within(encabezado()).getByRole("button", { name: "Menú de la cuenta" }));
+  return within(encabezado());
+};
+
+test("con sesión deja el logo y un círculo con la inicial; el nombre y el email no se ven hasta abrir el menú", () => {
   useSession
     .getState()
     .iniciarSesion({ ...usuario, full_name: "Oscar Organizador" }, "token-abc", 3600);
   montar("/");
 
   const nav = within(encabezado());
-  expect(nav.getByRole("link", { name: "Oscar Organizador" })).toHaveAttribute("href", "/perfil");
+  expect(nav.getByRole("link", { name: "Mis Eventos" })).toBeInTheDocument();
+  expect(nav.getByRole("button", { name: "Menú de la cuenta" })).toHaveTextContent("O");
+  expect(nav.queryByText("Oscar Organizador")).not.toBeInTheDocument();
   expect(nav.queryByText(usuario.email)).not.toBeInTheDocument();
-});
-
-test("un nombre largo se corta con «…» pero se lee completo en su título", () => {
-  const largo = "Oscar Organizador Con Un Nombre Larguísimo De Verdad";
-  useSession.getState().iniciarSesion({ ...usuario, full_name: largo }, "token-abc", 3600);
-  montar("/");
-
-  expect(within(encabezado()).getByRole("link", { name: largo })).toHaveAttribute("title", largo);
-});
-
-test.each([null, ""])("sin nombre (%j) muestra el email", (nombre) => {
-  useSession.getState().iniciarSesion({ ...usuario, full_name: nombre }, "token-abc", 3600);
-  montar("/");
-
-  expect(within(encabezado()).getByRole("link", { name: usuario.email })).toHaveAttribute(
-    "href",
-    "/perfil",
-  );
-});
-
-test("con sesión muestra el enlace a /perfil y Cerrar sesión", async () => {
-  useSession.getState().iniciarSesion(usuario, "token-abc", 3600);
-  montar("/");
-
-  const nav = within(encabezado());
-  expect(nav.getByRole("link", { name: "Ana" })).toHaveAttribute("href", "/perfil");
-  expect(nav.getByRole("button", { name: "Cerrar sesión" })).toBeInTheDocument();
+  expect(nav.queryByRole("link", { name: "Oscar Organizador" })).not.toBeInTheDocument();
+  expect(nav.queryByRole("button", { name: "Cerrar sesión" })).not.toBeInTheDocument();
   expect(nav.queryByRole("link", { name: "Iniciar sesión" })).not.toBeInTheDocument();
+});
+
+test("el menú de la cuenta tiene el nombre y el email como encabezado, y las tres opciones", async () => {
+  useSession
+    .getState()
+    .iniciarSesion({ ...usuario, full_name: "Oscar Organizador" }, "token-abc", 3600);
+  const user = userEvent.setup();
+  montar("/");
+
+  const nav = await abrirCuenta(user);
+
+  expect(nav.getByText("Oscar Organizador")).toBeInTheDocument();
+  expect(nav.getByText(usuario.email)).toBeInTheDocument();
+  expect(nav.queryByRole("menuitem", { name: /Oscar Organizador/ })).not.toBeInTheDocument();
+  expect(nav.getAllByRole("menuitem").map((i) => i.textContent)).toEqual([
+    "Mi perfil",
+    "Cambiar contraseña",
+    "Cerrar sesión",
+  ]);
+  expect(nav.getByRole("menuitem", { name: "Mi perfil" })).toHaveAttribute("href", "/perfil");
+  expect(nav.getByRole("menuitem", { name: "Cambiar contraseña" })).toHaveAttribute(
+    "href",
+    "/cambiar-contrasena",
+  );
+  expect(nav.getByRole("separator")).toBeInTheDocument();
+});
+
+test.each([null, ""])(
+  "sin nombre (%j) el círculo lleva la inicial del email y el encabezado el email",
+  async (nombre) => {
+    useSession.getState().iniciarSesion({ ...usuario, full_name: nombre }, "token-abc", 3600);
+    const user = userEvent.setup();
+    montar("/");
+
+    const nav = await abrirCuenta(user);
+
+    expect(nav.getByRole("button", { name: "Menú de la cuenta" })).toHaveTextContent("A");
+    expect(nav.getAllByText(usuario.email)).toHaveLength(1);
+  },
+);
+
+test("Escape cierra el menú de la cuenta y devuelve el foco al círculo", async () => {
+  useSession.getState().iniciarSesion(usuario, "token-abc", 3600);
+  const user = userEvent.setup();
+  montar("/");
+
+  const nav = await abrirCuenta(user);
+  expect(nav.getByRole("menu")).toBeInTheDocument();
+  await user.keyboard("{Escape}");
+
+  expect(nav.queryByRole("menu")).not.toBeInTheDocument();
+  expect(nav.getByRole("button", { name: "Menú de la cuenta" })).toHaveFocus();
 });
 
 const logout = {
@@ -91,30 +125,23 @@ const logout = {
 describe.each([
   ["con el logout correcto", logout.ok],
   ["con el logout fallando por red", logout.red],
-])("Cerrar sesión desde /perfil %s", (_caso, manejador) => {
-  describe.each([
-    ["en el encabezado", () => within(encabezado()).getByRole("button", { name: "Cerrar sesión" })],
-    [
-      "en el perfil",
-      () => within(screen.getByRole("main")).getByRole("button", { name: "Cerrar sesión" }),
-    ],
-  ])("%s", (_donde, boton) => {
-    test("termina en /login limpio y con la sesión vacía", async () => {
-      server.use(
-        manejador(),
-        http.get(`${API}/auth/me`, () => responder("/auth/me", "get", 200, usuario)),
-      );
-      useSession.getState().iniciarSesion(usuario, "token-abc", 3600);
-      const user = userEvent.setup();
-      montar("/perfil");
-      await screen.findByRole("heading", { name: "Perfil" });
+])("Cerrar sesión desde el menú de la cuenta %s", (_caso, manejador) => {
+  test("termina en /login limpio y con la sesión vacía", async () => {
+    server.use(
+      manejador(),
+      http.get(`${API}/auth/me`, () => responder("/auth/me", "get", 200, usuario)),
+    );
+    useSession.getState().iniciarSesion(usuario, "token-abc", 3600);
+    const user = userEvent.setup();
+    montar("/perfil");
+    await screen.findByRole("heading", { name: "Perfil" });
 
-      await user.click(boton());
+    const nav = await abrirCuenta(user);
+    await user.click(nav.getByRole("menuitem", { name: "Cerrar sesión" }));
 
-      expect(await screen.findByRole("heading", { name: "Iniciar sesión" })).toBeInTheDocument();
-      expect(screen.getByLabelText("ubicación")).toHaveTextContent(/^\/login$/);
-      expect(useSession.getState().accessToken).toBeNull();
-    });
+    expect(await screen.findByRole("heading", { name: "Iniciar sesión" })).toBeInTheDocument();
+    expect(screen.getByLabelText("ubicación")).toHaveTextContent(/^\/login$/);
+    expect(useSession.getState().accessToken).toBeNull();
   });
 });
 
@@ -153,7 +180,9 @@ test.each([
   useSession.getState().iniciarSesion({ ...usuario, role, permisos: [] }, "token-abc", 3600);
   montar("/");
 
-  expect(within(encabezado()).getByRole("button", { name: "Cerrar sesión" })).toBeInTheDocument();
+  expect(
+    within(encabezado()).getByRole("button", { name: "Menú de la cuenta" }),
+  ).toBeInTheDocument();
   expect(
     within(encabezado()).queryByRole("link", { name: "Crear evento" }),
   ).not.toBeInTheDocument();
@@ -192,7 +221,7 @@ describe("en una pantalla angosta", () => {
   );
   afterEach(() => vi.unstubAllGlobals());
 
-  test("con sesión deja el logo y un círculo con la inicial que abre el menú de la cuenta", async () => {
+  test("con sesión es igual que en escritorio: logo, Crear evento y el círculo", () => {
     useSession
       .getState()
       .iniciarSesion(
@@ -200,26 +229,15 @@ describe("en una pantalla angosta", () => {
         "token-abc",
         3600,
       );
-    const user = userEvent.setup();
     montar("/");
 
     const nav = within(encabezado());
     expect(nav.getByRole("link", { name: "Mis Eventos" })).toBeInTheDocument();
-    expect(nav.queryByRole("button", { name: "Cerrar sesión" })).not.toBeInTheDocument();
-    const menu = nav.getByRole("button", { name: "Menú de la cuenta" });
-    expect(menu).toHaveTextContent("O");
-
-    await user.click(menu);
-
-    expect(nav.getByRole("menuitem", { name: "Crear evento" })).toHaveAttribute(
+    expect(nav.getByRole("link", { name: "Crear evento" })).toHaveAttribute(
       "href",
       "/eventos/nuevo",
     );
-    expect(nav.getByRole("menuitem", { name: "Mi perfil" })).toHaveAttribute("href", "/perfil");
-    // El nombre es el encabezado del menú, no un enlace.
-    expect(nav.getByText("Oscar Organizador")).toBeInTheDocument();
-    expect(nav.queryByRole("menuitem", { name: "Oscar Organizador" })).not.toBeInTheDocument();
-    expect(nav.getByRole("menuitem", { name: "Cerrar sesión" })).toBeInTheDocument();
+    expect(nav.getByRole("button", { name: "Menú de la cuenta" })).toHaveTextContent("O");
   });
 
   test("sin sesión, el logo y un solo botón abren Iniciar sesión y Registrarse: tres textos no entran en 320 px", async () => {

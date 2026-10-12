@@ -29,7 +29,9 @@ const abrir = () =>
   ]);
 const ruta = `${API}/events/${evento.id}`;
 const abrirMenu = async (user: ReturnType<typeof userEvent.setup>) =>
-  user.click(await screen.findByRole("button", { name: "Más acciones" }));
+  user.click(await screen.findByRole("button", { name: "Más acciones del evento" }));
+const abrirInscripciones = (user: ReturnType<typeof userEvent.setup> = userEvent.setup()) =>
+  screen.findByRole("tab", { name: "Inscripciones" }).then((t) => user.click(t));
 const opcion = (nombre: string) => screen.getByRole("menuitem", { name: nombre });
 const rutaSesiones = `${ruta}/sessions`;
 
@@ -196,7 +198,7 @@ describe("acciones según quién mira y el estado", () => {
 
   test("el dueño de un evento publicado ve solo las transiciones válidas", async () => {
     useSession.getState().iniciarSesion(dueno, "token", 3600);
-    servir();
+    servir(abierto);
     const user = userEvent.setup();
     abrir();
 
@@ -212,7 +214,96 @@ describe("acciones según quién mira y el estado", () => {
       "Despublicar",
       "Cancelar evento",
       "Eliminar",
+      "Inscribirme a mi evento",
     ]);
+  });
+
+  test("la fila del dueño tiene solo Editar y Más acciones del evento", async () => {
+    useSession.getState().iniciarSesion(dueno, "token", 3600);
+    servir(abierto);
+    abrir();
+
+    const fila = await screen.findByRole("group", { name: "Acciones del evento" });
+    const controles = within(fila).getAllByRole(/^(button|link)$/);
+    expect(controles.map((c) => c.getAttribute("aria-label") ?? c.textContent)).toEqual([
+      "Editar",
+      "Más acciones del evento",
+    ]);
+    expect(screen.queryByRole("button", { name: "Inscribirme" })).not.toBeInTheDocument();
+  });
+
+  test("el dueño ya inscrito ve Cancelar mi inscripción en el menú, con el mismo diálogo y el aviso de reservas", async () => {
+    useSession.getState().iniciarSesion(dueno, "token", 3600);
+    servir({ ...abierto, is_registered: true, registered_count: 1, available_spots: 99 });
+    servirSesiones([{ ...sesion, is_reserved: true }]);
+    const user = userEvent.setup();
+    abrir();
+
+    await abrirMenu(user);
+    expect(screen.queryByRole("menuitem", { name: "Inscribirme a mi evento" })).toBeNull();
+    await user.click(opcion("Cancelar mi inscripción"));
+
+    const dialogo = screen.getByRole("alertdialog");
+    expect(dialogo).toHaveTextContent("Cancelar tu inscripción");
+    expect(dialogo).toHaveTextContent("También se cancelará tu reserva de sesión.");
+  });
+
+  test("un asistente ve solo Inscribirme, sin botones de dueño", async () => {
+    useSession.getState().iniciarSesion(usuario, "token", 3600);
+    servir(abierto);
+    abrir();
+
+    const fila = await screen.findByRole("group", { name: "Acciones del evento" });
+    expect(
+      within(fila)
+        .getAllByRole("button")
+        .map((b) => b.textContent),
+    ).toEqual(["Inscribirme"]);
+    expect(within(fila).queryByRole("link")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Más acciones del evento" })).toBeNull();
+  });
+
+  test("el chip de cupos va junto al estado y no en la fila de acciones", async () => {
+    useSession.getState().iniciarSesion(usuario, "token", 3600);
+    servir(abierto);
+    abrir();
+
+    const estado = await screen.findByRole("group", { name: "Estado del evento" });
+    expect(within(estado).getByText("Publicado")).toBeInTheDocument();
+    expect(within(estado).getByText("Quedan 100 cupos")).toBeInTheDocument();
+    const fila = screen.getByRole("group", { name: "Acciones del evento" });
+    expect(within(fila).queryByText(/Quedan/)).not.toBeInTheDocument();
+  });
+
+  test("el dueño y el admin ven las pestañas Sesiones e Inscripciones, con Sesiones por defecto", async () => {
+    for (const quien of [dueno, admin]) {
+      useSession.getState().iniciarSesion(quien, "token", 3600);
+      servir(abierto);
+      const user = userEvent.setup();
+      const { unmount } = abrir();
+
+      const pestanas = await screen.findAllByRole("tab");
+      expect(pestanas.map((t) => t.textContent)).toEqual(["Sesiones", "Inscripciones"]);
+      expect(screen.getByRole("tab", { name: "Sesiones" })).toHaveAttribute(
+        "aria-selected",
+        "true",
+      );
+      expect(screen.getByRole("region", { name: "Sesiones" })).toBeInTheDocument();
+      expect(screen.queryByRole("region", { name: "Inscripciones" })).not.toBeInTheDocument();
+
+      await abrirInscripciones(user);
+      expect(await screen.findByRole("region", { name: "Inscripciones" })).toBeInTheDocument();
+      unmount();
+    }
+  });
+
+  test("un asistente y un anónimo ven solo las sesiones, sin pestañas", async () => {
+    useSession.getState().iniciarSesion(usuario, "token", 3600);
+    servir(abierto);
+    abrir();
+
+    expect(await screen.findByRole("region", { name: "Sesiones" })).toBeInTheDocument();
+    expect(screen.queryByRole("tablist")).not.toBeInTheDocument();
   });
 
   test("el admin ve Publicar en un borrador, y en uno cancelado solo Eliminar", async () => {
@@ -736,12 +827,14 @@ describe("botón de inscripción según la situación", () => {
     sinBotones();
   });
 
-  test("el dueño también puede inscribirse a su evento", async () => {
+  test("el dueño también puede inscribirse a su evento, desde el menú", async () => {
     useSession.getState().iniciarSesion(dueno, "token", 3600);
     servir(abierto);
+    const user = userEvent.setup();
     abrir();
 
-    expect(await screen.findByRole("button", { name: "Inscribirme" })).toBeEnabled();
+    await abrirMenu(user);
+    expect(opcion("Inscribirme a mi evento")).toBeEnabled();
   });
 });
 
@@ -942,6 +1035,7 @@ describe("panel de inscripciones del dueño", () => {
     servir();
     servirPanel({ active: 12, cancelled: 3, occupancy_pct: 12.5 });
     abrir();
+    await abrirInscripciones();
 
     const panel = await screen.findByRole("region", { name: "Inscripciones" });
     expect(await within(panel).findByText("12")).toBeInTheDocument();
@@ -963,6 +1057,7 @@ describe("panel de inscripciones del dueño", () => {
       { ...inscritoFila, full_name: null, email: "sin@nombre.com", status: "CANCELLED" },
     ]);
     abrir();
+    await abrirInscripciones();
 
     const tabla = await screen.findByRole("table", { name: "Lista de inscritos" });
     const filas = within(tabla).getAllByRole("row");
@@ -984,6 +1079,7 @@ describe("panel de inscripciones del dueño", () => {
       { ...inscritoFila, status: "CANCELLED", created_at: "2026-10-09T15:00:00Z" },
     ]);
     abrir();
+    await abrirInscripciones();
 
     const tabla = await screen.findByRole("table", { name: "Lista de inscritos" });
     expect(within(tabla).getAllByRole("row")).toHaveLength(3);
@@ -1020,9 +1116,11 @@ describe("panel de inscripciones del dueño", () => {
     const user = userEvent.setup();
     abrir();
 
+    await abrirInscripciones(user);
     const panel = await screen.findByRole("region", { name: "Inscripciones" });
     expect(await within(panel).findByText("Todavía no hay inscritos")).toBeInTheDocument();
-    await user.click(await screen.findByRole("button", { name: "Inscribirme" }));
+    await abrirMenu(user);
+    await user.click(opcion("Inscribirme a mi evento"));
 
     expect(await within(panel).findByRole("table")).toHaveTextContent("luisa@mail.com");
     expect(within(panel).getByText("Inscrito").nextElementSibling).toHaveTextContent("1");
@@ -1033,6 +1131,7 @@ describe("panel de inscripciones del dueño", () => {
     servir();
     abrir();
 
+    await abrirInscripciones();
     expect(await screen.findByRole("region", { name: "Inscripciones" })).toBeInTheDocument();
   });
 
@@ -1041,6 +1140,7 @@ describe("panel de inscripciones del dueño", () => {
     servir();
     abrir();
 
+    await abrirInscripciones();
     expect(await screen.findByRole("region", { name: "Inscripciones" })).toBeInTheDocument();
     expect(await screen.findByRole("table", { name: "Lista de inscritos" })).toBeInTheDocument();
   });
@@ -1077,6 +1177,7 @@ describe("panel de inscripciones del dueño", () => {
     servir();
     servirPanel({ active: 0, cancelled: 0, occupancy_pct: 0 }, []);
     abrir();
+    await abrirInscripciones();
 
     expect(await screen.findByText("Todavía no hay inscritos")).toBeInTheDocument();
     expect(screen.queryByRole("table")).not.toBeInTheDocument();
@@ -1096,6 +1197,7 @@ describe("panel de inscripciones del dueño", () => {
       }),
     );
     abrir();
+    await abrirInscripciones();
 
     const panel = await screen.findByRole("region", { name: "Inscripciones" });
     expect(within(panel).getAllByRole("status", { name: "Cargando" })).toHaveLength(2);
@@ -1112,6 +1214,7 @@ describe("panel de inscripciones del dueño", () => {
       ),
     );
     abrir();
+    await abrirInscripciones();
 
     const panel = await screen.findByRole("region", { name: "Inscripciones" });
     expect(await within(panel).findByRole("alert")).toHaveTextContent("No tenés permiso");
@@ -1133,6 +1236,7 @@ describe("panel de inscripciones del dueño", () => {
       ),
     );
     abrir();
+    await abrirInscripciones();
 
     const panel = await screen.findByRole("region", { name: "Inscripciones" });
     expect(await within(panel).findByRole("alert")).toHaveTextContent("No podés ver los inscritos");
@@ -1147,6 +1251,7 @@ describe("panel de inscripciones del dueño", () => {
     const user = userEvent.setup();
     abrir();
 
+    await abrirInscripciones(user);
     await user.click(await screen.findByRole("button", { name: "Siguiente" }));
 
     await waitFor(() => expect(pedidos.inscritos.some((p) => p.get("page") === "2")).toBe(true));

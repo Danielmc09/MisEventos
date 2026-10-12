@@ -26,6 +26,15 @@ afterAll(() => server.close());
 
 const abrir = (ruta = "/") => montar(ruta, [["/", <Inicio />]]);
 
+test("el título es Próximos eventos y la bajada invita a inscribirse", async () => {
+  server.use(http.get(`${API}/events`, () => responder("/events", "get", 200, pagina([]))));
+  abrir();
+
+  expect(await screen.findByRole("heading", { name: "Próximos eventos" })).toBeInTheDocument();
+  expect(screen.getByText("Encontrá un evento e inscribite en un minuto")).toBeInTheDocument();
+  expect(screen.queryByRole("heading", { name: "Mis Eventos" })).not.toBeInTheDocument();
+});
+
 describe("estados del listado", () => {
   test("muestra el spinner mientras carga y después las tarjetas", async () => {
     server.use(
