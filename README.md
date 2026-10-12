@@ -24,11 +24,11 @@ del frontend: [frontend/README.md](frontend/README.md).
 
 ## Usuarios de demostración
 
-| Email | Rol | Contraseña | Qué probar |
+| Email | Rol | Contraseña | Qué conviene probar |
 |---|---|---|---|
-| `admin@miseventos.local` | `ADMIN` | `Admin-Demo-2026` | Administración de usuarios: rol, estado y datos. Ver y gestionar cualquier evento, incluidos los borradores |
-| `organizador@miseventos.local` | `ORGANIZER` | `Demo-Local-2026` | Crear, publicar, editar y cancelar eventos; sesiones con ponentes; el panel de inscritos |
-| `asistente@miseventos.local` | `ATTENDEE` | `Demo-Local-2026` | Inscribirse, reservar sesiones (en "Python Day Medellín" hay una que se cruza y un taller con un solo lugar) y revisar "Mi perfil" |
+| `admin@miseventos.local` (el valor de `ADMIN_EMAIL`, se puede cambiar en `.env`) | Administrador (`ADMIN`) | `ADMIN_PASSWORD` (`Admin-Demo-2026`) | Administración de usuarios: rol, estado y datos. Ver y gestionar cualquier evento, incluidos los borradores |
+| `organizador@miseventos.local` | Organizador (`ORGANIZER`) | `DEMO_PASSWORD` (`Demo-Local-2026`) | Crear, publicar, editar y cancelar eventos; sesiones con ponentes; el panel de inscritos |
+| `asistente@miseventos.local` | Asistente (`ATTENDEE`) | `DEMO_PASSWORD` (`Demo-Local-2026`) | Inscribirse, reservar sesiones (en "Python Day Medellín" hay una que se cruza y un taller con un solo lugar) y revisar "Mi perfil" |
 
 Son credenciales públicas, solo para desarrollo local. Con `ENV=production` la API no arranca si
 encuentra estas contraseñas, el secreto JWT de `.env.example` o `SEED_DEMO=true`.
