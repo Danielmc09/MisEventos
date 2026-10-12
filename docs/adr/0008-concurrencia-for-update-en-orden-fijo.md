@@ -15,8 +15,15 @@ mutuamente y no queda ninguno.
 1. **Bloquear la fila padre antes de contar.** Cada operación que cuenta toma con
    `SELECT … FOR UPDATE` la fila de la que cuelga lo que cuenta: el evento para inscribirse, la
    sesión para reservar. La segunda transacción espera a que la primera termine y cuenta ya con su
-   escritura. Los métodos se llaman `por_id_para_escribir` (por ejemplo, en
-   `backend/app/repositories/eventos.py`) y releen la fila al bloquearla (`populate_existing`).
+   escritura. Los métodos que bloquean terminan en `_para_escribir`
+   (`por_id_para_escribir`, `activa_para_escribir`, `activos_para_escribir`). Los que pueden encontrar la fila ya
+   cargada en la sesión de SQLAlchemy la releen al bloquearla con `populate_existing`, para no
+   quedarse con lo leído antes del bloqueo: la sesión y la inscripción
+   (`backend/app/repositories/sesiones.py`, `backend/app/repositories/inscripciones.py`) y los
+   usuarios (`backend/app/repositories/usuarios.py`). El evento y el ponente
+   (`backend/app/repositories/eventos.py`, `backend/app/repositories/ponentes.py`) solo hacen
+   `with_for_update()`: el evento es lo primero que se bloquea, así que no hay una lectura previa
+   que refrescar.
 2. **Un solo orden de bloqueo en todo el sistema**, documentado en `backend/app/services/reservas.py`:
 
    ```
