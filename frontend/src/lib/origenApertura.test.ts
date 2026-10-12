@@ -30,3 +30,25 @@ test("si lo abrió el teclado, también sale del elemento que lo abrió", async 
 
   expect(origenDeApertura(panel)).toBe("10px 10px");
 });
+
+test("si lo abrió una opción de un menú, sale del botón que abrió el menú", async () => {
+  const disparador = document.createElement("button");
+  disparador.setAttribute("aria-controls", "menu-1");
+  const menu = document.createElement("div");
+  menu.id = "menu-1";
+  menu.setAttribute("role", "menu");
+  const opcion = document.createElement("button");
+  opcion.setAttribute("role", "menuitem");
+  menu.append(opcion);
+  document.body.append(disparador, menu);
+  vi.spyOn(disparador, "getBoundingClientRect").mockReturnValue(rect(300, 200, 100, 40));
+  vi.spyOn(opcion, "getBoundingClientRect").mockReturnValue(rect(0, 0, 10, 10));
+  // Al elegir la opción el menú se cierra y la opción deja de existir.
+  opcion.addEventListener("click", () => menu.remove());
+  const panel = document.createElement("div");
+  vi.spyOn(panel, "getBoundingClientRect").mockReturnValue(rect(100, 50, 500, 400));
+
+  await userEvent.click(opcion);
+
+  expect(origenDeApertura(panel)).toBe("250px 170px");
+});
