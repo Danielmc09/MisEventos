@@ -1,8 +1,9 @@
 # Decisiones de arquitectura
 
 Cada archivo es una decisión: el contexto, lo que se decidió, las alternativas descartadas y sus
-consecuencias. Se leen por separado, sin depender de otro documento. La numeración tiene huecos: los
-números se reservaron al planear y acá están las decisiones que rigen el código actual.
+consecuencias. Se leen por separado, sin depender de otro documento. Los números que faltan son
+decisiones que no tienen ADR propio: algunas están implementadas y explicadas en los README; las que
+todavía no lo están se listan en el [README raíz](../../README.md#límites-conocidos-y-extensiones).
 
 | # | Decisión | ADR |
 |---|---|---|
