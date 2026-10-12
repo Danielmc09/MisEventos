@@ -1,4 +1,5 @@
 import { render, screen, within } from "@testing-library/react";
+import { useState } from "react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, useLocation } from "react-router-dom";
 import { MenuAcciones } from "./MenuAcciones";
@@ -147,17 +148,26 @@ test("ocupado no abre el menú ni con el mouse ni con el teclado", async () => {
 });
 
 test("mientras trabaja, el foco sigue en el botón, que muestra el spinner y aria-busy", async () => {
-  const { user, vista } = montar();
-  await user.click(disparador());
-  await user.keyboard("{ArrowDown}{Enter}");
-
-  vista.rerender(
-    <MemoryRouter>
-      <MenuAcciones etiqueta="Más acciones" ocupado items={[{ texto: "Despublicar" }]}>
+  function Anfitrion() {
+    const [ocupado, setOcupado] = useState(false);
+    return (
+      <MenuAcciones
+        etiqueta="Más acciones"
+        ocupado={ocupado}
+        items={[{ texto: "Despublicar", onSelect: () => setOcupado(true) }]}
+      >
         Más acciones
       </MenuAcciones>
+    );
+  }
+  const user = userEvent.setup();
+  render(
+    <MemoryRouter>
+      <Anfitrion />
     </MemoryRouter>,
   );
+  disparador().focus();
+  await user.keyboard("{ArrowDown}{Enter}");
 
   expect(disparador()).toHaveFocus();
   expect(disparador()).toHaveAttribute("aria-busy", "true");
