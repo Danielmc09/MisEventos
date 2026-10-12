@@ -8,7 +8,10 @@ import { ControlReserva } from "./ControlReserva";
 import { FormularioSesion } from "./FormularioSesion";
 import { AlertaError } from "./ui/AlertaError";
 import { useAvisos } from "./ui/Avisos";
+import { BotonIcono } from "./ui/BotonIcono";
 import { Button } from "./ui/Button";
+import { IconoLapiz } from "./ui/iconos/IconoLapiz";
+import { IconoPapelera } from "./ui/iconos/IconoPapelera";
 import { DialogoConfirmacion } from "./ui/DialogoConfirmacion";
 import { Modal } from "./ui/Modal";
 import { Spinner } from "./ui/Spinner";
@@ -185,23 +188,20 @@ export function SeccionSesiones({
                     <AlertaError title={errorReserva.title} detail={errorReserva.detalle} />
                   )}
                   {puede && (
-                    <div className="flex flex-wrap gap-3">
-                      <Button
-                        type="button"
-                        variante="secundario"
-                        aria-label={`Editar sesión ${s.title}`}
+                    <div className="flex items-center gap-2">
+                      <BotonIcono
+                        etiqueta={`Editar la sesión «${s.title}»`}
+                        texto="Editar"
+                        icono={<IconoLapiz />}
                         onClick={() => setFormulario(s)}
-                      >
-                        Editar
-                      </Button>
-                      <Button
-                        type="button"
+                      />
+                      <BotonIcono
+                        etiqueta={`Eliminar la sesión «${s.title}»`}
+                        texto="Eliminar"
+                        icono={<IconoPapelera />}
                         variante="peligro"
-                        aria-label={`Eliminar sesión ${s.title}`}
                         onClick={() => setPendiente(s)}
-                      >
-                        Eliminar
-                      </Button>
+                      />
                     </div>
                   )}
                 </Tarjeta>
