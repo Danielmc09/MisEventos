@@ -3,6 +3,7 @@ import { Navigate } from "react-router-dom";
 import { api } from "../../api/client";
 import { ApiError } from "../../api/errors";
 import type { components } from "../../api/schema";
+import { FormularioNuevoUsuario } from "../../components/FormularioNuevoUsuario";
 import {
   FormularioUsuario,
   ROLES,
@@ -11,6 +12,7 @@ import {
 } from "../../components/FormularioUsuario";
 import { AlertaError } from "../../components/ui/AlertaError";
 import { BotonIcono } from "../../components/ui/BotonIcono";
+import { Button } from "../../components/ui/Button";
 import { Chip } from "../../components/ui/Chip";
 import { EstadoVacio } from "../../components/ui/EstadoVacio";
 import { IconoLapiz } from "../../components/ui/iconos/IconoLapiz";
@@ -57,6 +59,7 @@ export default function AdminUsuarios() {
   const [datos, setDatos] = useState<components["schemas"]["Pagina_UsuarioAdmin_"]>();
   const [error, setError] = useState<string>();
   const [editando, setEditando] = useState<UsuarioAdmin>();
+  const [creando, setCreando] = useState(false);
 
   useEffect(() => {
     if (!vigente || !puede) return;
@@ -104,7 +107,12 @@ export default function AdminUsuarios() {
 
   return (
     <Pagina ancho="ancho">
-      <TituloPagina>Usuarios</TituloPagina>
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <TituloPagina>Usuarios</TituloPagina>
+        <Button type="button" onClick={() => setCreando(true)}>
+          Nuevo usuario
+        </Button>
+      </div>
       <Tarjeta as="section" aria-label="Lista de usuarios">
         <Pestanas
           etiqueta="Grupo de usuarios"
@@ -204,6 +212,12 @@ export default function AdminUsuarios() {
           </div>
         </Pestanas>
       </Tarjeta>
+      {creando && (
+        <FormularioNuevoUsuario
+          onCreado={() => setVersion((v) => v + 1)}
+          onCerrar={() => setCreando(false)}
+        />
+      )}
       {editando && (
         <FormularioUsuario
           usuario={editando}
