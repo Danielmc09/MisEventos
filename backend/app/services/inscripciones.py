@@ -7,14 +7,18 @@ from typing import Protocol
 from uuid import UUID
 
 from app.core.excepciones import Conflict, NotFound
-from app.models.evento import EstadoEvento
+from app.models.evento import EstadoEvento, Event
 from app.models.inscripcion import EstadoInscripcion, Registration
 from app.models.usuario import User
+from app.schemas.eventos import Cuando
 from app.services import eventos as servicio_eventos
 from app.services.eventos import Eventos
 
 
 class Inscripciones(Protocol):
+    def del_usuario(
+        self, id_usuario: UUID, estado: EstadoInscripcion, cuando: Cuando, offset: int, limite: int
+    ) -> tuple[list[tuple[Registration, Event]], int]: ...
     def activa_de(self, id_usuario: UUID, id_evento: UUID) -> Registration | None: ...
     def crear(self, inscripcion: Registration) -> Registration: ...
     def guardar(self, inscripcion: Registration) -> Registration: ...
@@ -71,3 +75,15 @@ def cancelar(
     inscripcion.status = EstadoInscripcion.CANCELLED
     inscripcion.cancelled_at = datetime.now(UTC)
     inscripciones.guardar(inscripcion)
+
+
+def mias(
+    inscripciones: Inscripciones,
+    usuario: User,
+    estado: EstadoInscripcion,
+    cuando: Cuando,
+    offset: int,
+    limite: int,
+) -> tuple[list[tuple[Registration, Event]], int]:
+    """Las inscripciones del usuario del token, con su evento. Nunca las de otra persona."""
+    return inscripciones.del_usuario(usuario.id, estado, cuando, offset, limite)

@@ -1,7 +1,9 @@
+from datetime import UTC, datetime
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field, computed_field
 
+from app.models.evento import EstadoEvento
 from app.models.inscripcion import EstadoInscripcion
 from app.schemas.comunes import EntradaBase, FechaUTC
 
@@ -18,3 +20,28 @@ class InscripcionSalida(BaseModel):
     event_id: UUID
     status: EstadoInscripcion
     created_at: FechaUTC
+
+
+class ResumenEvento(BaseModel):
+    """Lo que el perfil muestra del evento de cada inscripción."""
+
+    id: UUID
+    name: str
+    start_at: FechaUTC
+    location: str | None
+    status: EstadoEvento
+    end_at: FechaUTC = Field(exclude=True)  # solo para calcular is_finished
+
+    @computed_field
+    @property
+    def is_finished(self) -> bool:
+        return self.end_at < datetime.now(UTC)
+
+
+class InscripcionMia(BaseModel):
+    id: UUID
+    event_id: UUID
+    status: EstadoInscripcion
+    created_at: FechaUTC
+    cancelled_at: FechaUTC | None
+    event: ResumenEvento
