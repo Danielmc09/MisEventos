@@ -59,3 +59,10 @@ export function useSesionVigente() {
   }, [hayToken, vigente]);
   return vigente;
 }
+
+// Otra pestaña cambió la sesión guardada (por ejemplo, la persona cambió la contraseña temporal):
+// esta toma lo nuevo en vez de seguir con el estado viejo en memoria.
+if (typeof window !== "undefined")
+  window.addEventListener("storage", (e) => {
+    if (e.key === "sesion") void useSession.persist.rehydrate();
+  });
