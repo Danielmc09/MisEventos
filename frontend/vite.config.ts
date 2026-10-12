@@ -17,6 +17,8 @@ export const opcionesOfuscacion = {
   controlFlowFlattening: false,
   deadCodeInjection: false,
   sourceMap: false,
+  // Sin esto el string array esconde las rutas de import() y Rollup no genera los chunks.
+  ignoreImports: true,
 } as const satisfies Record<string, unknown>;
 
 export default defineConfig(({ command }) => ({
