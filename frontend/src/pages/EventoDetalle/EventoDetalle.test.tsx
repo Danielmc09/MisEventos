@@ -411,3 +411,90 @@ describe("sección de sesiones", () => {
     });
   });
 });
+
+describe("agregar y editar sesiones", () => {
+  beforeEach(() => useSession.getState().iniciarSesion(dueno, "token", 3600));
+
+  test("Agregar abre el formulario, crea la sesión, la suma a la lista y avisa", async () => {
+    servir();
+    servirSesiones([apertura]);
+    const cuerpos: unknown[] = [];
+    server.use(
+      http.post(rutaSesiones, async ({ request }) => {
+        cuerpos.push(await request.json());
+        return responder("/events/{id_evento}/sessions", "post", 201, charla);
+      }),
+    );
+    const user = userEvent.setup();
+    abrir();
+
+    await user.click(await screen.findByRole("button", { name: "Agregar sesión" }));
+    const dialogo = screen.getByRole("dialog", { name: "Agregar sesión" });
+    await user.type(within(dialogo).getByLabelText("Título"), "Charla de pruebas");
+    await user.type(within(dialogo).getByLabelText("Inicio"), "2026-10-10T22:00");
+    await user.type(within(dialogo).getByLabelText("Fin"), "2026-10-10T23:00");
+    await user.click(within(dialogo).getByRole("button", { name: "Crear sesión" }));
+
+    expect(await screen.findByText("Sesión creada")).toBeInTheDocument();
+    expect(cuerpos).toHaveLength(1);
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Charla de pruebas" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Apertura" })).toBeInTheDocument();
+  });
+
+  test("Editar abre el formulario con la sesión, guarda y actualiza la lista", async () => {
+    servir();
+    servirSesiones([apertura]);
+    server.use(
+      http.patch(`${API}/sessions/${apertura.id}`, () =>
+        responder("/sessions/{id_sesion}", "patch", 200, {
+          ...apertura,
+          title: "Apertura general",
+        }),
+      ),
+    );
+    const user = userEvent.setup();
+    abrir();
+
+    await user.click(await screen.findByRole("button", { name: "Editar sesión Apertura" }));
+    const dialogo = screen.getByRole("dialog", { name: "Editar sesión" });
+    expect(within(dialogo).getByLabelText("Título")).toHaveValue("Apertura");
+    await user.clear(within(dialogo).getByLabelText("Título"));
+    await user.type(within(dialogo).getByLabelText("Título"), "Apertura general");
+    await user.click(within(dialogo).getByRole("button", { name: "Guardar cambios" }));
+
+    expect(await screen.findByText("Sesión actualizada")).toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Apertura general" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Apertura" })).not.toBeInTheDocument();
+  });
+
+  test("Cancelar o Escape cierran el formulario sin llamar a la API", async () => {
+    servir();
+    servirSesiones([apertura]);
+    const user = userEvent.setup();
+    abrir();
+
+    await user.click(await screen.findByRole("button", { name: "Agregar sesión" }));
+    const dialogo = screen.getByRole("dialog", { name: "Agregar sesión" });
+    await user.click(within(dialogo).getByRole("button", { name: "Cancelar" }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Agregar sesión" }));
+    expect(screen.getByRole("dialog", { name: "Agregar sesión" })).toBeInTheDocument();
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  test.each([
+    ["cancelado", { ...evento, status: "CANCELLED" as const }],
+    ["finalizado", { ...evento, is_finished: true }],
+  ])("en un evento %s no hay Agregar, Editar ni Eliminar", async (_estado, cerrado) => {
+    servir(cerrado);
+    servirSesiones([apertura]);
+    abrir();
+
+    await screen.findByRole("heading", { name: "Apertura" });
+    expect(screen.queryByRole("button", { name: /sesión/ })).not.toBeInTheDocument();
+  });
+});
