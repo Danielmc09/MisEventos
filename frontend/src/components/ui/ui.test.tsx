@@ -135,10 +135,10 @@ describe("AlertaError", () => {
 
 describe("Button: variantes", () => {
   test.each([
-    ["peligro", "bg-red-700"],
-    ["secundario", "border-gray-300"],
-    ["primario", "bg-indigo-600"],
-  ] as const)("la variante %s tiene su estilo", (variante, clase) => {
+    ["peligro", "bg-error"],
+    ["secundario", "bg-acento-suave"],
+    ["primario", "bg-primario"],
+  ] as const)("la variante %s sale de un token del tema", (variante, clase) => {
     render(<Button variante={variante}>Acción</Button>);
 
     expect(screen.getByRole("button", { name: "Acción" })).toHaveClass(clase);
@@ -147,7 +147,17 @@ describe("Button: variantes", () => {
   test("la variante peligro no conserva el color primario", () => {
     render(<Button variante="peligro">Acción</Button>);
 
-    expect(screen.getByRole("button", { name: "Acción" })).not.toHaveClass("bg-indigo-600");
+    expect(screen.getByRole("button", { name: "Acción" })).not.toHaveClass("bg-primario");
+  });
+
+  test("el botón presionado se achica con una transición de propiedades con nombre, solo si el movimiento está permitido", () => {
+    render(<Button>Acción</Button>);
+
+    const clases = screen.getByRole("button", { name: "Acción" }).className;
+
+    expect(clases).toContain("motion-safe:active:scale-97");
+    expect(clases).toContain("motion-safe:transition-[background-color,transform]");
+    expect(clases).not.toMatch(/transition-all/);
   });
 });
 
