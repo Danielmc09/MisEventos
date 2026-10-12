@@ -12,6 +12,7 @@ from app.models.usuario import User
 from app.repositories.eventos import RepositorioEventos
 from app.repositories.inscripciones import RepositorioInscripciones
 from app.repositories.ponentes import RepositorioPonentes
+from app.repositories.salud import RepositorioSalud
 from app.repositories.sesiones import RepositorioSesiones
 from app.repositories.usuarios import RepositorioUsuarios
 from app.schemas.comunes import CARACTER_NULO, MENSAJE_CARACTER_NULO
@@ -77,12 +78,17 @@ def repositorio_inscripciones(session: SesionDB) -> RepositorioInscripciones:
     return RepositorioInscripciones(session)
 
 
+def repositorio_salud(session: SesionDB) -> RepositorioSalud:
+    return RepositorioSalud(session)
+
+
 ConfigApp = Annotated[Settings, Depends(get_settings)]
 RepoUsuarios = Annotated[RepositorioUsuarios, Depends(repositorio_usuarios)]
 RepoEventos = Annotated[RepositorioEventos, Depends(repositorio_eventos)]
 RepoPonentes = Annotated[RepositorioPonentes, Depends(repositorio_ponentes)]
 RepoSesiones = Annotated[RepositorioSesiones, Depends(repositorio_sesiones)]
 RepoInscripciones = Annotated[RepositorioInscripciones, Depends(repositorio_inscripciones)]
+RepoSalud = Annotated[RepositorioSalud, Depends(repositorio_salud)]
 
 
 def usuario_actual(
