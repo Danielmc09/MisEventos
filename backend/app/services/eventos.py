@@ -25,6 +25,7 @@ class Eventos(Protocol):
     def crear(self, evento: Event) -> Event: ...
     def por_id_para_escribir(self, id_evento: UUID) -> Event | None: ...
     def sesiones_de(self, id_evento: UUID) -> list[Sesion]: ...
+    def inscritos(self, ids_evento: list[UUID]) -> dict[UUID, int]: ...
     def guardar(self, evento: Event) -> Event: ...
     def eliminar(self, evento: Event) -> None: ...
     def buscar(
@@ -80,7 +81,7 @@ def crear(repo: Eventos, usuario: User, datos: EventoEntrada) -> Event:
     return repo.crear(Event(**datos.model_dump(), organizer_id=usuario.id))
 
 
-def _ya_empezo(evento: Event) -> bool:
+def ya_empezo(evento: Event) -> bool:
     return evento.start_at <= datetime.now(UTC)
 
 
@@ -111,7 +112,7 @@ def _cambiar_estado(
 
 def publicar(repo: Eventos, usuario: User, id_evento: UUID) -> Event:
     evento = para_escribir(repo, usuario, id_evento)
-    if _ya_empezo(evento):
+    if ya_empezo(evento):
         raise TransicionInvalida("No se publica un evento que ya empezó")
     return _cambiar_estado(repo, evento, {EstadoEvento.DRAFT}, EstadoEvento.PUBLISHED)
 
