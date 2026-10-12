@@ -86,11 +86,20 @@ def test_quien_tiene_el_permiso_crea_un_ponente_a_su_nombre(cliente, ponentes, a
         ({"full_name": "A"}, "full_name"),
         ({"full_name": "  A  "}, "full_name"),
         ({"full_name": "a" * 121}, "full_name"),
+        ({"full_name": "Ana\x00"}, "full_name"),
         ({"full_name": "Ana", "bio": "a" * 2001}, "bio"),
         ({"full_name": "Ana", "email": "no-es-un-correo"}, "email"),
         ({"full_name": "Ana", "created_by": str(ADMIN.id)}, "created_by"),
     ],
-    ids=["nombre-1", "nombre-1-con-espacios", "nombre-121", "bio-2001", "email", "created_by"],
+    ids=[
+        "nombre-1",
+        "nombre-1-con-espacios",
+        "nombre-121",
+        "nombre-con-nulo",
+        "bio-2001",
+        "email",
+        "created_by",
+    ],
 )
 def test_un_ponente_invalido_responde_422_en_su_campo(cliente, ponentes, auth, cuerpo, campo):
     respuesta = cliente.post("/speakers", json=cuerpo, headers=auth(ORGANIZADOR))

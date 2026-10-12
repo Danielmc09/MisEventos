@@ -94,9 +94,7 @@ export function SeccionSesiones({
       {sesiones &&
         agruparPorDia(sesiones).map(([dia, delDia]) => (
           <div key={dia} className="flex flex-col gap-2">
-            <h3 className="font-medium text-gray-700 capitalize">
-              {etiquetaDia(delDia[0].start_at)}
-            </h3>
+            <h3 className="font-medium text-gray-700">{etiquetaDia(delDia[0].start_at)}</h3>
             <ul className="flex flex-col gap-2">
               {delDia.map((s) => (
                 <li key={s.id} className="rounded-md border border-gray-200 p-4">

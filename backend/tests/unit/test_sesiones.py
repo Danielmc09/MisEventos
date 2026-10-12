@@ -214,6 +214,7 @@ def test_las_sesiones_de_un_evento_que_no_existe_responden_404(cliente, repos):
         ({"title": "a" * 151}, "title"),
         ({"description": "a" * 2001}, "description"),
         ({"room": "a" * 81}, "room"),
+        ({"room": "Sala\x00B"}, "room"),
         ({"capacity": 0}, "capacity"),
         ({"capacity": 101}, "capacity"),
         ({"start_at": "2030-01-10T15:00:00"}, "start_at"),
@@ -228,6 +229,7 @@ def test_las_sesiones_de_un_evento_que_no_existe_responden_404(cliente, repos):
         "titulo-151",
         "descripcion-2001",
         "sala-81",
+        "sala-con-nulo",
         "capacidad-0",
         "capacidad-mayor-que-la-del-evento",
         "inicio-sin-zona",
@@ -389,6 +391,7 @@ def test_editar_sin_speaker_ids_conserva_los_ponentes(cliente, repos, auth):
         ({"start_at": hora(10).isoformat()}, "end_at"),
         ({"capacity": 101}, "capacity"),
         ({"speaker_ids": [str(uuid4())]}, "speaker_ids"),
+        ({"title": "Testing\x00"}, "title"),
     ],
     ids=[
         "titulo-nulo",
@@ -397,6 +400,7 @@ def test_editar_sin_speaker_ids_conserva_los_ponentes(cliente, repos, auth):
         "inicio-despues-del-fin-guardado",
         "capacidad-mayor-que-la-del-evento",
         "ponente-inexistente",
+        "titulo-con-caracter-nulo",
     ],
 )
 def test_una_edicion_invalida_responde_422(cliente, repos, auth, cambios, campo):
@@ -515,6 +519,41 @@ def test_un_ponente_no_puede_estar_en_dos_sesiones_que_se_cruzan_en_otro_evento(
     # El horario de la sesión que choca, en hora de Bogotá.
     assert problema["detail"] == "Ana Pérez ya está en «Testing en Python», 10:00 a 11:00"
     assert len(repos.eventos.sesiones) == 1
+
+
+def test_el_choque_de_ponente_se_pide_a_la_base_con_el_horario_y_sin_la_agenda_entera(
+    cliente, repos, auth
+):
+    evento = repos.evento()
+    ana, beto = repos.ponente("Ana Pérez"), repos.ponente("Beto Ruiz")
+    datos = cuerpo(ana, beto, start_at=hora(10, 30).isoformat(), end_at=hora(11, 30).isoformat())
+
+    respuesta = crear(cliente, evento, datos, auth(ORGANIZADOR))
+
+    assert respuesta.status_code == 201, respuesta.text
+    assert repos.sesiones.consultas_de_choque == [
+        {
+            "ids_ponente": sorted([ana.id, beto.id]),
+            "inicio": hora(10, 30),
+            "fin": hora(11, 30),
+            "excluir": None,
+        }
+    ]
+
+
+def test_al_editar_el_choque_se_pide_con_el_horario_nuevo_y_excluyendo_la_propia_sesion(
+    cliente, repos, auth
+):
+    evento = repos.evento()
+    ana = repos.ponente()
+    sesion = repos.sesion(evento, hora(10), hora(11), ana)
+
+    respuesta = editar(cliente, sesion, {"end_at": hora(12).isoformat()}, auth(ORGANIZADOR))
+
+    assert respuesta.status_code == 200, respuesta.text
+    assert repos.sesiones.consultas_de_choque == [
+        {"ids_ponente": [ana.id], "inicio": hora(10), "fin": hora(12), "excluir": sesion.id}
+    ]
 
 
 def test_el_cruce_de_ponente_se_revisa_para_cada_ponente(cliente, repos, auth):

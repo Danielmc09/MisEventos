@@ -26,9 +26,9 @@ class Sesiones(Protocol):
     def por_id(self, id_sesion: UUID) -> Sesion | None: ...
     def por_id_para_escribir(self, id_sesion: UUID) -> Sesion | None: ...
     def ponentes_de(self, ids_sesion: list[UUID]) -> dict[UUID, list[Speaker]]: ...
-    def sesiones_de_ponentes(
-        self, ids_ponente: list[UUID]
-    ) -> list[tuple[Speaker, Sesion, Event]]: ...
+    def choque_de_ponentes(
+        self, ids_ponente: list[UUID], inicio: datetime, fin: datetime, excluir: UUID | None
+    ) -> tuple[Speaker, Sesion] | None: ...
     def crear(self, sesion: Sesion, ids_ponente: list[UUID]) -> Sesion: ...
     def guardar(self, sesion: Sesion, ids_ponente: list[UUID] | None) -> Sesion: ...
     def eliminar(self, sesion: Sesion) -> None: ...
@@ -88,18 +88,16 @@ def _validar_horario(
             tipo="session-outside-event",
             titulo="La sesión no cae dentro del evento",
         )
-    for ponente, otra, su_evento in sesiones.sesiones_de_ponentes([p.id for p in asignados]):
-        if (
-            otra.id != excluir
-            and su_evento.status != EstadoEvento.CANCELLED
-            and se_cruzan(inicio, fin, otra.start_at, otra.end_at)
-        ):
-            raise Conflict(
-                f"{ponente.full_name} ya está en «{otra.title}», "
-                f"{_hora(otra.start_at)} a {_hora(otra.end_at)}",
-                tipo="speaker-conflict",
-                titulo="El ponente ya tiene otra sesión en ese horario",
-            )
+    # La base devuelve solo la sesión que choca, no la agenda entera de los ponentes.
+    choque = sesiones.choque_de_ponentes([p.id for p in asignados], inicio, fin, excluir)
+    if choque is not None:
+        ponente, otra = choque
+        raise Conflict(
+            f"{ponente.full_name} ya está en «{otra.title}», "
+            f"{_hora(otra.start_at)} a {_hora(otra.end_at)}",
+            tipo="speaker-conflict",
+            titulo="El ponente ya tiene otra sesión en ese horario",
+        )
     normalizada = _sala(sala)
     if not normalizada:  # las sesiones sin sala no chocan
         return

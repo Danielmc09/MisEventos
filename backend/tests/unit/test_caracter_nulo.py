@@ -9,13 +9,23 @@ from uuid import uuid4
 import pytest
 from pydantic import BaseModel, ValidationError
 
-from app.api.dependencias import repositorio_eventos, repositorio_usuarios
+from app.api.dependencias import (
+    repositorio_eventos,
+    repositorio_ponentes,
+    repositorio_sesiones,
+    repositorio_usuarios,
+)
 from app.core.permisos import Rol
 from app.core.tokens import crear_access_token
 from app.models.usuario import User
 from app.schemas.comunes import EntradaBase
 from tests.campos_de_texto import CampoDeTexto, campos_de_texto
-from tests.unit.dobles import RepositorioEventosFalso, RepositorioUsuariosFalso
+from tests.unit.dobles import (
+    RepositorioEventosFalso,
+    RepositorioPonentesFalso,
+    RepositorioSesionesFalso,
+    RepositorioUsuariosFalso,
+)
 
 MENSAJE = "No puede contener el carácter nulo"
 ADMIN = User(email="admin@mail.com", password_hash="$argon2id$x", role=Rol.ADMIN)
@@ -23,10 +33,16 @@ ADMIN = User(email="admin@mail.com", password_hash="$argon2id$x", role=Rol.ADMIN
 
 @pytest.fixture
 def token(app, settings) -> str:
-    """Un admin, para que ningún endpoint corte con 401 o 403 antes de validar la entrada."""
+    """Un admin, para que ningún endpoint corte con 401 o 403 antes de validar la entrada. Todos
+    los repositorios son dobles: un endpoint que llegue al servicio no toca ninguna base."""
     usuarios = RepositorioUsuariosFalso(ADMIN)
+    eventos = RepositorioEventosFalso()
+    ponentes = RepositorioPonentesFalso()
+    sesiones = RepositorioSesionesFalso(eventos, ponentes)
     app.dependency_overrides[repositorio_usuarios] = lambda: usuarios
-    app.dependency_overrides[repositorio_eventos] = lambda: RepositorioEventosFalso()
+    app.dependency_overrides[repositorio_eventos] = lambda: eventos
+    app.dependency_overrides[repositorio_ponentes] = lambda: ponentes
+    app.dependency_overrides[repositorio_sesiones] = lambda: sesiones
     return crear_access_token(ADMIN.id, settings.jwt_secret, 5)
 
 

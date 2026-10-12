@@ -1,7 +1,7 @@
 """Contra PostgreSQL real, que es donde el carácter nulo rompe: el driver lo rechaza en
 cualquier parámetro de texto y, si nada lo frena antes, la respuesta es un 500. Cada campo de
 texto de cada endpoint recibe el nulo con el resto del request válido, autenticado como admin
-y apuntando a un evento que existe."""
+y apuntando a un evento, un ponente y una sesión que existen."""
 
 import re
 import secrets
@@ -28,8 +28,12 @@ def admin(cliente, conexion) -> tuple[str, str, str]:
     return email, clave, login.json()["access_token"]
 
 
+# Todas las sesiones caen dentro del evento: de la primera a la segunda hora.
+INICIO_EVENTO = datetime.now(UTC) + timedelta(days=30)
+
+
 def cuerpo_de_evento() -> dict:
-    inicio = datetime.now(UTC) + timedelta(days=30)
+    inicio = INICIO_EVENTO
     return {
         "name": f"Evento {uuid4().hex[:8]}",
         "description": "Charlas de Python",
@@ -37,6 +41,17 @@ def cuerpo_de_evento() -> dict:
         "start_at": inicio.isoformat(),
         "end_at": (inicio + timedelta(hours=8)).isoformat(),
         "capacity": 100,
+    }
+
+
+def cuerpo_de_sesion() -> dict:
+    return {
+        "title": f"Sesión {uuid4().hex[:8]}",
+        "description": "Pytest de punta a punta",
+        "room": f"Sala {uuid4().hex[:8]}",
+        "start_at": (INICIO_EVENTO + timedelta(hours=1)).isoformat(),
+        "end_at": (INICIO_EVENTO + timedelta(hours=2)).isoformat(),
+        "speaker_ids": [],
     }
 
 
@@ -62,6 +77,10 @@ def entrada_valida(campo: CampoDeTexto, email: str, clave: str) -> dict:
         },
         "EventoEntrada": cuerpo_de_evento,
         "EventoEdicion": lambda: {"name": f"Editado {uuid4().hex[:8]}"},
+        "PonenteEntrada": lambda: {"full_name": "Ana Pérez", "bio": "Testing"},
+        "PonenteEdicion": lambda: {"full_name": "Ana María"},
+        "SesionEntrada": cuerpo_de_sesion,
+        "SesionEdicion": lambda: {"title": f"Editada {uuid4().hex[:8]}"},
     }
     assert campo.esquema in validos, f"falta el request válido de {campo.esquema}"
     return validos[campo.esquema]()
@@ -73,7 +92,19 @@ def test_el_caracter_nulo_en_cualquier_campo_de_texto_nunca_da_500(cliente_db, c
         "/events", json=cuerpo_de_evento(), headers={"Authorization": f"Bearer {token_dueno}"}
     )
     assert creado.status_code == 201
-    parametros_de_ruta = {"id_evento": creado.json()["id"]}
+    id_evento = creado.json()["id"]
+    dueno = {"Authorization": f"Bearer {token_dueno}"}
+    ponente = cliente_db.post("/speakers", json={"full_name": "Ana Pérez"}, headers=dueno)
+    assert ponente.status_code == 201
+    sesion = cliente_db.post(
+        f"/events/{id_evento}/sessions", json=cuerpo_de_sesion(), headers=dueno
+    )
+    assert sesion.status_code == 201
+    parametros_de_ruta = {
+        "id_evento": id_evento,
+        "id_ponente": ponente.json()["id"],
+        "id_sesion": sesion.json()["id"],
+    }
 
     revisados: dict[str, list[str]] = {"body": [], "form": [], "query": []}
     fallas: list[str] = []

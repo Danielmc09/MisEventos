@@ -5,14 +5,14 @@ from pydantic import BaseModel, ConfigDict, Field, StringConstraints, field_vali
 
 from app.models.ponente import Speaker
 from app.schemas.auth import Email
-from app.schemas.comunes import FechaUTC
+from app.schemas.comunes import EntradaBase, FechaUTC
 
 NombrePonente = Annotated[
     str, StringConstraints(strip_whitespace=True, min_length=2, max_length=120)
 ]
 
 
-class PonenteEntrada(BaseModel):
+class PonenteEntrada(EntradaBase):
     # created_by (y cualquier otro campo) no se acepta: lo decide el servidor.
     model_config = ConfigDict(extra="forbid")
 
@@ -21,7 +21,7 @@ class PonenteEntrada(BaseModel):
     email: Email | None = None
 
 
-class PonenteEdicion(BaseModel):
+class PonenteEdicion(EntradaBase):
     """Solo lo que cambia. `bio` y `email` aceptan null para borrarlos."""
 
     model_config = ConfigDict(extra="forbid")
