@@ -111,7 +111,9 @@ export default function EventoDetalle() {
               )}
             </div>
             <div className="flex flex-wrap items-center gap-3">
-              <ChipDisponibilidad capacidad={evento.capacity} libres={evento.available_spots} />
+              {evento.status === "PUBLISHED" && !evento.is_finished && (
+                <ChipDisponibilidad capacidad={evento.capacity} libres={evento.available_spots} />
+              )}
               <Chip tono="acento">{quedan(evento.available_spots, "cupo", "cupos")}</Chip>
               <AccionInscripcion
                 evento={evento}
