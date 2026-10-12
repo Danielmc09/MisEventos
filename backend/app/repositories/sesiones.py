@@ -1,6 +1,7 @@
 from datetime import datetime
 from uuid import UUID
 
+from sqlalchemy.dialects.postgresql import distinct_on
 from sqlmodel import Session, col, delete, select
 
 from app.models.evento import EstadoEvento, Event
@@ -41,15 +42,16 @@ class RepositorioSesiones:
             por_sesion[id_sesion].append(ponente)
         return por_sesion
 
-    def choque_de_ponentes(
+    def choques_de_ponentes(
         self, ids_ponente: list[UUID], inicio: datetime, fin: datetime, excluir: UUID | None
-    ) -> tuple[Speaker, Sesion] | None:
-        """La primera sesión de esos ponentes que se cruza con `[inicio, fin)`, en cualquier evento
-        no cancelado, sin contar `excluir`. Terminar cuando la otra empieza no es cruce."""
+    ) -> list[tuple[Speaker, Sesion, Event]]:
+        """Por cada uno de esos ponentes, la primera sesión que se cruza con `[inicio, fin)`, en
+        cualquier evento no cancelado y sin contar `excluir`, con su evento. Una sola consulta.
+        Terminar cuando la otra empieza no es cruce."""
         if not ids_ponente:
-            return None
+            return []
         consulta = (
-            select(Speaker, Sesion)
+            select(Speaker, Sesion, Event)
             .join(SessionSpeaker, col(SessionSpeaker.speaker_id) == col(Speaker.id))
             .join(Sesion, col(Sesion.id) == col(SessionSpeaker.session_id))
             .join(Event, col(Event.id) == col(Sesion.event_id))
@@ -59,13 +61,15 @@ class RepositorioSesiones:
                 col(Sesion.end_at) > inicio,
                 col(Event.status) != EstadoEvento.CANCELLED,
             )
-            .order_by(col(Sesion.start_at), col(Speaker.full_name), col(Speaker.id))
-            .limit(1)
+            # DISTINCT ON se queda con la primera fila de cada ponente según este orden.
+            .ext(distinct_on(col(Speaker.id)))
+            .order_by(col(Speaker.id), col(Sesion.start_at), col(Sesion.id))
         )
         if excluir is not None:
             consulta = consulta.where(col(Sesion.id) != excluir)
-        fila = self.session.exec(consulta).first()
-        return None if fila is None else (fila[0], fila[1])
+        return [
+            (ponente, sesion, evento) for ponente, sesion, evento in self.session.exec(consulta)
+        ]
 
     def crear(self, sesion: Sesion, ids_ponente: list[UUID]) -> Sesion:
         return self.guardar(sesion, ids_ponente)

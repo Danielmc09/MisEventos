@@ -3,7 +3,7 @@ reglas de horario: dentro del evento, sin cruces de ponente ni de sala, y nada d
 evento cancelado o finalizado."""
 
 from datetime import UTC, datetime, timedelta
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 
@@ -548,6 +548,94 @@ def test_un_ponente_no_puede_estar_en_dos_sesiones_que_se_cruzan_en_otro_evento(
     # El horario de la sesión que choca, en hora de Bogotá.
     assert problema["detail"] == "Ana Pérez ya está en «Testing en Python», 10:00 a 11:00"
     assert len(repos.eventos.sesiones) == 1
+
+
+# Quien asigna eligió a la ponente: su nombre se puede mostrar, la otra sesión no.
+DETALLE_SIN_SESION = "Ana Pérez ya tiene otra sesión en ese horario"
+
+
+def test_el_choque_con_un_borrador_ajeno_responde_409_sin_nombrar_la_sesion(cliente, repos, auth):
+    borrador = repos.evento(EstadoEvento.DRAFT, dueno=OTRO_ORGANIZADOR)
+    ana = repos.ponente("Ana Pérez")
+    repos.sesion(borrador, hora(10), hora(11), ana, title="Lanzamiento producto X")
+    evento = repos.evento()
+
+    respuesta = crear(cliente, evento, cuerpo(ana, title="Otra charla"), auth(ORGANIZADOR))
+
+    assert respuesta.status_code == 409
+    problema = respuesta.json()
+    assert problema["type"] == "speaker-conflict"
+    assert problema["detail"] == DETALLE_SIN_SESION
+    # Ni el título ni el horario del borrador salen en ningún lado de la respuesta.
+    assert "Lanzamiento producto X" not in respuesta.text
+    assert "10:00" not in respuesta.text
+    assert len(repos.eventos.sesiones) == 1
+
+
+def test_al_editar_el_choque_con_un_borrador_ajeno_tampoco_nombra_la_sesion(cliente, repos, auth):
+    borrador = repos.evento(EstadoEvento.DRAFT, dueno=OTRO_ORGANIZADOR)
+    ana = repos.ponente("Ana Pérez")
+    repos.sesion(borrador, hora(10), hora(11), ana, title="Lanzamiento producto X")
+    evento = repos.evento()
+    sesion = repos.sesion(evento, hora(14), hora(15), ana, title="Otra charla")
+
+    respuesta = editar(cliente, sesion, {"start_at": hora(10, 30).isoformat()}, auth(ORGANIZADOR))
+
+    assert respuesta.status_code == 409
+    assert respuesta.json()["detail"] == DETALLE_SIN_SESION
+    assert "Lanzamiento producto X" not in respuesta.text
+
+
+@pytest.mark.parametrize("usuario", [ADMIN, OTRO_ORGANIZADOR], ids=["admin", "dueno-del-borrador"])
+def test_quien_ve_el_borrador_recibe_el_choque_con_la_sesion(cliente, repos, auth, usuario):
+    borrador = repos.evento(EstadoEvento.DRAFT, dueno=OTRO_ORGANIZADOR)
+    ana = repos.ponente("Ana Pérez")
+    repos.sesion(borrador, hora(10), hora(11), ana, title="Lanzamiento producto X")
+    evento = repos.evento(dueno=OTRO_ORGANIZADOR)
+
+    respuesta = crear(cliente, evento, cuerpo(ana, title="Otra charla"), auth(usuario))
+
+    assert respuesta.status_code == 409
+    assert respuesta.json()["detail"] == (
+        "Ana Pérez ya está en «Lanzamiento producto X», 10:00 a 11:00"
+    )
+
+
+def test_el_choque_con_un_evento_publicado_ajeno_nombra_la_sesion(cliente, repos, auth):
+    publicado = repos.evento(EstadoEvento.PUBLISHED, dueno=OTRO_ORGANIZADOR)
+    ana = repos.ponente("Ana Pérez")
+    repos.sesion(publicado, hora(10), hora(11), ana, title="Keynote")
+    evento = repos.evento()
+
+    respuesta = crear(cliente, evento, cuerpo(ana, title="Otra charla"), auth(ORGANIZADOR))
+
+    assert respuesta.status_code == 409
+    assert respuesta.json()["detail"] == "Ana Pérez ya está en «Keynote», 10:00 a 11:00"
+
+
+def test_si_chocan_varios_ponentes_el_detail_lista_uno_por_linea_segun_lo_que_se_ve(
+    cliente, repos, auth
+):
+    publicado = repos.evento(EstadoEvento.PUBLISHED, dueno=OTRO_ORGANIZADOR)
+    borrador = repos.evento(EstadoEvento.DRAFT, dueno=OTRO_ORGANIZADOR)
+    beto, ana = repos.ponente("Beto Ruiz"), repos.ponente("Ana Pérez")
+    # Beto tiene el id menor y su sesión empieza antes: el orden de las líneas es por nombre,
+    # no por id ni por horario.
+    beto.id, ana.id = UUID(int=1), UUID(int=2)
+    repos.ponentes.ponentes = {beto.id: beto, ana.id: ana}
+    repos.sesion(borrador, hora(9, 30), hora(10, 30), beto, title="Lanzamiento producto X")
+    repos.sesion(publicado, hora(10), hora(11), ana, title="Keynote")
+    evento = repos.evento()
+
+    respuesta = crear(cliente, evento, cuerpo(beto, ana, title="Otra charla"), auth(ORGANIZADOR))
+
+    assert respuesta.status_code == 409
+    assert respuesta.json()["type"] == "speaker-conflict"
+    assert respuesta.json()["detail"] == (
+        "Ana Pérez ya está en «Keynote», 10:00 a 11:00\n"
+        "Beto Ruiz ya tiene otra sesión en ese horario"
+    )
+    assert "Lanzamiento producto X" not in respuesta.text
 
 
 def test_el_choque_de_ponente_se_pide_a_la_base_con_el_horario_y_sin_la_agenda_entera(
