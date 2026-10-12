@@ -2,6 +2,7 @@ import { lazy, Suspense, useEffect } from "react";
 import { Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { registrarRouter } from "./api/navegacion";
 import { Encabezado } from "./components/Encabezado";
+import { ExigirCambioDeContrasena } from "./components/ExigirCambioDeContrasena";
 import { RutaProtegida } from "./components/RutaProtegida";
 import { ProveedorAvisos } from "./components/ui/Avisos";
 import { Spinner } from "./components/ui/Spinner";
@@ -38,18 +39,20 @@ export default function App() {
         }
       >
         <Routes>
-          <Route path="/" element={<Inicio />} />
-          <Route path="/login" element={<Login />} />
-          <Route path="/registro" element={<Registro />} />
-          <Route path="/eventos/:id" element={<EventoDetalle />} />
-          <Route element={<RutaProtegida />}>
-            <Route path="/eventos/nuevo" element={<EventoNuevo />} />
-            <Route path="/eventos/:id/editar" element={<EventoEditar />} />
-            <Route path="/perfil" element={<Perfil />} />
-            <Route path="/admin/usuarios" element={<AdminUsuarios />} />
-            <Route path="/cambiar-contrasena" element={<CambiarContrasena />} />
+          <Route element={<ExigirCambioDeContrasena />}>
+            <Route path="/" element={<Inicio />} />
+            <Route path="/login" element={<Login />} />
+            <Route path="/registro" element={<Registro />} />
+            <Route path="/eventos/:id" element={<EventoDetalle />} />
+            <Route element={<RutaProtegida />}>
+              <Route path="/eventos/nuevo" element={<EventoNuevo />} />
+              <Route path="/eventos/:id/editar" element={<EventoEditar />} />
+              <Route path="/perfil" element={<Perfil />} />
+              <Route path="/admin/usuarios" element={<AdminUsuarios />} />
+              <Route path="/cambiar-contrasena" element={<CambiarContrasena />} />
+            </Route>
+            <Route path="*" element={<NoEncontrada />} />
           </Route>
-          <Route path="*" element={<NoEncontrada />} />
         </Routes>
       </Suspense>
     </ProveedorAvisos>

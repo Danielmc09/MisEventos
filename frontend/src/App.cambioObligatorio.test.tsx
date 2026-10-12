@@ -44,6 +44,9 @@ const montar = (ruta: string) =>
   );
 
 const ubicacion = () => screen.getByLabelText("ubicación");
+// El <output> de la ubicación también es role="status": se busca el aviso por su texto.
+const avisoDeCambio = () =>
+  screen.getAllByRole("status").find((aviso) => aviso.textContent?.includes(MENSAJE));
 
 test("después del login, con contraseña temporal, va directo a /cambiar-contrasena con el mensaje", async () => {
   server.use(
@@ -64,7 +67,7 @@ test("después del login, con contraseña temporal, va directo a /cambiar-contra
 
   expect(await screen.findByRole("heading", { name: "Cambiar contraseña" })).toBeInTheDocument();
   expect(ubicacion()).toHaveTextContent(/^\/cambiar-contrasena$/);
-  expect(screen.getByRole("status")).toHaveTextContent(MENSAJE);
+  expect(avisoDeCambio()).toBeDefined();
 });
 
 test.each(["/", "/perfil", "/eventos/abc"])(
@@ -75,7 +78,7 @@ test.each(["/", "/perfil", "/eventos/abc"])(
 
     expect(await screen.findByRole("heading", { name: "Cambiar contraseña" })).toBeInTheDocument();
     expect(ubicacion()).toHaveTextContent(/^\/cambiar-contrasena$/);
-    expect(screen.getByRole("status")).toHaveTextContent(MENSAJE);
+    expect(avisoDeCambio()).toBeDefined();
   },
 );
 
