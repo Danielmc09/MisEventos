@@ -20,8 +20,8 @@ class Inscripciones(Protocol):
     def guardar(self, inscripcion: Registration) -> Registration: ...
 
 
-def _evento_empezado() -> Conflict:
-    return Conflict(tipo="event-started", titulo="El evento ya empezó")
+def _evento_empezado(detalle: str) -> Conflict:
+    return Conflict(detalle, tipo="event-started", titulo="El evento ya empezó")
 
 
 def inscribirse(
@@ -34,11 +34,19 @@ def inscribirse(
     if evento is None or not servicio_eventos.puede_ver(usuario, evento):
         raise NotFound()
     if evento.status != EstadoEvento.PUBLISHED:
-        raise Conflict(tipo="event-not-open", titulo="El evento no admite inscripciones")
+        raise Conflict(
+            "Solo se puede inscribir a un evento publicado.",
+            tipo="event-not-open",
+            titulo="El evento no admite inscripciones",
+        )
     if servicio_eventos.ya_empezo(evento):
-        raise _evento_empezado()
+        raise _evento_empezado("Las inscripciones cierran cuando el evento empieza.")
     if inscripciones.activa_de(usuario.id, evento.id) is not None:
-        raise Conflict(tipo="already-registered", titulo="Ya estás inscrito en este evento")
+        raise Conflict(
+            "Ya tenés una inscripción activa en este evento.",
+            tipo="already-registered",
+            titulo="Ya estás inscrito en este evento",
+        )
     if eventos.inscritos([evento.id])[evento.id] >= evento.capacity:
         raise Conflict(
             f"El evento alcanzó su capacidad de {evento.capacity} personas.",
@@ -59,7 +67,7 @@ def cancelar(
     if evento is None or inscripcion is None:
         raise NotFound()
     if servicio_eventos.ya_empezo(evento):
-        raise _evento_empezado()
+        raise _evento_empezado("La inscripción se puede cancelar hasta que el evento empieza.")
     inscripcion.status = EstadoInscripcion.CANCELLED
     inscripcion.cancelled_at = datetime.now(UTC)
     inscripciones.guardar(inscripcion)
