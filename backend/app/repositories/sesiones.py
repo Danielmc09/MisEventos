@@ -1,6 +1,7 @@
 from datetime import datetime
 from uuid import UUID
 
+from sqlalchemy.dialects.postgresql import distinct_on
 from sqlmodel import Session, col, delete, select
 
 from app.models.evento import EstadoEvento, Event
@@ -61,7 +62,7 @@ class RepositorioSesiones:
                 col(Event.status) != EstadoEvento.CANCELLED,
             )
             # DISTINCT ON se queda con la primera fila de cada ponente según este orden.
-            .distinct(col(Speaker.id))
+            .ext(distinct_on(col(Speaker.id)))
             .order_by(col(Speaker.id), col(Sesion.start_at), col(Sesion.id))
         )
         if excluir is not None:
