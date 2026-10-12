@@ -10,9 +10,11 @@ from app.api.dependencias import (
     formulario_sin_caracter_nulo,
 )
 from app.api.errores import respuestas_de_error
+from app.core.permisos import permisos_de
 from app.schemas.auth import (
     CambioContrasenaEntrada,
     Mensaje,
+    PerfilConPermisos,
     RegistroEntrada,
     TokenAcceso,
     UsuarioSalida,
@@ -69,11 +71,12 @@ def logout() -> None:
 @router.get(
     "/me",
     summary="Usuario actual",
-    description="Los datos del usuario dueño del access token.",
+    description="Los datos del usuario dueño del access token y los permisos de su rol.",
     responses=respuestas_de_error(401),
 )
-def me(usuario: UsuarioActual) -> UsuarioSalida:
-    return UsuarioSalida.model_validate(usuario, from_attributes=True)
+def me(usuario: UsuarioActual) -> PerfilConPermisos:
+    datos = UsuarioSalida.model_validate(usuario, from_attributes=True)
+    return PerfilConPermisos(**datos.model_dump(), permisos=permisos_de(usuario))
 
 
 @router.patch(

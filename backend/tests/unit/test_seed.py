@@ -290,6 +290,28 @@ def test_al_menos_dos_eventos_demo_dicen_python_con_distintas_mayusculas():
     assert len(escrituras) >= 2
 
 
+def test_el_taller_describe_el_taller_y_no_el_cupo():
+    eventos = RepositorioEventosFalso()
+
+    sembrar_eventos(RepositorioUsuariosFalso(ORGANIZADOR_DEMO), eventos)
+
+    [taller] = [
+        e for e in eventos.eventos.values() if e.name == "Taller de python para principiantes"
+    ]
+    assert taller.description == "Taller práctico para quienes empiezan con Python."
+
+
+def test_ninguna_descripcion_demo_habla_de_cupos_ni_de_lugares():
+    eventos = RepositorioEventosFalso()
+
+    sembrar_eventos(RepositorioUsuariosFalso(ORGANIZADOR_DEMO), eventos)
+
+    descripciones = [e.description or "" for e in eventos.eventos.values()]
+    assert descripciones
+    mencionan = [d for d in descripciones if "cupo" in d.lower() or "lugares" in d.lower()]
+    assert mencionan == []
+
+
 def test_no_toca_un_evento_demo_que_ya_existe_y_crea_los_que_faltan():
     eventos = RepositorioEventosFalso()
     sembrar_eventos(RepositorioUsuariosFalso(ORGANIZADOR_DEMO), eventos)

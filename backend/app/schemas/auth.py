@@ -4,7 +4,7 @@ from uuid import UUID
 from email_validator import EmailNotValidError, validate_email
 from pydantic import AfterValidator, BaseModel, ConfigDict, Field
 
-from app.core.permisos import Rol
+from app.core.permisos import Permiso, Rol
 from app.schemas.comunes import EntradaBase, FechaUTC
 
 
@@ -53,3 +53,9 @@ class UsuarioSalida(BaseModel):
     is_active: bool
     must_change_password: bool
     created_at: FechaUTC
+
+
+class PerfilConPermisos(UsuarioSalida):
+    """El usuario dueño del token y lo que puede hacer, para que el cliente no repita el mapa."""
+
+    permisos: list[Permiso]

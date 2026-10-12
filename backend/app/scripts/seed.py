@@ -122,7 +122,7 @@ EVENTOS_DEMO = [
     ),
     EventoDemo(
         "Taller de python para principiantes",
-        "Cupo reducido: quedan pocos lugares.",
+        "Taller práctico para quienes empiezan con Python.",
         "Universidad Nacional, Bogotá",
         10,
         4,
