@@ -5,6 +5,7 @@ from uuid import UUID
 
 from app.models.evento import Event
 from app.models.ponente import Speaker
+from app.models.sesion import Session as Sesion
 from app.models.usuario import User
 
 
@@ -34,6 +35,9 @@ class RepositorioEventosFalso:
     def __init__(self, *eventos: Event) -> None:
         self.eventos = {e.id: e for e in eventos}
         self.busquedas: list[dict] = []
+        self.sesiones: dict[UUID, Sesion] = {}
+        # Qué filas se bloquearon y en qué orden. Se puede compartir con otro doble.
+        self.bloqueos: list[UUID] = []
 
     def buscar(
         self, filtros, *, ver_todo: bool, borradores_de: UUID | None, offset: int, limite: int
@@ -65,7 +69,12 @@ class RepositorioEventosFalso:
         )
 
     def por_id_para_escribir(self, id_: UUID) -> Event | None:
+        self.bloqueos.append(id_)
         return self.eventos.get(id_)
+
+    def sesiones_de(self, id_evento: UUID) -> list[Sesion]:
+        propias = [s for s in self.sesiones.values() if s.event_id == id_evento]
+        return sorted(propias, key=lambda s: s.start_at)
 
     def guardar(self, evento: Event) -> Event:
         evento.updated_at = datetime.now(UTC)
@@ -87,6 +96,7 @@ class RepositorioPonentesFalso:
         self.ponentes = {p.id: p for p in ponentes}
         self.con_sesiones = {p.id for p in con_sesiones}
         self.busquedas: list[dict] = []
+        self.bloqueos: list[UUID] = []
 
     def buscar(self, q: str | None, offset: int, limite: int) -> tuple[list[Speaker], int]:
         """Registra con qué se buscó; el ILIKE lo hace la base y se prueba en integración."""
@@ -95,6 +105,7 @@ class RepositorioPonentesFalso:
         return todos[offset : offset + limite], len(todos)
 
     def por_id_para_escribir(self, id_: UUID) -> Speaker | None:
+        self.bloqueos.append(id_)
         return self.ponentes.get(id_)
 
     def tiene_sesiones(self, id_: UUID) -> bool:
@@ -112,3 +123,55 @@ class RepositorioPonentesFalso:
 
     def eliminar(self, ponente: Speaker) -> None:
         del self.ponentes[ponente.id]
+
+
+class RepositorioSesionesFalso:
+    """Guarda las sesiones en el doble de eventos (que las lista) y lee los ponentes del suyo."""
+
+    def __init__(
+        self, eventos: RepositorioEventosFalso, ponentes: RepositorioPonentesFalso
+    ) -> None:
+        self.eventos = eventos
+        self.ponentes = ponentes
+        self.vinculos: dict[UUID, list[UUID]] = {}
+
+    def ponentes_de(self, ids_sesion: list[UUID]) -> dict[UUID, list[Speaker]]:
+        return {
+            id_: sorted(
+                (self.ponentes.ponentes[p] for p in self.vinculos.get(id_, [])),
+                key=lambda p: p.full_name,
+            )
+            for id_ in ids_sesion
+        }
+
+    def sesiones_de_ponentes(self, ids_ponente: list[UUID]) -> list[tuple[Speaker, Sesion, Event]]:
+        encontradas = []
+        for id_sesion, ids in self.vinculos.items():
+            sesion = self.eventos.sesiones[id_sesion]
+            evento = self.eventos.eventos[sesion.event_id]
+            for id_ponente in ids:
+                if id_ponente in ids_ponente:
+                    encontradas.append((self.ponentes.ponentes[id_ponente], sesion, evento))
+        return encontradas
+
+    def por_id(self, id_: UUID) -> Sesion | None:
+        return self.eventos.sesiones.get(id_)
+
+    def por_id_para_escribir(self, id_: UUID) -> Sesion | None:
+        self.eventos.bloqueos.append(id_)
+        return self.eventos.sesiones.get(id_)
+
+    def crear(self, sesion: Sesion, ids_ponente: list[UUID]) -> Sesion:
+        sesion.created_at = datetime.now(UTC)
+        return self.guardar(sesion, ids_ponente)
+
+    def guardar(self, sesion: Sesion, ids_ponente: list[UUID] | None) -> Sesion:
+        sesion.updated_at = datetime.now(UTC)
+        self.eventos.sesiones[sesion.id] = sesion
+        if ids_ponente is not None:
+            self.vinculos[sesion.id] = list(ids_ponente)
+        return sesion
+
+    def eliminar(self, sesion: Sesion) -> None:
+        del self.eventos.sesiones[sesion.id]
+        self.vinculos.pop(sesion.id, None)

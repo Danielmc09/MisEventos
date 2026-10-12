@@ -5,6 +5,7 @@ from sqlalchemy import ColumnElement
 from sqlmodel import Session, col, func, or_, select
 
 from app.models.evento import EstadoEvento, Event
+from app.models.sesion import Session as Sesion
 from app.schemas.eventos import Cuando, FiltrosEventos, OrdenEventos
 
 ORDEN = {
@@ -76,6 +77,14 @@ class RepositorioEventos:
         """Bloquea la fila hasta el fin de la transacción: dos cambios a la vez no se pisan."""
         consulta = select(Event).where(Event.id == id_evento).with_for_update()
         return self.session.exec(consulta).first()
+
+    def sesiones_de(self, id_evento: UUID) -> list[Sesion]:
+        consulta = (
+            select(Sesion)
+            .where(Sesion.event_id == id_evento)
+            .order_by(col(Sesion.start_at), col(Sesion.id))
+        )
+        return list(self.session.exec(consulta).all())
 
     def guardar(self, evento: Event) -> Event:
         self.session.add(evento)
