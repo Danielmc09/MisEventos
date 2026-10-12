@@ -67,6 +67,25 @@ def test_ningun_campo_de_texto_acepta_el_caracter_nulo(app, cliente, token):
     assert fallas == []
 
 
+@pytest.mark.parametrize(
+    "tipo",
+    ["APPLICATION/X-WWW-FORM-URLENCODED", "application/x-www-form-urlencoded; charset=utf-8"],
+    ids=["en-mayusculas", "con-charset"],
+)
+@pytest.mark.usefixtures("token")  # los repositorios en memoria
+def test_el_formulario_se_revisa_aunque_el_content_type_venga_escrito_distinto(cliente, tipo):
+    clave = secrets.token_urlsafe(12)
+
+    respuesta = cliente.post(
+        "/auth/login",
+        content=f"username=ana%40mail.com%00&password={clave}",
+        headers={"Content-Type": tipo},
+    )
+
+    assert respuesta.status_code == 422
+    assert respuesta.json()["errors"] == [{"field": "username", "message": MENSAJE}]
+
+
 # --- El esquema base, sin HTTP --------------------------------------------------------------
 
 
