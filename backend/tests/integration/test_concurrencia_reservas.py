@@ -1,5 +1,5 @@
-"""Reservas simultáneas: el último lugar, las reservas propias que se cruzan y cancelar la
-inscripción mientras se reserva.
+"""Reservas simultáneas: el último lugar, las reservas propias que se cruzan, cancelar la
+inscripción mientras se reserva y bajar la capacidad del evento mientras se reserva.
 
 Corre fuera de la transacción del fixture (cada request hace commit de verdad), con datos propios
 que se borran al final. Para que sea determinista, el test toma primero el bloqueo de la fila del
@@ -232,3 +232,91 @@ def test_cancelar_la_inscripcion_mientras_se_reserva_no_deja_reservas_colgando(
         " WHERE r.user_id = :u AND s.event_id = :e AND r.status = 'ACTIVE'"
     )
     assert activas(engine_de_test, colgando, u=ana, e=datos["evento"]) == 0
+
+
+@pytest.fixture
+def sin_capacidad_propia(engine_de_test):
+    """Un evento publicado de capacidad 50 con tres inscritos y una sesión sin capacidad propia
+    (usa la del evento) en la que dos de ellos ya reservaron. Con commit; se borra al terminar."""
+    prefijo = "cc" + uuid4().hex[:8]
+    with engine_de_test.begin() as conexion:
+        organizador = insertar_usuario(conexion, f"{prefijo}orga@mail.com", "ORGANIZER")
+        asistentes = [
+            insertar_usuario(conexion, f"{prefijo}a{i}@mail.com", "ATTENDEE") for i in range(3)
+        ]
+        evento = conexion.execute(
+            text(
+                "INSERT INTO events (name, start_at, end_at, capacity, status, organizer_id)"
+                " VALUES (:n, '2030-01-10T13:00:00Z', '2030-01-10T23:00:00Z', 50, 'PUBLISHED',"
+                " :o) RETURNING id"
+            ),
+            {"n": f"{prefijo} evento", "o": organizador},
+        ).scalar_one()
+        for asistente in asistentes:
+            conexion.execute(
+                text("INSERT INTO registrations (user_id, event_id) VALUES (:u, :e)"),
+                {"u": asistente, "e": evento},
+            )
+        sesion = insertar_sesion(
+            conexion, evento, "2030-01-10T14:00:00Z", "2030-01-10T15:00:00Z", None
+        )
+        for asistente in asistentes[:2]:
+            conexion.execute(
+                text("INSERT INTO session_registrations (user_id, session_id) VALUES (:u, :s)"),
+                {"u": asistente, "s": sesion},
+            )
+    try:
+        yield {
+            "evento": evento,
+            "organizador": organizador,
+            "asistentes": asistentes,
+            "sesion": sesion,
+        }
+    finally:
+        with engine_de_test.begin() as conexion:
+            conexion.execute(text("DELETE FROM events WHERE id = :e"), {"e": evento})
+            conexion.execute(
+                text("DELETE FROM users WHERE id = ANY(:ids)"),
+                {"ids": [organizador, *asistentes]},
+            )
+
+
+def cambiar_capacidad(id_usuario: UUID, id_evento: UUID, capacidad: int) -> Pedido:
+    return lambda cliente: cliente.patch(
+        f"/events/{id_evento}", json={"capacity": capacidad}, headers=headers(id_usuario)
+    )
+
+
+@pytest.mark.parametrize("capacidad", [2, 3], ids=["por-debajo", "justa"])
+def test_bajar_la_capacidad_del_evento_mientras_se_reserva_deja_la_base_consistente(
+    engine_de_test, url_db, sin_capacidad_propia, capacidad
+):
+    # Los dos toman primero el evento, así que se ordenan ahí y ninguno espera al otro en
+    # círculo. Cuál gana no se controla: en cualquier orden, la sesión nunca termina con más
+    # reservas activas que la capacidad efectiva final, que es la del evento.
+    datos = sin_capacidad_propia
+    pedidos = [
+        reservar(datos["asistentes"][2], datos["sesion"]),
+        cambiar_capacidad(datos["organizador"], datos["evento"], capacidad),
+    ]
+
+    respuestas = a_la_vez(engine_de_test, url_db, datos["evento"], pedidos)
+
+    reserva, cambio = respuestas if respuestas[0].request.method == "POST" else respuestas[::-1]
+    assert reserva.status_code == 201, reserva.text
+    if capacidad == 2:
+        assert cambio.status_code == 409, cambio.text
+        assert cambio.json()["type"] in {
+            "capacity-below-reservations",
+            "capacity-below-registrations",
+        }
+    else:
+        assert cambio.status_code == 200, cambio.text
+    final = activas(engine_de_test, "SELECT capacity FROM events WHERE id = :e", e=datos["evento"])
+    reservas = activas(
+        engine_de_test,
+        "SELECT count(*) FROM session_registrations WHERE session_id = :s AND status = 'ACTIVE'",
+        s=datos["sesion"],
+    )
+    assert reservas == 3
+    assert reservas <= final
