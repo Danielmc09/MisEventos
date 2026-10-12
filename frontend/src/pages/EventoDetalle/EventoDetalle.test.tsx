@@ -1,4 +1,4 @@
-import { screen, within } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { delay, http } from "msw";
 import { setupServer } from "msw/node";
@@ -99,9 +99,15 @@ function servir(e = evento) {
 const problema = (status: 409, title: string) =>
   ({ type: "invalid-transition", title, status, trace_id: "t-9" }) as const;
 
+const HORA = 3600_000;
+const en = (horas: number) => new Date(Date.now() + horas * HORA).toISOString();
+// El fixture es del 11 de octubre: para el comportamiento que depende del reloj, las fechas son relativas a ahora.
+const abierto = { ...evento, start_at: en(24), end_at: en(32) };
+const empezado = { ...evento, start_at: en(-2), end_at: en(6) };
+
 describe("acciones según quién mira y el estado", () => {
   test("un anónimo y un asistente que no es el dueño no ven acciones", async () => {
-    servir();
+    servir(empezado);
     const { unmount } = abrir();
     await screen.findByRole("heading", { name: "PyCon Bogotá" });
     expect(screen.queryByRole("button")).not.toBeInTheDocument();
@@ -109,6 +115,7 @@ describe("acciones según quién mira y el estado", () => {
     unmount();
 
     useSession.getState().iniciarSesion(usuario, "token", 3600);
+    servir(empezado);
     abrir();
     await screen.findByRole("heading", { name: "PyCon Bogotá" });
     expect(screen.queryByRole("button")).not.toBeInTheDocument();
@@ -496,5 +503,289 @@ describe("agregar y editar sesiones", () => {
 
     await screen.findByRole("heading", { name: "Apertura" });
     expect(screen.queryByRole("button", { name: /sesión/ })).not.toBeInTheDocument();
+  });
+});
+
+const inscrito = { ...abierto, is_registered: true, registered_count: 1, available_spots: 99 };
+const lleno = { ...abierto, registered_count: 100, available_spots: 0 };
+const rutaInscripcion = `${ruta}/registrations`;
+const rutaCancelar = `${ruta}/registrations/me`;
+
+const creada = {
+  id: "c1b2c3d4-0000-4000-8000-0000000000aa",
+  event_id: evento.id,
+  status: "ACTIVE" as const,
+  created_at: "2026-10-11T15:30:00Z",
+};
+
+const conflicto = (type: string, title: string) => ({
+  type,
+  title,
+  status: 409 as const,
+  trace_id: "t-7",
+});
+
+const sinBotones = () => {
+  for (const nombre of ["Inscribirme", "Sin cupos", "Cancelar inscripción"]) {
+    expect(screen.queryByRole("button", { name: nombre })).not.toBeInTheDocument();
+  }
+  expect(
+    screen.queryByRole("link", { name: "Iniciá sesión para inscribirte" }),
+  ).not.toBeInTheDocument();
+};
+
+describe("botón de inscripción según la situación", () => {
+  test("sin sesión invita a iniciar sesión y vuelve al evento", async () => {
+    servir(abierto);
+    abrir();
+
+    const enlace = await screen.findByRole("link", { name: "Iniciá sesión para inscribirte" });
+    expect(enlace).toHaveAttribute(
+      "href",
+      `/login?next=${encodeURIComponent(`/eventos/${evento.id}`)}`,
+    );
+    expect(screen.queryByRole("button", { name: "Inscribirme" })).not.toBeInTheDocument();
+  });
+
+  test("publicado, con cupo y sin inscripción: Inscribirme", async () => {
+    useSession.getState().iniciarSesion(usuario, "token", 3600);
+    servir(abierto);
+    abrir();
+
+    expect(await screen.findByRole("button", { name: "Inscribirme" })).toBeEnabled();
+    expect(screen.queryByText("Estás inscrito")).not.toBeInTheDocument();
+  });
+
+  test("inscrito: lo dice y ofrece cancelar", async () => {
+    useSession.getState().iniciarSesion(usuario, "token", 3600);
+    servir(inscrito);
+    abrir();
+
+    expect(await screen.findByText("Estás inscrito")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Cancelar inscripción" })).toBeEnabled();
+    expect(screen.queryByRole("button", { name: "Inscribirme" })).not.toBeInTheDocument();
+  });
+
+  test("sin cupo: botón deshabilitado Sin cupos", async () => {
+    useSession.getState().iniciarSesion(usuario, "token", 3600);
+    servir(lleno);
+    abrir();
+
+    expect(await screen.findByRole("button", { name: "Sin cupos" })).toBeDisabled();
+    expect(screen.queryByRole("button", { name: "Inscribirme" })).not.toBeInTheDocument();
+  });
+
+  test.each([
+    ["cancelado", { ...abierto, status: "CANCELLED" as const }],
+    ["finalizado", { ...abierto, is_finished: true }],
+    ["ya empezado", empezado],
+    ["borrador", { ...abierto, status: "DRAFT" as const }],
+    ["cancelado con inscripción", { ...inscrito, status: "CANCELLED" as const }],
+  ])("un evento %s no tiene botón", async (_estado, e) => {
+    useSession.getState().iniciarSesion(usuario, "token", 3600);
+    servir(e);
+    const { unmount } = abrir();
+    await screen.findByRole("heading", { name: "PyCon Bogotá" });
+    sinBotones();
+    unmount();
+
+    useSession.getState().cerrarSesion();
+    abrir();
+    await screen.findByRole("heading", { name: "PyCon Bogotá" });
+    sinBotones();
+  });
+
+  test("el dueño también puede inscribirse a su evento", async () => {
+    useSession.getState().iniciarSesion(dueno, "token", 3600);
+    servir(abierto);
+    abrir();
+
+    expect(await screen.findByRole("button", { name: "Inscribirme" })).toBeEnabled();
+  });
+});
+
+describe("inscribirse", () => {
+  beforeEach(() => useSession.getState().iniciarSesion(usuario, "token", 3600));
+
+  async function contarListados() {
+    let listados = 0;
+    server.use(
+      http.get(`${API}/events`, () => {
+        listados++;
+        return responder("/events", "get", 200, {
+          items: [],
+          total: 0,
+          page: 1,
+          page_size: 12,
+          pages: 0,
+        });
+      }),
+    );
+    await useEventos.getState().listar("");
+    return () => listados;
+  }
+
+  test("avisa, pasa a Estás inscrito, baja los cupos e invalida el listado", async () => {
+    servir({ ...abierto, registered_count: 1, available_spots: 100 - 1 });
+    let llamadas = 0;
+    server.use(
+      http.post(rutaInscripcion, () => {
+        llamadas++;
+        return responder("/events/{id_evento}/registrations", "post", 201, creada);
+      }),
+    );
+    const listados = await contarListados();
+    const user = userEvent.setup();
+    abrir();
+
+    expect(await screen.findByText("Quedan 99 cupos")).toBeInTheDocument();
+    await user.click(await screen.findByRole("button", { name: "Inscribirme" }));
+
+    expect(await screen.findByRole("status")).toHaveTextContent("Te inscribiste al evento");
+    expect(llamadas).toBe(1);
+    expect(screen.getByText("Estás inscrito")).toBeInTheDocument();
+    expect(screen.getByText("Quedan 98 cupos")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Inscribirme" })).not.toBeInTheDocument();
+    await useEventos.getState().listar("");
+    expect(listados()).toBe(2);
+  });
+
+  test("capacity-full muestra el title, refresca el evento y deja Sin cupos deshabilitado", async () => {
+    let actual = abierto;
+    server.use(http.get(ruta, () => responder("/events/{id_evento}", "get", 200, actual)));
+    server.use(
+      http.post(rutaInscripcion, () => {
+        actual = lleno;
+        return responder(
+          "/events/{id_evento}/registrations",
+          "post",
+          409,
+          conflicto("capacity-full", "El evento no tiene cupos"),
+        );
+      }),
+    );
+    const user = userEvent.setup();
+    abrir();
+
+    await user.click(await screen.findByRole("button", { name: "Inscribirme" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("El evento no tiene cupos");
+    expect(await screen.findByRole("button", { name: "Sin cupos" })).toBeDisabled();
+    expect(screen.getByText("Quedan 0 cupos")).toBeInTheDocument();
+  });
+
+  test("cualquier 409 refresca el evento", async () => {
+    let actual = abierto;
+    let lecturas = 0;
+    server.use(
+      http.get(ruta, () => {
+        lecturas++;
+        return responder("/events/{id_evento}", "get", 200, actual);
+      }),
+    );
+    server.use(
+      http.post(rutaInscripcion, () => {
+        actual = inscrito;
+        return responder(
+          "/events/{id_evento}/registrations",
+          "post",
+          409,
+          conflicto("already-registered", "Ya estás inscrito en este evento"),
+        );
+      }),
+    );
+    const user = userEvent.setup();
+    abrir();
+
+    await user.click(await screen.findByRole("button", { name: "Inscribirme" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Ya estás inscrito en este evento");
+    expect(await screen.findByText("Estás inscrito")).toBeInTheDocument();
+    expect(lecturas).toBe(2);
+  });
+});
+
+describe("cancelar la inscripción", () => {
+  beforeEach(() => useSession.getState().iniciarSesion(usuario, "token", 3600));
+
+  test("pide confirmación y sin confirmar no llama a la API", async () => {
+    servir(inscrito);
+    let llamadas = 0;
+    server.use(
+      http.delete(rutaCancelar, () => {
+        llamadas++;
+        return new Response(null, { status: 204 });
+      }),
+    );
+    const user = userEvent.setup();
+    abrir();
+
+    await user.click(await screen.findByRole("button", { name: "Cancelar inscripción" }));
+    expect(screen.getByRole("alertdialog")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Volver" }));
+
+    expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+    expect(llamadas).toBe(0);
+    expect(screen.getByText("Estás inscrito")).toBeInTheDocument();
+  });
+
+  test("confirmado: 204, avisa, vuelve a Inscribirme, sube el cupo e invalida el listado", async () => {
+    servir(inscrito);
+    server.use(http.delete(rutaCancelar, () => new Response(null, { status: 204 })));
+    let listados = 0;
+    server.use(
+      http.get(`${API}/events`, () => {
+        listados++;
+        return responder("/events", "get", 200, {
+          items: [],
+          total: 0,
+          page: 1,
+          page_size: 12,
+          pages: 0,
+        });
+      }),
+    );
+    await useEventos.getState().listar("");
+    const user = userEvent.setup();
+    abrir();
+
+    expect(await screen.findByText("Quedan 99 cupos")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Cancelar inscripción" }));
+    await user.click(screen.getByRole("button", { name: "Sí, cancelar mi inscripción" }));
+
+    expect(await screen.findByRole("status")).toHaveTextContent("Cancelaste tu inscripción");
+    expect(screen.getByRole("button", { name: "Inscribirme" })).toBeInTheDocument();
+    expect(screen.queryByText("Estás inscrito")).not.toBeInTheDocument();
+    expect(screen.getByText("Quedan 100 cupos")).toBeInTheDocument();
+    await useEventos.getState().listar("");
+    expect(listados).toBe(2);
+  });
+
+  test("un 409 muestra su title y refresca el evento", async () => {
+    let actual = inscrito;
+    server.use(http.get(ruta, () => responder("/events/{id_evento}", "get", 200, actual)));
+    server.use(
+      http.delete(rutaCancelar, () => {
+        actual = { ...empezado, is_registered: true };
+        return responder(
+          "/events/{id_evento}/registrations/me",
+          "delete",
+          409,
+          conflicto("event-started", "El evento ya empezó"),
+        );
+      }),
+    );
+    const user = userEvent.setup();
+    abrir();
+
+    await user.click(await screen.findByRole("button", { name: "Cancelar inscripción" }));
+    await user.click(screen.getByRole("button", { name: "Sí, cancelar mi inscripción" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("El evento ya empezó");
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("button", { name: "Cancelar inscripción" }),
+      ).not.toBeInTheDocument(),
+    );
   });
 });
