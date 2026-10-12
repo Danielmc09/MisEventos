@@ -4,6 +4,9 @@ import type { components } from "../api/schema";
 import { evento } from "../test/helpers";
 import { EventoCard } from "./EventoCard";
 
+// El fixture es del 11 de octubre: el estado depende del reloj, así que acá la fecha es relativa a ahora.
+const manana = new Date(Date.now() + 24 * 3600_000).toISOString();
+
 const montar = (e = evento) =>
   render(
     <MemoryRouter>
@@ -41,9 +44,15 @@ test.each([
   ["DRAFT", false, "Borrador"],
   ["PUBLISHED", true, "Finalizado"],
 ] as const)("estado %s con is_finished=%s muestra %s", (status, is_finished, texto) => {
-  montar({ ...evento, status, is_finished });
+  montar({ ...evento, status, is_finished, start_at: manana });
 
   expect(screen.getByText(texto)).toBeInTheDocument();
+});
+
+test("un evento publicado que ya empezó muestra En curso", () => {
+  montar({ ...evento, start_at: new Date(Date.now() - 2 * 3600_000).toISOString() });
+
+  expect(screen.getByText("En curso")).toBeInTheDocument();
 });
 
 test("muestra cuántos cupos quedan", () => {

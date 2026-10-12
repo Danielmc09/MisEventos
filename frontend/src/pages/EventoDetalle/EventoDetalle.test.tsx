@@ -98,6 +98,16 @@ describe("estados del detalle", () => {
     expect(screen.getByText("Quedan 100 cupos")).toBeInTheDocument();
   });
 
+  test("un evento publicado que ya empezó se muestra En curso, sin botón de inscripción", async () => {
+    useSession.getState().iniciarSesion(usuario, "token", 3600);
+    servir(empezado);
+    abrir();
+
+    expect(await screen.findByText("En curso")).toBeInTheDocument();
+    expect(screen.queryByText("Publicado")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Inscribirme" })).not.toBeInTheDocument();
+  });
+
   test("un 404 dice que no encontramos el evento", async () => {
     server.use(
       http.get(ruta, () =>
