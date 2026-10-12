@@ -1,13 +1,14 @@
 import type { Evento } from "../stores/eventos";
+import { Chip, type ChipProps } from "./ui/Chip";
 
 const ESTADOS = {
-  PUBLISHED: ["Publicado", "bg-green-100 text-green-800"],
-  DRAFT: ["Borrador", "bg-gray-100 text-gray-800"],
-  CANCELLED: ["Cancelado", "bg-red-100 text-red-800"],
-} as const;
+  PUBLISHED: ["Publicado", "exito"],
+  DRAFT: ["Borrador", "neutro"],
+  CANCELLED: ["Cancelado", "error"],
+} as const satisfies Record<string, readonly [string, ChipProps["tono"]]>;
 
-const FINALIZADO = ["Finalizado", "bg-amber-100 text-amber-800"] as const;
-const EN_CURSO = ["En curso", "bg-blue-100 text-blue-800"] as const;
+const FINALIZADO = ["Finalizado", "finalizado"] as const;
+const EN_CURSO = ["En curso", "acento"] as const;
 
 interface Props {
   evento: Pick<Evento, "status" | "is_finished" | "start_at">;
@@ -24,10 +25,10 @@ export function InsigniaEstado({ evento, etiquetaCancelado }: Props) {
       ? EN_CURSO
       : ESTADOS[evento.status];
   return (
-    <span className={`self-start rounded-full px-2 py-0.5 text-xs font-medium ${tono}`}>
+    <Chip tono={tono}>
       {evento.status === "CANCELLED" && !evento.is_finished && etiquetaCancelado
         ? etiquetaCancelado
         : estado}
-    </span>
+    </Chip>
   );
 }

@@ -171,6 +171,17 @@ describe("Mis inscripciones", () => {
       expect(items[2]).toHaveTextContent("Sin sala");
     });
 
+    test("quedan dentro de la tarjeta de la inscripción, no sueltas debajo", async () => {
+      servirInscripciones([{ ...inscripcion("PyCon Bogotá"), reserved_sessions: [reservada()] }]);
+      montarPerfil();
+
+      const lista = await screen.findByRole("list", {
+        name: "Sesiones reservadas en PyCon Bogotá",
+      });
+
+      expect(screen.getByRole("article")).toContainElement(lista);
+    });
+
     test("sin reservas no muestra la lista", async () => {
       servirInscripciones([inscripcion("PyCon Bogotá")]);
       montarPerfil();

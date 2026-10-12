@@ -8,6 +8,7 @@ import type { Evento } from "../stores/eventos";
 import { SelectorPonentes, type PonenteDeSesion } from "./SelectorPonentes";
 import { AlertaError } from "./ui/AlertaError";
 import { Button } from "./ui/Button";
+import { Formulario, GrupoCampos } from "./ui/Formulario";
 import { Input } from "./ui/Input";
 
 export interface FormularioSesionProps {
@@ -158,24 +159,32 @@ export function FormularioSesion({
   }
 
   return (
-    <form onSubmit={enviar} noValidate className="flex flex-col gap-4">
-      <Input label="Título" {...campo("title")} />
-      <Input label="Sala" {...campo("room")} />
-      <Input label="Inicio" type="datetime-local" {...campo("start_at")} />
-      <Input label="Fin" type="datetime-local" {...campo("end_at")} />
-      <Input label="Capacidad" type="number" {...campo("capacity")} />
+    <Formulario onSubmit={enviar} noValidate>
+      <GrupoCampos>
+        <Input label="Título" {...campo("title")} />
+        <Input label="Sala" {...campo("room")} />
+      </GrupoCampos>
+      <GrupoCampos>
+        <Input label="Inicio" type="datetime-local" {...campo("start_at")} />
+        <Input label="Fin" type="datetime-local" {...campo("end_at")} />
+      </GrupoCampos>
+      <GrupoCampos>
+        <Input label="Capacidad" type="number" inputMode="numeric" {...campo("capacity")} />
+      </GrupoCampos>
       <SelectorPonentes
         seleccionados={ponentes}
         onChange={cambiarPonentes}
         error={errores.speaker_ids}
       />
       {general && <AlertaError title={general.title} detail={general.detail} />}
-      <Button type="submit" loading={enviando}>
-        {sesion ? "Guardar cambios" : "Crear sesión"}
-      </Button>
-      <button type="button" onClick={onCancelar}>
-        Cancelar
-      </button>
-    </form>
+      <div className="flex flex-wrap gap-3">
+        <Button type="submit" loading={enviando}>
+          {sesion ? "Guardar cambios" : "Crear sesión"}
+        </Button>
+        <Button type="button" variante="secundario" onClick={onCancelar}>
+          Cancelar
+        </Button>
+      </div>
+    </Formulario>
   );
 }

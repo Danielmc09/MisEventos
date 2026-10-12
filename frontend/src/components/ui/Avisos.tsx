@@ -56,7 +56,8 @@ export function ProveedorAvisos({ children }: { children: ReactNode }) {
   return (
     <Contexto.Provider value={avisar}>
       {children}
-      <div className="pointer-events-none fixed inset-x-4 bottom-4 z-30 flex flex-col gap-2 md:inset-x-auto md:top-4 md:right-4 md:bottom-auto md:w-96">
+      {/* En escritorio arranca debajo del encabezado (h-16 = 4 rem) para no taparlo. */}
+      <div className="pointer-events-none fixed inset-x-4 bottom-4 z-30 flex flex-col gap-2 md:inset-x-auto md:top-20 md:right-4 md:bottom-auto md:w-96">
         {avisos.map(({ id, ...aviso }) => (
           <Toast key={id} {...aviso} onClose={() => cerrar(id)} />
         ))}

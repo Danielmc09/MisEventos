@@ -14,7 +14,7 @@ export function SesionesReservadas({
 }) {
   if (sesiones.length === 0) return null;
   return (
-    <Lista etiqueta={`Sesiones reservadas en ${evento}`}>
+    <Lista anidada etiqueta={`Sesiones reservadas en ${evento}`}>
       {sesiones.map((s) => (
         <li key={s.id}>
           {s.title}, {horaBogota(s.start_at)} a {horaBogota(s.end_at)}, {s.room ?? "Sin sala"}

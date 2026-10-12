@@ -8,9 +8,9 @@ import type { EventoDetalle } from "../lib/useEvento";
 import { useEventos } from "../stores/eventos";
 import { useSession } from "../stores/session";
 import { Button } from "./ui/Button";
+import { Chip } from "./ui/Chip";
 import { DialogoConfirmacion } from "./ui/DialogoConfirmacion";
 import { EnlaceBoton } from "./ui/EnlaceBoton";
-import { Insignia } from "./ui/Insignia";
 import { useAvisos } from "./ui/Avisos";
 
 const avisoReservas = (n: number) =>
@@ -86,7 +86,7 @@ export function AccionInscripcion({ evento, onEvento, onRefrescar, reservas, onC
   if (evento.is_registered) {
     return (
       <>
-        <Insignia tono="exito">Estás inscrito</Insignia>
+        <Chip tono="exito">Estás inscrito</Chip>
         <Button variante="secundario" onClick={() => setConfirmando(true)}>
           Cancelar inscripción
         </Button>

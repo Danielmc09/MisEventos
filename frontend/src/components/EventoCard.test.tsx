@@ -67,6 +67,31 @@ test("con un solo cupo habla en singular", () => {
   expect(screen.getByText("Queda 1 cupo")).toBeInTheDocument();
 });
 
+test("sin cupos lo dice con un chip, además del conteo", () => {
+  montar({ ...evento, available_spots: 0 });
+
+  expect(screen.getByText("Sin cupos")).toBeInTheDocument();
+  expect(screen.getByText("Quedan 0 cupos")).toBeInTheDocument();
+});
+
+test("con cupos no muestra el chip Sin cupos", () => {
+  montar({ ...evento, available_spots: 7 });
+
+  expect(screen.queryByText("Sin cupos")).not.toBeInTheDocument();
+});
+
+test("lo que recibe como hijo queda dentro de la tarjeta", () => {
+  render(
+    <MemoryRouter>
+      <EventoCard evento={evento}>
+        <p>Detalle extra</p>
+      </EventoCard>
+    </MemoryRouter>,
+  );
+
+  expect(screen.getByRole("article")).toContainElement(screen.getByText("Detalle extra"));
+});
+
 describe("con el resumen del evento (sin cupos)", () => {
   const resumen: components["schemas"]["ResumenEvento"] = {
     id: evento.id,

@@ -5,7 +5,7 @@ export interface AlertaErrorProps {
 
 export function AlertaError({ title, detail }: AlertaErrorProps) {
   return (
-    <p role="alert" className="text-red-700">
+    <p role="alert" className="break-words text-error">
       <strong>{title}</strong>
       {detail && <span className="block">{detail}</span>}
     </p>
