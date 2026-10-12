@@ -214,6 +214,7 @@ def test_las_sesiones_de_un_evento_que_no_existe_responden_404(cliente, repos):
         ({"title": "a" * 151}, "title"),
         ({"description": "a" * 2001}, "description"),
         ({"room": "a" * 81}, "room"),
+        ({"room": "Sala\x00B"}, "room"),
         ({"capacity": 0}, "capacity"),
         ({"capacity": 101}, "capacity"),
         ({"start_at": "2030-01-10T15:00:00"}, "start_at"),
@@ -228,6 +229,7 @@ def test_las_sesiones_de_un_evento_que_no_existe_responden_404(cliente, repos):
         "titulo-151",
         "descripcion-2001",
         "sala-81",
+        "sala-con-nulo",
         "capacidad-0",
         "capacidad-mayor-que-la-del-evento",
         "inicio-sin-zona",
@@ -389,6 +391,7 @@ def test_editar_sin_speaker_ids_conserva_los_ponentes(cliente, repos, auth):
         ({"start_at": hora(10).isoformat()}, "end_at"),
         ({"capacity": 101}, "capacity"),
         ({"speaker_ids": [str(uuid4())]}, "speaker_ids"),
+        ({"title": "Testing\x00"}, "title"),
     ],
     ids=[
         "titulo-nulo",
@@ -397,6 +400,7 @@ def test_editar_sin_speaker_ids_conserva_los_ponentes(cliente, repos, auth):
         "inicio-despues-del-fin-guardado",
         "capacidad-mayor-que-la-del-evento",
         "ponente-inexistente",
+        "titulo-con-caracter-nulo",
     ],
 )
 def test_una_edicion_invalida_responde_422(cliente, repos, auth, cambios, campo):
