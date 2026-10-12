@@ -239,18 +239,8 @@ test("con sesión, /eventos/nuevo muestra la pantalla de nuevo evento", async ()
   expect(await screen.findByRole("heading", { name: "Nuevo evento" })).toBeInTheDocument();
 });
 
-describe("en una pantalla angosta", () => {
-  beforeEach(() =>
-    vi.stubGlobal("matchMedia", (media: string) => ({
-      matches: true,
-      media,
-      addEventListener: () => {},
-      removeEventListener: () => {},
-    })),
-  );
-  afterEach(() => vi.unstubAllGlobals());
-
-  test("con sesión es igual que en escritorio: logo, Crear evento y el círculo", () => {
+describe("el encabezado con sesión", () => {
+  test("muestra el logo, Crear evento y el círculo de la cuenta", () => {
     useSession
       .getState()
       .iniciarSesion(
@@ -267,5 +257,20 @@ describe("en una pantalla angosta", () => {
       "/eventos/nuevo",
     );
     expect(nav.getByRole("button", { name: "Menú de la cuenta" })).toHaveTextContent("O");
+  });
+
+  test.each([
+    ["con el permiso usuarios:gestionar lo muestra", ["usuarios:gestionar" as const], true],
+    ["sin el permiso no lo muestra", [], false],
+  ])("el menú de la cuenta %s", async (_caso, permisos, visible) => {
+    useSession.getState().iniciarSesion({ ...usuario, permisos }, "token-abc", 3600);
+    const user = userEvent.setup();
+    montar("/");
+
+    await user.click(within(encabezado()).getByRole("button", { name: "Menú de la cuenta" }));
+
+    const item = within(encabezado()).queryByRole("menuitem", { name: "Administración" });
+    if (visible) expect(item).toHaveAttribute("href", "/admin/usuarios");
+    else expect(item).not.toBeInTheDocument();
   });
 });

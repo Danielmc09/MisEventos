@@ -75,6 +75,28 @@ test("ante un 401 vacía la sesión", async () => {
   expect(useSession.getState().accessToken).toBeNull();
 });
 
+test("un 401 de un token que ya no es el vigente no cierra la sesión nueva", async () => {
+  useSession.getState().iniciarSesion(usuario, "token-a", 3600);
+  server.use(
+    http.get(`${API}/auth/me`, () => {
+      // Mientras la petición del token A vuela, se inicia otra sesión con el token B.
+      useSession.getState().iniciarSesion({ ...usuario, full_name: "Beto" }, "token-b", 3600);
+      return responder("/auth/me", "get", 401, {
+        type: "unauthorized",
+        title: "Sesión inválida",
+        status: 401,
+        trace_id: "t-1",
+      });
+    }),
+  );
+
+  const error = await api("/auth/me").catch((e: ApiError) => e);
+
+  expect(error).toMatchObject({ status: 401 });
+  expect(useSession.getState().accessToken).toBe("token-b");
+  expect(useSession.getState().user?.full_name).toBe("Beto");
+});
+
 test("ante un error de red devuelve el título «No se pudo conectar con el servidor»", async () => {
   server.use(http.get(`${API}/events`, () => HttpResponse.error()));
 

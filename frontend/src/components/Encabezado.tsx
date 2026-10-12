@@ -6,12 +6,14 @@ import { MenuAcciones, type ItemMenu } from "./ui/MenuAcciones";
 export function Encabezado() {
   const user = useSession((s) => s.user);
   const puedeCrear = useTienePermiso("evento:crear");
+  const puedeAdministrar = useTienePermiso("usuarios:gestionar");
   const vigente = useSesionVigente();
   const cerrarSesion = useCerrarSesion();
   const nombre = user && (user.full_name || user.email);
   const sesion = !!user && vigente;
 
   const itemsCuenta: ItemMenu[] = [
+    ...(puedeAdministrar ? [{ texto: "Administración", to: "/admin/usuarios" }] : []),
     { texto: "Mi perfil", to: "/perfil" },
     { texto: "Cerrar sesión", onSelect: cerrarSesion, separado: true },
   ];

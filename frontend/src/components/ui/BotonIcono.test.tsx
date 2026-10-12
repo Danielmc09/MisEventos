@@ -70,14 +70,19 @@ test("se puede pasar el mouse sobre el tooltip sin que desaparezca", async () =>
   expect(tooltip).not.toHaveClass("pointer-events-none");
 });
 
-test("el tooltip sale debajo del botón, sin tapar el contenido de arriba", async () => {
+test("el tooltip se dibuja fuera del contenedor con overflow, para que ninguna tabla lo recorte", async () => {
   const user = userEvent.setup();
-  montar();
+  render(
+    <div data-testid="tabla" className="overflow-x-auto">
+      <BotonIcono etiqueta="Editar a Beto" texto="Editar" icono={<IconoLapiz />} />
+    </div>,
+  );
   await user.hover(screen.getByRole("button"));
 
   const tooltip = screen.getByRole("tooltip");
-  expect(tooltip).toHaveClass("top-full", "left-0");
-  expect(tooltip).not.toHaveClass("bottom-full");
+  expect(screen.getByTestId("tabla")).not.toContainElement(tooltip);
+  expect(document.body).toContainElement(tooltip);
+  expect(tooltip).toHaveClass("fixed");
 });
 
 test("soloIcono no muestra el texto junto al ícono en angosto: lo dice solo el tooltip", async () => {
@@ -87,4 +92,32 @@ test("soloIcono no muestra el texto junto al ícono en angosto: lo dice solo el 
   expect(screen.queryByText("Editar")).not.toBeInTheDocument();
   await user.hover(screen.getByRole("button"));
   expect(screen.getByRole("tooltip")).toHaveTextContent("Editar");
+});
+
+test("el scroll no cierra el tooltip abierto por foco: lo recoloca junto al botón", async () => {
+  const user = userEvent.setup();
+  montar();
+  const caja = (top: number, left: number) =>
+    ({
+      top,
+      left,
+      bottom: top + 20,
+      right: left + 20,
+      width: 20,
+      height: 20,
+      x: left,
+      y: top,
+    }) as DOMRect;
+  const medida = vi
+    .spyOn(HTMLElement.prototype, "getBoundingClientRect")
+    .mockReturnValue(caja(100, 50));
+  await user.tab();
+  expect(screen.getByRole("tooltip")).toHaveStyle({ top: "120px", left: "50px" });
+
+  medida.mockReturnValue(caja(10, 60));
+  fireEvent.scroll(document);
+
+  const tooltip = screen.getByRole("tooltip");
+  expect(tooltip).toHaveStyle({ top: "30px", left: "60px" });
+  medida.mockRestore();
 });

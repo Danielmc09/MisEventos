@@ -6,6 +6,8 @@ export interface DialogoConfirmacionProps {
   titulo: string;
   mensaje: string;
   confirmar: string;
+  /** `peligro` para lo destructivo; `primario` para lo que se deshace (reactivar). */
+  variante?: "primario" | "peligro";
   cargando?: boolean;
   onConfirmar: () => void;
   onVolver: () => void;
@@ -15,6 +17,7 @@ export function DialogoConfirmacion({
   titulo,
   mensaje,
   confirmar,
+  variante = "peligro",
   cargando,
   onConfirmar,
   onVolver,
@@ -49,7 +52,7 @@ export function DialogoConfirmacion({
           <Button ref={volver} type="button" variante="secundario" onClick={onVolver}>
             Volver
           </Button>
-          <Button type="button" loading={cargando} onClick={onConfirmar} variante="peligro">
+          <Button type="button" loading={cargando} onClick={onConfirmar} variante={variante}>
             {confirmar}
           </Button>
         </div>

@@ -1,7 +1,16 @@
 from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import auth, eventos, health, inscripciones, ponentes, reservas, sesiones
+from app.api import (
+    administracion,
+    auth,
+    eventos,
+    health,
+    inscripciones,
+    ponentes,
+    reservas,
+    sesiones,
+)
 from app.api.dependencias import sin_caracter_nulo
 from app.api.errores import registrar_manejadores
 from app.api.middleware import HEADER_TRACE, errores_no_esperados, trazabilidad
@@ -30,6 +39,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(sesiones.router)
     app.include_router(inscripciones.router)
     app.include_router(reservas.router)
+    app.include_router(administracion.router)
     # El último en registrarse es el más externo. Orden de afuera hacia adentro: trazabilidad
     # (trace_id y log de todo request, incluso el preflight), CORS, y la captura del 500, que
     # queda por dentro de CORS para que el 500 también lleve Access-Control-Allow-Origin.
@@ -37,7 +47,6 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origins,
-        allow_credentials=True,  # la cookie del refresh token lo necesita
         allow_methods=["*"],
         allow_headers=["*"],
         expose_headers=[HEADER_TRACE],

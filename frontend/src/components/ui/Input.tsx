@@ -19,7 +19,9 @@ export function Input({ label, error, id, className = "", ...props }: InputProps
         {...props}
         id={inputId}
         aria-invalid={error ? true : undefined}
-        aria-describedby={error ? errorId : undefined}
+        aria-describedby={
+          [props["aria-describedby"], error && errorId].filter(Boolean).join(" ") || undefined
+        }
         className={`${CAMPO} ${ALTURA_LINEA} ${bordeCampo(!!error)} ${className}`}
       />
       {error && (

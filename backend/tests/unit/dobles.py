@@ -12,11 +12,56 @@ from app.models.usuario import User
 
 
 class RepositorioUsuariosFalso:
-    def __init__(self, *usuarios: User, choca_al_crear: bool = False) -> None:
+    def __init__(
+        self, *usuarios: User, choca_al_crear: bool = False, choca_al_guardar: bool = False
+    ) -> None:
         self.usuarios = {u.id: u for u in usuarios}
         self.creados: list[User] = []
         # Simula a otro registro del mismo email que ganó la carrera contra el índice único.
         self.choca_al_crear = choca_al_crear
+        # Lo mismo al guardar: otro request puso ese email a otro usuario y ganó.
+        self.choca_al_guardar = choca_al_guardar
+        # Inscripciones activas de cada usuario; las cuenta la base y se prueba en integración.
+        self.inscripciones: dict[UUID, int] = {}
+        self.busquedas: list[dict] = []
+        # Con qué ids se contó cada vez: el listado cuenta toda la página en una sola llamada.
+        self.conteos: list[list[UUID]] = []
+        # Qué pasó y en qué orden: los bloqueos, las lecturas para escribir y los guardados.
+        self.operaciones: list[tuple] = []
+
+    def buscar(self, filtros, offset: int, limite: int) -> tuple[list[User], int]:
+        """Registra con qué se buscó; el filtrado lo hace la base y se prueba en integración."""
+        self.busquedas.append({"filtros": filtros, "offset": offset, "limite": limite})
+        todos = list(self.usuarios.values())
+        return todos[offset : offset + limite], len(todos)
+
+    def inscripciones_activas(self, ids_usuario: list[UUID]) -> dict[UUID, int]:
+        self.conteos.append(list(ids_usuario))
+        return {id_: self.inscripciones.get(id_, 0) for id_ in ids_usuario}
+
+    def activos_para_escribir(self, roles) -> list[User]:
+        """Como la base: los activos con alguno de esos roles, por id, bloqueados."""
+        bloqueados = sorted(
+            (u for u in self.usuarios.values() if u.is_active and u.role in set(roles)),
+            key=lambda u: u.id,
+        )
+        self.operaciones.append(("bloquear", frozenset(roles), [u.id for u in bloqueados]))
+        return bloqueados
+
+    def por_id_para_escribir(self, id_: UUID) -> User | None:
+        self.operaciones.append(("leer para escribir", id_))
+        return self.usuarios.get(id_)
+
+    def guardar(self, usuario: User) -> User | None:
+        """Como la base: None si otro usuario ya tiene ese email (el índice único)."""
+        self.operaciones.append(("guardar", usuario.id))
+        if self.choca_al_guardar or any(
+            u.id != usuario.id and u.email == usuario.email for u in self.usuarios.values()
+        ):
+            return None
+        usuario.updated_at = datetime.now(UTC)
+        self.usuarios[usuario.id] = usuario
+        return usuario
 
     def por_email(self, email: str) -> User | None:
         buscado = email.strip().lower()
