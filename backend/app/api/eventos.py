@@ -80,8 +80,8 @@ def listar(
     responses=respuestas_de_error(404, 422),
 )
 def ver(id_evento: UUID, usuario: UsuarioOpcional, repo: RepoEventos) -> EventoSalida:
-    evento = eventos.obtener(repo, usuario, id_evento)
-    return EventoSalida.model_validate(evento, from_attributes=True)
+    evento, inscritos = eventos.detalle(repo, usuario, id_evento)
+    return EventoSalida.model_validate(evento.model_dump() | {"registered_count": inscritos})
 
 
 @router.post(

@@ -72,6 +72,12 @@ def obtener(repo: Eventos, usuario: User | None, id_evento: UUID) -> Event:
     return evento
 
 
+def detalle(repo: Eventos, usuario: User | None, id_evento: UUID) -> tuple[Event, int]:
+    """El evento, con sus inscripciones activas."""
+    evento = obtener(repo, usuario, id_evento)
+    return evento, repo.inscritos([evento.id])[evento.id]
+
+
 def crear(repo: Eventos, usuario: User, datos: EventoEntrada) -> Event:
     """Un borrador a nombre de quien lo crea."""
     if not tiene_permiso(usuario, Permiso.EVENTO_CREAR):
