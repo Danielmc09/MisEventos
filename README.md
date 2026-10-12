@@ -68,8 +68,8 @@ encuentra estas contraseñas, el secreto JWT de `.env.example` o `SEED_DEMO=true
 | Lado | Comando | Cobertura actual |
 |---|---|---|
 | Backend, unitarios | `cd backend && poetry install && poetry run pytest -m "not integration"` | — |
-| Backend, completo (necesita PostgreSQL) | `docker compose up -d db`, exportar `TEST_DATABASE_URL` y `cd backend && poetry run pytest` | 99,58 % |
-| Frontend | `cd frontend && npm ci && npm run test:cov` | 97,87 % de líneas |
+| Backend, completo (necesita PostgreSQL) | `docker compose up -d db`, exportar `TEST_DATABASE_URL` y `cd backend && poetry run pytest` | 99,55 % |
+| Frontend | `cd frontend && npm ci && npm run test:cov` | 99,07 % de líneas |
 
 Las dos suites fallan por debajo del 80 % y dejan un reporte HTML (`backend/htmlcov/`,
 `frontend/coverage/`). El detalle, con la URL de la base de tests, está en
