@@ -1,3 +1,5 @@
+import secrets
+
 import pytest
 
 from app.core.permisos import Rol
@@ -8,7 +10,8 @@ from tests.unit.dobles import RepositorioUsuariosFalso
 MENSAJE = {"message": "Registro recibido. Iniciá sesión con tu correo y contraseña."}
 # El email más largo que se acepta: 254 caracteres, con etiquetas de dominio válidas.
 EMAIL_254 = "a" * 64 + "@" + "b" * 63 + "." + "c" * 63 + "." + "d" * 57 + ".com"
-VALIDO = {"email": "ana@mail.com", "password": "ocho-car", "full_name": "Ana"}
+# Una contraseña de 8 caracteres, el mínimo aceptado.
+VALIDO = {"email": "ana@mail.com", "password": secrets.token_urlsafe(16)[:8], "full_name": "Ana"}
 
 
 @pytest.fixture
