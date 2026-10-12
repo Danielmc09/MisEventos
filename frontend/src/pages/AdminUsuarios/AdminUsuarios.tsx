@@ -14,6 +14,7 @@ import { Input } from "../../components/ui/Input";
 import { Modal } from "../../components/ui/Modal";
 import { Pagina, TituloPagina } from "../../components/ui/Pagina";
 import { Paginacion } from "../../components/ui/Paginacion";
+import { Pestanas } from "../../components/ui/Pestanas";
 import { Select } from "../../components/ui/Select";
 import { Spinner } from "../../components/ui/Spinner";
 import { Tabla } from "../../components/ui/Tabla";
@@ -29,6 +30,13 @@ const ROLES: Record<Rol, string> = {
   ORGANIZER: "Organizador",
   ADMIN: "Administrador",
 };
+
+/** Cada pestaña es un preset del filtro de rol. */
+const GRUPOS = [
+  { id: "todos", titulo: "Todos", roles: [] as Rol[] },
+  { id: "equipo", titulo: "Equipo", roles: ["ADMIN", "ORGANIZER"] as Rol[] },
+  { id: "asistentes", titulo: "Asistentes", roles: ["ATTENDEE"] as Rol[] },
+];
 
 type Pendiente =
   { tipo: "rol"; usuario: UsuarioAdmin; rol: Rol } | { tipo: "estado"; usuario: UsuarioAdmin };
@@ -115,6 +123,7 @@ export default function AdminUsuarios() {
 
   const [busqueda, setBusqueda] = useState("");
   const q = useDemorado(busqueda, 300);
+  const [grupo, setGrupo] = useState("todos");
   const [rol, setRol] = useState("");
   const [estado, setEstado] = useState("");
   const [numero, setNumero] = useState(1);
@@ -129,7 +138,8 @@ export default function AdminUsuarios() {
     if (!vigente || !puede) return;
     const params = new URLSearchParams({ page: String(numero) });
     if (q) params.set("q", q);
-    if (rol) params.set("role", rol);
+    const roles = rol ? [rol] : (GRUPOS.find((g) => g.id === grupo)?.roles ?? []);
+    roles.forEach((r) => params.append("role", r));
     if (estado) params.set("is_active", estado);
     let activo = true;
     api<components["schemas"]["Pagina_UsuarioAdmin_"]>(`/admin/users?${params}`).then(
@@ -143,7 +153,7 @@ export default function AdminUsuarios() {
     return () => {
       activo = false;
     };
-  }, [vigente, puede, q, rol, estado, numero, version]);
+  }, [vigente, puede, q, grupo, rol, estado, numero, version]);
 
   if (!vigente) return <Navigate to="/login" replace />;
   if (!puede)
@@ -185,117 +195,144 @@ export default function AdminUsuarios() {
 
   const quitarFiltros = () => {
     setBusqueda("");
+    setGrupo("todos");
     setRol("");
     setEstado("");
     setNumero(1);
   };
 
+  const rolesDelGrupo = GRUPOS.find((g) => g.id === grupo)?.roles ?? [];
+
   return (
     <Pagina ancho="ancho">
       <TituloPagina>Usuarios</TituloPagina>
       <Tarjeta as="section" aria-label="Lista de usuarios">
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-          <Input
-            type="search"
-            label="Buscar"
-            placeholder="Nombre o correo"
-            value={busqueda}
-            onChange={(e) => {
-              setBusqueda(e.target.value);
-              setNumero(1);
-            }}
-          />
-          <Select label="Rol" value={rol} onChange={(e) => filtrar(setRol)(e.target.value)}>
-            <option value="">Todos</option>
-            {(Object.keys(ROLES) as Rol[]).map((r) => (
-              <option key={r} value={r}>
-                {ROLES[r]}
-              </option>
-            ))}
-          </Select>
-          <Select
-            label="Estado"
-            value={estado}
-            onChange={(e) => filtrar(setEstado)(e.target.value)}
-          >
-            <option value="">Todos</option>
-            <option value="true">Activos</option>
-            <option value="false">Inactivos</option>
-          </Select>
-        </div>
-        {error && <AlertaError title={error} />}
-        {!datos && !error && (
-          <div className="flex justify-center p-6">
-            <Spinner />
-          </div>
-        )}
-        {datos && datos.items.length === 0 && (
-          <EstadoVacio
-            mensaje="No hay usuarios que coincidan con la búsqueda"
-            accion="Quitar filtros"
-            onAccion={quitarFiltros}
-          />
-        )}
-        {datos && datos.items.length > 0 && (
-          <>
-            <Tabla
-              descripcion="Lista de usuarios"
-              columnas={["Nombre", "Correo", "Rol", "Estado", "Inscripciones activas", "Acciones"]}
-              filas={datos.items.map((u) => {
-                const propio = u.id === propioId;
-                const nombre = nombreDe(u);
-                return {
-                  id: u.id,
-                  celdas: [
-                    u.full_name ?? "—",
-                    u.email,
-                    propio ? (
-                      ROLES[u.role]
-                    ) : (
-                      <Select
-                        key="rol"
-                        label={`Rol de ${nombre}`}
-                        value={u.role}
-                        onChange={(e) =>
-                          setPendiente({ tipo: "rol", usuario: u, rol: e.target.value as Rol })
-                        }
-                      >
-                        {(Object.keys(ROLES) as Rol[]).map((r) => (
-                          <option key={r} value={r}>
-                            {ROLES[r]}
-                          </option>
-                        ))}
-                      </Select>
+        <Pestanas
+          etiqueta="Grupo de usuarios"
+          pestanas={GRUPOS}
+          activa={grupo}
+          onCambiar={(id) => {
+            setGrupo(id);
+            setRol("");
+            setNumero(1);
+          }}
+        >
+          <div className="flex flex-col gap-4">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+              <Input
+                type="search"
+                label="Buscar"
+                placeholder="Nombre o correo"
+                value={busqueda}
+                onChange={(e) => {
+                  setBusqueda(e.target.value);
+                  setNumero(1);
+                }}
+              />
+              {rolesDelGrupo.length !== 1 && (
+                <Select label="Rol" value={rol} onChange={(e) => filtrar(setRol)(e.target.value)}>
+                  <option value="">Todos</option>
+                  {(rolesDelGrupo.length ? rolesDelGrupo : (Object.keys(ROLES) as Rol[])).map(
+                    (r) => (
+                      <option key={r} value={r}>
+                        {ROLES[r]}
+                      </option>
                     ),
-                    <Chip key="estado" tono={u.is_active ? "exito" : "neutro"}>
-                      {u.is_active ? "Activo" : "Inactivo"}
-                    </Chip>,
-                    u.active_registrations,
-                    <div key="acciones" className="flex flex-wrap gap-2">
-                      <Button
-                        variante="secundario"
-                        aria-label={`Editar nombre de ${nombre}`}
-                        onClick={() => setEditando(u)}
-                      >
-                        Editar nombre
-                      </Button>
-                      {!propio && (
-                        <Button
-                          variante="secundario"
-                          aria-label={`${u.is_active ? "Desactivar" : "Reactivar"} a ${nombre}`}
-                          onClick={() => setPendiente({ tipo: "estado", usuario: u })}
-                        >
-                          {u.is_active ? "Desactivar" : "Reactivar"}
-                        </Button>
-                      )}
-                    </div>,
-                  ],
-                };
-              })}
-            />
-            <Paginacion pagina={datos.page} paginas={datos.pages} onCambiar={setNumero} />
-          </>
-        )}
+                  )}
+                </Select>
+              )}
+              <Select
+                label="Estado"
+                value={estado}
+                onChange={(e) => filtrar(setEstado)(e.target.value)}
+              >
+                <option value="">Todos</option>
+                <option value="true">Activos</option>
+                <option value="false">Inactivos</option>
+              </Select>
+            </div>
+            {error && <AlertaError title={error} />}
+            {!datos && !error && (
+              <div className="flex justify-center p-6">
+                <Spinner />
+              </div>
+            )}
+            {datos && datos.items.length === 0 && (
+              <EstadoVacio
+                mensaje="No hay usuarios que coincidan con la búsqueda"
+                accion="Quitar filtros"
+                onAccion={quitarFiltros}
+              />
+            )}
+            {datos && datos.items.length > 0 && (
+              <>
+                <Tabla
+                  descripcion="Lista de usuarios"
+                  columnas={[
+                    "Nombre",
+                    "Correo",
+                    "Rol",
+                    "Estado",
+                    "Inscripciones activas",
+                    "Acciones",
+                  ]}
+                  filas={datos.items.map((u) => {
+                    const propio = u.id === propioId;
+                    const nombre = nombreDe(u);
+                    return {
+                      id: u.id,
+                      celdas: [
+                        u.full_name ?? "—",
+                        u.email,
+                        propio ? (
+                          ROLES[u.role]
+                        ) : (
+                          <Select
+                            key="rol"
+                            aria-label={`Rol de ${nombre}`}
+                            value={u.role}
+                            onChange={(e) =>
+                              setPendiente({ tipo: "rol", usuario: u, rol: e.target.value as Rol })
+                            }
+                          >
+                            {(Object.keys(ROLES) as Rol[]).map((r) => (
+                              <option key={r} value={r}>
+                                {ROLES[r]}
+                              </option>
+                            ))}
+                          </Select>
+                        ),
+                        <Chip key="estado" tono={u.is_active ? "exito" : "neutro"}>
+                          {u.is_active ? "Activo" : "Inactivo"}
+                        </Chip>,
+                        u.active_registrations,
+                        <div key="acciones" className="flex gap-2">
+                          <Button
+                            variante="secundario"
+                            aria-label={`Editar nombre de ${nombre}`}
+                            onClick={() => setEditando(u)}
+                          >
+                            Editar nombre
+                          </Button>
+                          {!propio && (
+                            <Button
+                              variante={u.is_active ? "peligro" : "secundario"}
+                              aria-label={`${u.is_active ? "Desactivar" : "Reactivar"} a ${nombre}`}
+                              onClick={() => setPendiente({ tipo: "estado", usuario: u })}
+                            >
+                              {u.is_active ? "Desactivar" : "Reactivar"}
+                            </Button>
+                          )}
+                        </div>,
+                      ],
+                    };
+                  })}
+                />
+                <Paginacion pagina={datos.page} paginas={datos.pages} onCambiar={setNumero} />
+              </>
+            )}
+          </div>
+        </Pestanas>
       </Tarjeta>
       {pendiente && (
         <DialogoConfirmacion
@@ -308,14 +345,14 @@ export default function AdminUsuarios() {
             pendiente.tipo === "rol"
               ? `Va a pasar a ser ${ROLES[pendiente.rol].toLowerCase()}. Tiene efecto en su siguiente acción.`
               : pendiente.usuario.is_active
-                ? "Se va a cerrar su sesión y no va a poder entrar hasta que lo reactives."
+                ? "No va a poder iniciar sesión."
                 : "Va a poder volver a entrar con su cuenta."
           }
           confirmar={
             pendiente.tipo === "rol"
               ? "Cambiar rol"
               : pendiente.usuario.is_active
-                ? "Desactivar"
+                ? "Sí, desactivar"
                 : "Reactivar"
           }
           cargando={confirmando}
