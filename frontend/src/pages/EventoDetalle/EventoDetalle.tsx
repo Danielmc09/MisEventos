@@ -14,7 +14,7 @@ import { AccionInscripcion } from "../../components/AccionInscripcion";
 import { useEvento } from "../../lib/useEvento";
 import { useSesiones } from "../../lib/useSesiones";
 import { useEventos, type Evento } from "../../stores/eventos";
-import { useSession } from "../../stores/session";
+import { useSession, useTienePermiso } from "../../stores/session";
 
 type Accion = "publish" | "unpublish" | "cancel" | "delete";
 
@@ -49,7 +49,8 @@ export default function EventoDetalle() {
   const [trabajando, setTrabajando] = useState(false);
   const [aviso, setAviso] = useState<Pick<ToastProps, "message" | "tone"> | null>(null);
 
-  const puede = !!evento && !!user && (user.role === "ADMIN" || user.id === evento.organizer_id);
+  const gestionaTodos = useTienePermiso("evento:gestionar_todos");
+  const puede = !!evento && !!user && (gestionaTodos || user.id === evento.organizer_id);
 
   async function ejecutar(accion: Accion) {
     setTrabajando(true);

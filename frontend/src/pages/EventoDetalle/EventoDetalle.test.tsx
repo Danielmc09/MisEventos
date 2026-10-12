@@ -4,7 +4,7 @@ import { delay, http } from "msw";
 import { setupServer } from "msw/node";
 import type { components } from "../../api/schema";
 import { useEventos } from "../../stores/eventos";
-import { useSession } from "../../stores/session";
+import { useSession, type Usuario } from "../../stores/session";
 import { API, evento, montar, sesion, usuario } from "../../test/helpers";
 import { responder } from "../../test/msw";
 import EventoDetalle from "./EventoDetalle";
@@ -141,7 +141,7 @@ describe("estados del detalle", () => {
 });
 
 const dueno = { ...usuario, id: evento.organizer_id, role: "ORGANIZER" as const };
-const admin = {
+const admin: Usuario = {
   ...usuario,
   role: "ADMIN" as const,
   permisos: [
@@ -154,7 +154,7 @@ const admin = {
   ],
 };
 // El rol no decide: lo que cuenta es la lista de permisos que manda la API.
-const adminSinPermiso = { ...usuario, role: "ADMIN" as const, permisos: [] };
+const adminSinPermiso: Usuario = { ...usuario, role: "ADMIN" as const, permisos: [] };
 const gestorDeTodos = {
   ...usuario,
   role: "ORGANIZER" as const,
