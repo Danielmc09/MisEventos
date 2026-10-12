@@ -291,3 +291,63 @@ def test_una_sesion_llena_que_ademas_se_cruza_responde_session_full(
     assert reservar(cliente_db, usuarios["ana"], reservada).status_code == 201
 
     assert_conflicto(reservar(cliente_db, usuarios["ana"], llena), "session-full")
+
+
+# --- Cancelar la reserva ----------------------------------------------------------------------
+
+
+def test_cancelar_la_reserva_devuelve_el_lugar_y_se_puede_volver_a_reservar(
+    cliente_db, conexion, usuarios, evento, prefijo
+):
+    sesion = crear_sesion(cliente_db, usuarios["orga"], evento, capacity=1)
+    inscribirse(cliente_db, usuarios["ana"], evento)
+    inscribirse(cliente_db, usuarios["beto"], evento)
+    assert reservar(cliente_db, usuarios["ana"], sesion).status_code == 201
+    assert_conflicto(reservar(cliente_db, usuarios["beto"], sesion), "session-full")
+
+    respuesta = cancelar_reserva(cliente_db, usuarios["ana"], sesion)
+
+    assert respuesta.status_code == 204, respuesta.text
+    [(estado, cancelada_en)] = reservas_de(conexion, f"{prefijo}ana@mail.com", sesion)
+    assert estado == "CANCELLED"
+    assert cancelada_en is not None
+    assert reservadas(conexion, sesion) == 0
+    assert reservar(cliente_db, usuarios["beto"], sesion).status_code == 201
+    assert cancelar_reserva(cliente_db, usuarios["beto"], sesion).status_code == 204
+    assert reservar(cliente_db, usuarios["ana"], sesion).status_code == 201
+    estados = [e for e, _ in reservas_de(conexion, f"{prefijo}ana@mail.com", sesion)]
+    assert estados == ["CANCELLED", "ACTIVE"]
+
+
+def test_cancelar_sin_reserva_activa_responde_404_aunque_la_sesion_haya_empezado(
+    cliente_db, conexion, usuarios, evento
+):
+    sesion = crear_sesion(cliente_db, usuarios["orga"], evento)
+    inscribirse(cliente_db, usuarios["ana"], evento)
+
+    assert cancelar_reserva(cliente_db, usuarios["ana"], sesion).status_code == 404
+    empezar(conexion, sesion)
+    assert cancelar_reserva(cliente_db, usuarios["ana"], sesion).status_code == 404
+
+
+def test_cancelar_con_la_sesion_empezada_responde_session_started(
+    cliente_db, conexion, usuarios, evento
+):
+    sesion = crear_sesion(cliente_db, usuarios["orga"], evento)
+    inscribirse(cliente_db, usuarios["ana"], evento)
+    assert reservar(cliente_db, usuarios["ana"], sesion).status_code == 201
+    empezar(conexion, sesion)
+
+    assert_conflicto(cancelar_reserva(cliente_db, usuarios["ana"], sesion), "session-started")
+    assert reservadas(conexion, sesion) == 1
+
+
+def test_cancelar_solo_toca_la_reserva_propia(cliente_db, conexion, usuarios, evento):
+    sesion = crear_sesion(cliente_db, usuarios["orga"], evento)
+    inscribirse(cliente_db, usuarios["ana"], evento)
+    inscribirse(cliente_db, usuarios["beto"], evento)
+    assert reservar(cliente_db, usuarios["ana"], sesion).status_code == 201
+
+    assert cancelar_reserva(cliente_db, usuarios["beto"], sesion).status_code == 404
+    assert cancelar_reserva(cliente_db, None, sesion).status_code == 401
+    assert reservadas(conexion, sesion) == 1

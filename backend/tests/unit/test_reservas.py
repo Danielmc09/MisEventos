@@ -453,3 +453,114 @@ def test_reservar_sin_token_responde_401(cliente, repos):
 
     assert reservar(cliente, sesion, {}).status_code == 401
     assert repos.reservas.reservas == {}
+
+
+# --- Cancelar la reserva ----------------------------------------------------------------------
+
+
+def cancelar(cliente, sesion: Sesion, headers: dict):
+    return cliente.delete(f"/sessions/{sesion.id}/reservations/me", headers=headers)
+
+
+def test_cancelar_la_propia_responde_204_y_la_deja_cancelada_con_fecha(cliente, repos, auth):
+    evento = repos.evento()
+    sesion = repos.sesion(evento)
+    inscripcion = repos.inscribir(ASISTENTE, evento)
+    reserva = repos.reservar(ASISTENTE, sesion)
+    antes = datetime.now(UTC)
+
+    respuesta = cancelar(cliente, sesion, auth(ASISTENTE))
+
+    assert respuesta.status_code == 204, respuesta.text
+    assert respuesta.content == b""
+    assert reserva.status == EstadoReserva.CANCELLED
+    assert reserva.cancelled_at is not None
+    assert reserva.cancelled_at >= antes
+    assert repos.eventos.bloqueos == [evento.id, inscripcion.id, sesion.id]
+
+
+def test_cancelar_libera_el_lugar_y_se_puede_volver_a_reservar(cliente, repos, auth):
+    evento = repos.evento()
+    sesion = repos.sesion(evento, capacity=1)
+    repos.inscribir(ASISTENTE, evento)
+    repos.inscribir(OTRO_ASISTENTE, evento)
+    assert reservar(cliente, sesion, auth(ASISTENTE)).status_code == 201
+    assert_conflicto(reservar(cliente, sesion, auth(OTRO_ASISTENTE)), "session-full")
+
+    assert cancelar(cliente, sesion, auth(ASISTENTE)).status_code == 204
+
+    assert reservar(cliente, sesion, auth(OTRO_ASISTENTE)).status_code == 201
+    assert cancelar(cliente, sesion, auth(OTRO_ASISTENTE)).status_code == 204
+    assert reservar(cliente, sesion, auth(ASISTENTE)).status_code == 201
+    estados = sorted(r.status for r in repos.de(ASISTENTE, sesion))
+    assert estados == [EstadoReserva.ACTIVE, EstadoReserva.CANCELLED]
+
+
+def test_cancelar_sin_reserva_activa_responde_404(cliente, repos, auth):
+    evento = repos.evento()
+    sesion = repos.sesion(evento)
+    repos.inscribir(ASISTENTE, evento)
+    repos.reservar(ASISTENTE, sesion, EstadoReserva.CANCELLED)
+
+    respuesta = cancelar(cliente, sesion, auth(ASISTENTE))
+
+    assert respuesta.status_code == 404
+    assert respuesta.json()["type"] == "not-found"
+
+
+def test_cancelar_solo_toca_la_reserva_del_usuario_del_token(cliente, repos, auth):
+    evento = repos.evento()
+    sesion = repos.sesion(evento)
+    repos.inscribir(ASISTENTE, evento)
+    ajena = repos.reservar(ASISTENTE, sesion)
+    repos.inscribir(OTRO_ASISTENTE, evento)
+
+    assert cancelar(cliente, sesion, auth(OTRO_ASISTENTE)).status_code == 404
+
+    assert ajena.status == EstadoReserva.ACTIVE
+    assert ajena.cancelled_at is None
+
+
+def empezada(repos: Repos) -> tuple[Event, Sesion]:
+    ahora = datetime.now(UTC)
+    evento = repos.evento(start_at=ahora - timedelta(hours=2), end_at=ahora + timedelta(hours=6))
+    return evento, repos.sesion(evento, ahora - timedelta(minutes=5), ahora + timedelta(hours=1))
+
+
+def test_cancelar_con_la_sesion_empezada_responde_session_started(cliente, repos, auth):
+    evento, sesion = empezada(repos)
+    repos.inscribir(ASISTENTE, evento)
+    reserva = repos.reservar(ASISTENTE, sesion)
+
+    respuesta = cancelar(cliente, sesion, auth(ASISTENTE))
+
+    assert_conflicto(respuesta, "session-started")
+    assert reserva.status == EstadoReserva.ACTIVE
+    assert reserva.cancelled_at is None
+
+
+def test_cancelar_sin_reserva_con_la_sesion_empezada_responde_404(cliente, repos, auth):
+    evento, sesion = empezada(repos)
+    repos.inscribir(ASISTENTE, evento)
+
+    assert cancelar(cliente, sesion, auth(ASISTENTE)).status_code == 404
+
+
+def test_cancelar_en_una_sesion_que_no_existe_responde_404(cliente, repos, auth):
+    evento = repos.evento()
+    sesion = repos.sesion(evento)
+    repos.inscribir(ASISTENTE, evento)
+    repos.reservar(ASISTENTE, sesion)
+    del repos.eventos.sesiones[sesion.id]
+
+    assert cancelar(cliente, sesion, auth(ASISTENTE)).status_code == 404
+
+
+def test_cancelar_sin_token_responde_401(cliente, repos):
+    evento = repos.evento()
+    sesion = repos.sesion(evento)
+    repos.inscribir(ASISTENTE, evento)
+    reserva = repos.reservar(ASISTENTE, sesion)
+
+    assert cancelar(cliente, sesion, {}).status_code == 401
+    assert reserva.status == EstadoReserva.ACTIVE
