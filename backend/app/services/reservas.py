@@ -23,6 +23,7 @@ from typing import Protocol
 from uuid import UUID
 
 from app.core.excepciones import Conflict, NotFound
+from app.core.textos import plural
 from app.models.evento import EstadoEvento, Event
 from app.models.inscripcion import Registration
 from app.models.reserva import EstadoReserva, SessionRegistration
@@ -139,7 +140,7 @@ def reservar(
     capacidad = capacidad_efectiva(sesion, evento)
     if reservas.activas_en(sesion.id) >= capacidad:
         raise Conflict(
-            f"La sesión alcanzó su capacidad de {capacidad} personas.",
+            f"La sesión alcanzó su capacidad de {plural(capacidad, 'persona', 'personas')}.",
             tipo="session-full",
             titulo="La sesión no tiene lugares",
         )

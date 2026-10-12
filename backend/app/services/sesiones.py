@@ -9,6 +9,7 @@ from uuid import UUID
 
 from app.core.excepciones import Conflict, DatosInvalidos, NotFound
 from app.core.horarios import se_cruzan
+from app.core.textos import plural
 from app.models.evento import EstadoEvento, Event
 from app.models.ponente import Speaker
 from app.models.sesion import Session as Sesion
@@ -217,7 +218,7 @@ def _para_escribir(
 
 
 def _reservas_activas(cuantas: int) -> str:
-    return "1 reserva activa" if cuantas == 1 else f"{cuantas} reservas activas"
+    return plural(cuantas, "reserva activa", "reservas activas")
 
 
 def _con_reservas(activas: int, que_no: str) -> Conflict:

@@ -9,6 +9,7 @@ from typing import Protocol
 from uuid import UUID
 
 from app.core.excepciones import Conflict, NotFound
+from app.core.textos import plural
 from app.models.evento import EstadoEvento, Event
 from app.models.inscripcion import EstadoInscripcion, Registration
 from app.models.sesion import Session as Sesion
@@ -75,7 +76,7 @@ def inscribirse(
         )
     if eventos.inscritos([evento.id])[evento.id] >= evento.capacity:
         raise Conflict(
-            f"El evento alcanzó su capacidad de {evento.capacity} personas.",
+            f"El evento alcanzó su capacidad de {plural(evento.capacity, 'persona', 'personas')}.",
             tipo="capacity-full",
             titulo="El evento no tiene cupos",
         )

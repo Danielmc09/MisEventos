@@ -278,6 +278,22 @@ def test_una_sesion_llena_responde_session_full_con_la_capacidad_en_el_detalle(
     assert repos.de(ASISTENTE, sesion) == []
 
 
+@pytest.mark.parametrize(
+    ("capacidad", "personas"), [(1, "1 persona"), (2, "2 personas")], ids=["una", "dos"]
+)
+def test_el_detalle_de_una_sesion_llena_habla_en_singular_con_una_persona(
+    cliente, repos, auth, capacidad, personas
+):
+    evento = repos.evento()
+    sesion = repos.sesion(evento, capacity=capacidad)
+    llena(repos, sesion, capacidad)
+    repos.inscribir(ASISTENTE, evento)
+
+    respuesta = reservar(cliente, sesion, auth(ASISTENTE))
+
+    assert respuesta.json()["detail"] == f"La sesión alcanzó su capacidad de {personas}."
+
+
 def test_una_sesion_sin_capacidad_propia_se_llena_con_la_del_evento(cliente, repos, auth):
     # El doble no controla el cupo del evento: deja inscribir de más para llegar a la regla.
     evento = repos.evento(capacity=2)
