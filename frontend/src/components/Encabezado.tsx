@@ -19,6 +19,9 @@ export function Encabezado() {
         </Link>
         {user && vigente ? (
           <>
+            <Link to="/eventos/nuevo" className={enlace}>
+              Crear evento
+            </Link>
             <Link to="/perfil" className={`${enlace} max-w-full truncate`}>
               {user.full_name || user.email}
             </Link>

@@ -38,3 +38,20 @@ export function montar(inicial: string | Partial<Location>, rutas: [string, Reac
     </MemoryRouter>,
   );
 }
+
+export const evento: components["schemas"]["EventoSalida"] = {
+  id: "0b8f3c52-6a1e-4c1d-9d57-3f2a1b7c9e10",
+  name: "PyCon Bogotá",
+  description: null,
+  location: "Ágora Bogotá",
+  start_at: "2026-10-11T01:30:00Z",
+  end_at: "2026-10-11T09:30:00Z",
+  capacity: 100,
+  status: "PUBLISHED",
+  organizer_id: "5d1c7a3e-9b2f-4e8a-8c46-1a2b3c4d5e6f",
+  created_at: "2026-10-01T12:00:00Z",
+  updated_at: "2026-10-01T12:00:00Z",
+  registered_count: 0,
+  available_spots: 100,
+  is_finished: false,
+};

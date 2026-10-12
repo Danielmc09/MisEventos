@@ -7,6 +7,7 @@ from app.core.config import Settings
 from app.core.db import SesionDB
 from app.core.excepciones import Unauthorized
 from app.models.usuario import User
+from app.repositories.eventos import RepositorioEventos
 from app.repositories.usuarios import RepositorioUsuarios
 from app.services import autenticacion
 
@@ -22,8 +23,13 @@ def repositorio_usuarios(session: SesionDB) -> RepositorioUsuarios:
     return RepositorioUsuarios(session)
 
 
+def repositorio_eventos(session: SesionDB) -> RepositorioEventos:
+    return RepositorioEventos(session)
+
+
 ConfigApp = Annotated[Settings, Depends(get_settings)]
 RepoUsuarios = Annotated[RepositorioUsuarios, Depends(repositorio_usuarios)]
+RepoEventos = Annotated[RepositorioEventos, Depends(repositorio_eventos)]
 
 
 def usuario_actual(
@@ -41,3 +47,21 @@ def usuario_actual(
 
 
 UsuarioActual = Annotated[User, Depends(usuario_actual)]
+
+
+def usuario_opcional(
+    request: Request,
+    repo: RepoUsuarios,
+    settings: ConfigApp,
+    token: Annotated[str | None, Depends(esquema_bearer)],
+) -> User | None:
+    """Para endpoints públicos: sin token, o con uno inválido, el request es anónimo (sin 401)."""
+    if token is None:
+        return None
+    try:
+        return usuario_actual(request, repo, settings, token)
+    except Unauthorized:
+        return None
+
+
+UsuarioOpcional = Annotated[User | None, Depends(usuario_opcional)]

@@ -57,6 +57,11 @@ class Conflict(DomainError):
     titulo = "La operación choca con el estado actual"
 
 
+class TransicionInvalida(Conflict):
+    tipo = "invalid-transition"
+    titulo = "El evento no puede pasar a ese estado"
+
+
 class ServiceUnavailable(DomainError):
     status = 503
     tipo = "service-unavailable"
