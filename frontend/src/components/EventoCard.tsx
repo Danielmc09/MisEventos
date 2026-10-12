@@ -43,7 +43,9 @@ export function EventoCard({ evento, indice, children }: Props) {
       </div>
       {conCupos && (
         <div className="mt-auto flex flex-wrap gap-2">
-          <ChipDisponibilidad capacidad={evento.capacity} libres={evento.available_spots} />
+          {evento.status === "PUBLISHED" && !evento.is_finished && (
+            <ChipDisponibilidad capacidad={evento.capacity} libres={evento.available_spots} />
+          )}
           <Chip tono={evento.available_spots === 0 ? "neutro" : "acento"}>
             {quedan(evento.available_spots, "cupo", "cupos")}
           </Chip>

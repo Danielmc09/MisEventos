@@ -11,3 +11,10 @@ test("dice qué falta y ofrece un botón con verbo que dispara la acción", asyn
 
   expect(onAccion).toHaveBeenCalledTimes(1);
 });
+
+test("sin acción solo dice qué falta, sin botón", () => {
+  render(<EstadoVacio mensaje="No hay nada" />);
+
+  expect(screen.getByText("No hay nada")).toBeVisible();
+  expect(screen.queryByRole("button")).not.toBeInTheDocument();
+});

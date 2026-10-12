@@ -7,15 +7,17 @@ export function EstadoVacio({
   onAccion,
 }: {
   mensaje: string;
-  accion: string;
-  onAccion: () => void;
+  accion?: string;
+  onAccion?: () => void;
 }) {
   return (
     <div className="flex flex-col items-start gap-3">
       <TextoSecundario>{mensaje}</TextoSecundario>
-      <Button variante="secundario" onClick={onAccion}>
-        {accion}
-      </Button>
+      {accion && onAccion && (
+        <Button variante="secundario" onClick={onAccion}>
+          {accion}
+        </Button>
+      )}
     </div>
   );
 }

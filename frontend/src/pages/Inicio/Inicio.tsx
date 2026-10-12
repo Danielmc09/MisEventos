@@ -55,6 +55,8 @@ export default function Inicio() {
     setParams({});
   };
 
+  const hayFiltros = !!(params.get("q") || params.get("status"));
+
   const irAPagina = (pagina: number) =>
     setParams((previos) => {
       const nuevos = new URLSearchParams(previos);
@@ -121,8 +123,8 @@ export default function Inicio() {
         {actual?.pagina && actual.pagina.items.length === 0 && (
           <EstadoVacio
             mensaje="No hay eventos que coincidan"
-            accion="Quitar filtros"
-            onAccion={quitarFiltros}
+            accion={hayFiltros ? "Quitar filtros" : undefined}
+            onAccion={hayFiltros ? quitarFiltros : undefined}
           />
         )}
         {actual?.pagina && actual.pagina.items.length > 0 && (
