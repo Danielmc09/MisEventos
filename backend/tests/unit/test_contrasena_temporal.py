@@ -280,7 +280,7 @@ def test_el_admin_no_se_restablece_su_propia_contrasena(cliente, repo, auth, gen
 
     respuesta = restablecer(cliente, auth, admin, admin.id)
 
-    assert respuesta.status_code == 403, respuesta.text
+    assert respuesta.status_code == 409, respuesta.text
     cuerpo = respuesta.json()
     assert cuerpo["type"] == "cannot-modify-self"
     assert cuerpo["title"] == "Para cambiar tu propia contraseña usá «Cambiar contraseña»"

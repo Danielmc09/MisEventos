@@ -202,7 +202,7 @@ def test_el_admin_no_se_restablece_su_propia_contrasena(cliente_db, conexion, ad
 
     respuesta = restablecer(cliente_db, admin, id_de(conexion, email))
 
-    assert respuesta.status_code == 403, respuesta.text
+    assert respuesta.status_code == 409, respuesta.text
     assert respuesta.json()["type"] == "cannot-modify-self"
     assert fila(conexion, email).password_hash == hash_antes
 
