@@ -131,11 +131,7 @@ export function SeccionSesiones({
           <Spinner />
         </div>
       )}
-      {error && (
-        <p role="alert" className="text-red-700">
-          {error.title}
-        </p>
-      )}
+      {error && <AlertaError title={error.title} />}
       {sesiones?.length === 0 && (
         <p className="text-gray-600">Este evento todavía no tiene sesiones</p>
       )}
