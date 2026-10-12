@@ -19,6 +19,11 @@ export function Encabezado() {
     { texto: "Cerrar sesión", onSelect: cerrarSesion },
   ];
 
+  const itemsVisitante: ItemMenu[] = [
+    { texto: "Iniciar sesión", to: "/login" },
+    { texto: "Registrarse", to: "/registro" },
+  ];
+
   return (
     <header className="bg-panel shadow-tarjeta">
       {/* Siempre en una línea y de 4 rem: los avisos arrancan justo debajo. */}
@@ -53,6 +58,11 @@ export function Encabezado() {
             </Enlace>
             <BotonEnlace onClick={cerrarSesion}>Cerrar sesión</BotonEnlace>
           </>
+        ) : angosto ? (
+          // «Mis Eventos», «Iniciar sesión» y «Registrarse» miden unos 347 px con sus márgenes: en 320 px no entran.
+          <MenuAcciones etiqueta="Menú de la cuenta" alinear="fin" items={itemsVisitante}>
+            Entrar
+          </MenuAcciones>
         ) : (
           <>
             <Enlace to="/login" variante="navegacion">
