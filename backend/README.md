@@ -288,13 +288,12 @@ escapan `%`, `_` y `\`, para que buscar `50%` encuentre el texto literal y no to
 `POST /auth/register` responde siempre `201` con el mismo mensaje, exista o no el email. Si
 respondiera "ese email ya está registrado", cualquiera podría averiguar quién tiene cuenta y usar la
 lista para phishing o para probar contraseñas filtradas en otros sitios. Si dos registros del mismo
-email llegan a la vez, el segundo también recibe el mismo `201`.
+email llegan a la vez, el segundo también recibe el mismo `201`. Con un email existente igual se
+calcula el hash Argon2 de la contraseña recibida y se descarta, así la respuesta tarda lo mismo que
+con uno nuevo y el tiempo tampoco revela nada.
 
-Límites:
+Límite:
 
-- **El tiempo de respuesta.** Con un email nuevo se calcula el hash Argon2; con uno existente, no. La
-  respuesta para un email existente es más rápida, y midiendo se puede distinguir. Se cierra
-  calculando un hash igual cuando el email ya existe.
 - **Un camino indirecto.** Sin verificación por correo, alguien puede registrarse con el email de otra
   persona y su propia contraseña, e intentar el login: si falla, el email ya existía. El cierre
   completo es la verificación por correo (la cuenta queda inactiva hasta hacer clic en un link).
