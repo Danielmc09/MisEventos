@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 import { formatearFecha } from "../lib/fechas";
+import { quedan } from "../lib/plural";
 import type { components } from "../api/schema";
 import type { Evento } from "../stores/eventos";
 import { InsigniaEstado } from "./InsigniaEstado";
@@ -24,7 +25,9 @@ export function EventoCard({ evento }: { evento: Evento | Resumen }) {
       </time>
       {evento.location && <p className="text-sm text-gray-600">{evento.location}</p>}
       {"available_spots" in evento && (
-        <p className="mt-auto text-sm font-medium">Quedan {evento.available_spots} cupos</p>
+        <p className="mt-auto text-sm font-medium">
+          {quedan(evento.available_spots, "cupo", "cupos")}
+        </p>
       )}
     </article>
   );

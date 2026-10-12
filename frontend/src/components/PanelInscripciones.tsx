@@ -3,6 +3,7 @@ import { api } from "../api/client";
 import { ApiError } from "../api/errors";
 import type { components } from "../api/schema";
 import { formatearFecha } from "../lib/fechas";
+import { palabra } from "../lib/plural";
 import { AlertaError } from "./ui/AlertaError";
 import { BarraProgreso } from "./ui/BarraProgreso";
 import { Insignia } from "./ui/Insignia";
@@ -69,8 +70,8 @@ function Estadisticas({ eventoId, version }: { eventoId: string; version: number
   return (
     <div className="flex flex-col gap-3">
       <dl className="grid grid-cols-3 gap-4">
-        <Cifra etiqueta="Inscritos">{active}</Cifra>
-        <Cifra etiqueta="Cancelados">{cancelled}</Cifra>
+        <Cifra etiqueta={palabra(active, "Inscrito", "Inscritos")}>{active}</Cifra>
+        <Cifra etiqueta={palabra(cancelled, "Cancelado", "Cancelados")}>{cancelled}</Cifra>
         <Cifra etiqueta="Ocupación">{occupancy_pct.toLocaleString("es-CO")} %</Cifra>
       </dl>
       <BarraProgreso etiqueta="Ocupación" valor={occupancy_pct} />

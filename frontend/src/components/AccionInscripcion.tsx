@@ -3,6 +3,7 @@ import { api } from "../api/client";
 import type { components } from "../api/schema";
 import { ApiError } from "../api/errors";
 import { conservarNext } from "../lib/next";
+import { plural } from "../lib/plural";
 import type { EventoDetalle } from "../lib/useEvento";
 import { useEventos } from "../stores/eventos";
 import { useSession } from "../stores/session";
@@ -11,6 +12,11 @@ import { DialogoConfirmacion } from "./ui/DialogoConfirmacion";
 import { EnlaceBoton } from "./ui/EnlaceBoton";
 import { Insignia } from "./ui/Insignia";
 import type { ToastProps } from "./ui/Toast";
+
+const avisoReservas = (n: number) =>
+  n === 1
+    ? "También se cancelará tu reserva de sesión."
+    : `También se cancelarán tus ${plural(n, "reserva", "reservas")} de sesiones.`;
 
 export type Aviso = Pick<ToastProps, "message" | "tone">;
 
@@ -97,7 +103,7 @@ export function AccionInscripcion({
           <DialogoConfirmacion
             titulo="Cancelar tu inscripción"
             mensaje={`Vas a liberar tu cupo. Después podés volver a inscribirte si todavía queda lugar.${
-              reservas > 0 ? ` También se cancelarán tus ${reservas} reservas de sesiones.` : ""
+              reservas > 0 ? ` ${avisoReservas(reservas)}` : ""
             }`}
             confirmar="Sí, cancelar mi inscripción"
             cargando={trabajando}
