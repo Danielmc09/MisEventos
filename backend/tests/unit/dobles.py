@@ -157,14 +157,16 @@ class RepositorioSesionesFalso:
             for id_ in ids_sesion
         }
 
-    def choque_de_ponentes(
+    def choques_de_ponentes(
         self, ids_ponente: list[UUID], inicio: datetime, fin: datetime, excluir: UUID | None
-    ) -> tuple[Speaker, Sesion, Event] | None:
+    ) -> list[tuple[Speaker, Sesion, Event]]:
+        """La primera sesión que choca de cada ponente, en orden de id del ponente (como la base:
+        el orden de presentación no es cosa del repositorio)."""
         self.consultas_de_choque.append(
             {"ids_ponente": list(ids_ponente), "inicio": inicio, "fin": fin, "excluir": excluir}
         )
-        sesiones = sorted(self.eventos.sesiones.values(), key=lambda s: s.start_at)
-        for sesion in sesiones:
+        primeras: dict[UUID, tuple[Speaker, Sesion, Event]] = {}
+        for sesion in sorted(self.eventos.sesiones.values(), key=lambda s: s.start_at):
             evento = self.eventos.eventos[sesion.event_id]
             if (
                 sesion.id == excluir
@@ -173,9 +175,9 @@ class RepositorioSesionesFalso:
             ):
                 continue
             for id_ponente in self.vinculos.get(sesion.id, []):
-                if id_ponente in ids_ponente:
-                    return self.ponentes.ponentes[id_ponente], sesion, evento
-        return None
+                if id_ponente in ids_ponente and id_ponente not in primeras:
+                    primeras[id_ponente] = (self.ponentes.ponentes[id_ponente], sesion, evento)
+        return [primeras[id_] for id_ in sorted(primeras)]
 
     def por_id(self, id_: UUID) -> Sesion | None:
         return self.eventos.sesiones.get(id_)

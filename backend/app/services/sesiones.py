@@ -20,17 +20,15 @@ from app.services.ponentes import Ponentes
 SesionConPonentes = tuple[Sesion, list[Speaker]]
 # Bogotá no tiene horario de verano: un desfase fijo alcanza y no depende de tzdata.
 BOGOTA = timezone(timedelta(hours=-5))
-# El detail de un choque con una sesión que quien pregunta no puede ver.
-SIN_SESION = "La ponente ya tiene otra sesión en ese horario"
 
 
 class Sesiones(Protocol):
     def por_id(self, id_sesion: UUID) -> Sesion | None: ...
     def por_id_para_escribir(self, id_sesion: UUID) -> Sesion | None: ...
     def ponentes_de(self, ids_sesion: list[UUID]) -> dict[UUID, list[Speaker]]: ...
-    def choque_de_ponentes(
+    def choques_de_ponentes(
         self, ids_ponente: list[UUID], inicio: datetime, fin: datetime, excluir: UUID | None
-    ) -> tuple[Speaker, Sesion, Event] | None: ...
+    ) -> list[tuple[Speaker, Sesion, Event]]: ...
     def crear(self, sesion: Sesion, ids_ponente: list[UUID]) -> Sesion: ...
     def guardar(self, sesion: Sesion, ids_ponente: list[UUID] | None) -> Sesion: ...
     def eliminar(self, sesion: Sesion) -> None: ...
@@ -70,6 +68,15 @@ def _sala(sala: str | None) -> str:
     return (sala or "").strip().casefold()
 
 
+def _linea_de_choque(usuario: User, ponente: Speaker, otra: Sesion, su_evento: Event) -> str:
+    if not servicio_eventos.puede_ver(usuario, su_evento):
+        return f"{ponente.full_name} ya tiene otra sesión en ese horario"
+    return (
+        f"{ponente.full_name} ya está en «{otra.title}», "
+        f"{_hora(otra.start_at)} a {_hora(otra.end_at)}"
+    )
+
+
 def _validar_horario(
     eventos: Eventos,
     sesiones: Sesiones,
@@ -84,8 +91,8 @@ def _validar_horario(
     """Dentro del evento, sin cruces de sus ponentes (en cualquier evento no cancelado) ni de su
     sala (en el mismo evento). `excluir` es la propia sesión al editar: no choca consigo misma.
 
-    El choque de ponente nombra la otra sesión solo si quien pregunta puede ver su evento: un
-    borrador ajeno no revela ni su título ni su horario."""
+    El choque de ponente lista a cada ponente ocupado, uno por línea. Nombra la otra sesión solo
+    si quien pregunta puede ver su evento: un borrador ajeno no revela su título ni su horario."""
     if inicio < evento.start_at or fin > evento.end_at:
         con_dia = "%d/%m %H:%M"
         raise Conflict(
@@ -94,18 +101,12 @@ def _validar_horario(
             tipo="session-outside-event",
             titulo="La sesión no cae dentro del evento",
         )
-    # La base devuelve solo la sesión que choca, no la agenda entera de los ponentes.
-    choque = sesiones.choque_de_ponentes([p.id for p in asignados], inicio, fin, excluir)
-    if choque is not None:
-        ponente, otra, su_evento = choque
-        detalle = SIN_SESION
-        if servicio_eventos.puede_ver(usuario, su_evento):
-            detalle = (
-                f"{ponente.full_name} ya está en «{otra.title}», "
-                f"{_hora(otra.start_at)} a {_hora(otra.end_at)}"
-            )
+    # La base devuelve solo la primera sesión que choca de cada ponente, no su agenda entera.
+    choques = sesiones.choques_de_ponentes([p.id for p in asignados], inicio, fin, excluir)
+    if choques:
+        en_orden = sorted(choques, key=lambda c: (c[0].full_name, c[0].id))
         raise Conflict(
-            detalle,
+            "\n".join(_linea_de_choque(usuario, *choque) for choque in en_orden),
             tipo="speaker-conflict",
             titulo="El ponente ya tiene otra sesión en ese horario",
         )

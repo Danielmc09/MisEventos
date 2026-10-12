@@ -3,7 +3,7 @@ reglas de horario: dentro del evento, sin cruces de ponente ni de sala, y nada d
 evento cancelado o finalizado."""
 
 from datetime import UTC, datetime, timedelta
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 
@@ -619,7 +619,10 @@ def test_si_chocan_varios_ponentes_el_detail_lista_uno_por_linea_segun_lo_que_se
     publicado = repos.evento(EstadoEvento.PUBLISHED, dueno=OTRO_ORGANIZADOR)
     borrador = repos.evento(EstadoEvento.DRAFT, dueno=OTRO_ORGANIZADOR)
     beto, ana = repos.ponente("Beto Ruiz"), repos.ponente("Ana Pérez")
-    # La de Beto empieza antes: el orden de las líneas es por nombre, no por horario.
+    # Beto tiene el id menor y su sesión empieza antes: el orden de las líneas es por nombre,
+    # no por id ni por horario.
+    beto.id, ana.id = UUID(int=1), UUID(int=2)
+    repos.ponentes.ponentes = {beto.id: beto, ana.id: ana}
     repos.sesion(borrador, hora(9, 30), hora(10, 30), beto, title="Lanzamiento producto X")
     repos.sesion(publicado, hora(10), hora(11), ana, title="Keynote")
     evento = repos.evento()
