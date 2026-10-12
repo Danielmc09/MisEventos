@@ -93,3 +93,31 @@ test("soloIcono no muestra el texto junto al ícono en angosto: lo dice solo el 
   await user.hover(screen.getByRole("button"));
   expect(screen.getByRole("tooltip")).toHaveTextContent("Editar");
 });
+
+test("el scroll no cierra el tooltip abierto por foco: lo recoloca junto al botón", async () => {
+  const user = userEvent.setup();
+  montar();
+  const caja = (top: number, left: number) =>
+    ({
+      top,
+      left,
+      bottom: top + 20,
+      right: left + 20,
+      width: 20,
+      height: 20,
+      x: left,
+      y: top,
+    }) as DOMRect;
+  const medida = vi
+    .spyOn(HTMLElement.prototype, "getBoundingClientRect")
+    .mockReturnValue(caja(100, 50));
+  await user.tab();
+  expect(screen.getByRole("tooltip")).toHaveStyle({ top: "120px", left: "50px" });
+
+  medida.mockReturnValue(caja(10, 60));
+  fireEvent.scroll(document);
+
+  const tooltip = screen.getByRole("tooltip");
+  expect(tooltip).toHaveStyle({ top: "30px", left: "60px" });
+  medida.mockRestore();
+});
