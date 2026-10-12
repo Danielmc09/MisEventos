@@ -2960,8 +2960,8 @@ export interface operations {
       query?: {
         /** @description Nombre o email, o parte de ellos */
         q?: string | null;
-        /** @description Solo los de este rol */
-        role?: components["schemas"]["Rol"] | null;
+        /** @description Solo los de estos roles; se repite para pedir varios */
+        role?: components["schemas"]["Rol"][] | null;
         /** @description Solo activos o solo inactivos */
         is_active?: boolean | null;
         /** @description Página, desde 1 hasta 10000 */
