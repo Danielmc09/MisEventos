@@ -9,6 +9,7 @@ import { Pagina, TituloPagina } from "../../components/ui/Pagina";
 import { Paginacion } from "../../components/ui/Paginacion";
 import { Select } from "../../components/ui/Select";
 import { Spinner } from "../../components/ui/Spinner";
+import { TextoSecundario } from "../../components/ui/TextoSecundario";
 import { useEventos, type PaginaEventos } from "../../stores/eventos";
 import { useTienePermiso } from "../../stores/session";
 
@@ -98,7 +99,10 @@ export default function Inicio() {
 
   return (
     <Pagina ancho="ancho">
-      <TituloPagina>Mis Eventos</TituloPagina>
+      <div className="flex flex-col gap-1">
+        <TituloPagina>Próximos eventos</TituloPagina>
+        <TextoSecundario>Encontrá un evento e inscribite en un minuto</TextoSecundario>
+      </div>
       <div className="flex flex-wrap items-end gap-4">
         <div className="w-full max-w-md">
           <Input

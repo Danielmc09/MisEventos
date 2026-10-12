@@ -224,11 +224,10 @@ describe("acciones según quién mira y el estado", () => {
     abrir();
 
     const fila = await screen.findByRole("group", { name: "Acciones del evento" });
-    const controles = within(fila).getAllByRole(/^(button|link)$/);
-    expect(controles.map((c) => c.getAttribute("aria-label") ?? c.textContent)).toEqual([
-      "Editar",
-      "Más acciones del evento",
-    ]);
+    const enlaces = within(fila).queryAllByRole("link");
+    const botones = within(fila).queryAllByRole("button");
+    expect(enlaces.map((e) => e.textContent)).toEqual(["Editar"]);
+    expect(botones.map((b) => b.getAttribute("aria-label"))).toEqual(["Más acciones del evento"]);
     expect(screen.queryByRole("button", { name: "Inscribirme" })).not.toBeInTheDocument();
   });
 

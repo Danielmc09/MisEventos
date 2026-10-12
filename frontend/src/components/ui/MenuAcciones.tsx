@@ -1,5 +1,14 @@
-import { useEffect, useId, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
+import {
+  Fragment,
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  type KeyboardEvent,
+  type ReactNode,
+} from "react";
 import { Link } from "react-router-dom";
+import { BotonIcono } from "./BotonIcono";
 import { BASE_BOTON, VARIANTES_BOTON } from "./estilosBoton";
 import { IconoPuntos } from "./iconos/IconoPuntos";
 import { Spinner } from "./Spinner";
@@ -12,6 +21,8 @@ export interface ItemMenu {
   to?: string;
   /** Una acción destructiva: el texto va en tono de peligro. */
   peligro?: boolean;
+  /** Una línea fina encima, para apartar la opción del resto (por ejemplo, «Cerrar sesión»). */
+  separado?: boolean;
 }
 
 export interface MenuAccionesProps {
@@ -20,8 +31,13 @@ export interface MenuAccionesProps {
   items: ItemMenu[];
   /** Un texto al comienzo del menú, que no es una opción. */
   titulo?: string;
-  /** `boton`: «⋯» + el texto de `children`. `circulo`: `children` (una inicial) dentro de un círculo. */
-  variante?: "boton" | "circulo";
+  /** Una segunda línea, más suave, debajo del título (por ejemplo, el email). */
+  subtitulo?: string;
+  /**
+   * `boton`: «⋯» + el texto de `children`. `circulo`: `children` (una inicial) dentro de un círculo.
+   * `icono`: un botón cuadrado con «⋯»; `children` es el texto de su tooltip.
+   */
+  variante?: "boton" | "circulo" | "icono";
   /** De qué borde del botón sale el menú. */
   alinear?: "inicio" | "fin";
   /** Hay una acción en curso: el botón sigue enfocable (no pierde el foco), muestra un spinner y no abre. */
@@ -43,6 +59,7 @@ export function MenuAcciones({
   etiqueta,
   items,
   titulo,
+  subtitulo,
   variante = "boton",
   alinear = "inicio",
   ocupado,
@@ -110,32 +127,47 @@ export function MenuAcciones({
     item.onSelect?.();
   }
 
+  const propsDisparador = {
+    ref: disparador,
+    "aria-haspopup": "menu" as const,
+    "aria-expanded": abierto,
+    "aria-controls": abierto ? id : undefined,
+    "aria-disabled": ocupado || undefined,
+    "aria-busy": ocupado || undefined,
+    onClick: () => {
+      if (ocupado) return;
+      setFoco("primero");
+      setAbierto(!abierto);
+    },
+    onKeyDown: alTeclearEnDisparador,
+  };
+
   return (
     <div ref={raiz} className="relative inline-flex">
-      <button
-        ref={disparador}
-        type="button"
-        aria-label={etiqueta}
-        aria-haspopup="menu"
-        aria-expanded={abierto}
-        aria-controls={abierto ? id : undefined}
-        aria-disabled={ocupado || undefined}
-        aria-busy={ocupado || undefined}
-        onClick={() => {
-          if (ocupado) return;
-          setFoco("primero");
-          setAbierto(!abierto);
-        }}
-        onKeyDown={alTeclearEnDisparador}
-        className={`${BOTON[variante]} aria-disabled:cursor-not-allowed aria-disabled:opacity-60`}
-      >
-        {ocupado ? (
-          <Spinner heredar className="h-4 w-4" />
-        ) : (
-          variante === "boton" && <IconoPuntos />
-        )}
-        {children}
-      </button>
+      {variante === "icono" ? (
+        <BotonIcono
+          {...propsDisparador}
+          etiqueta={etiqueta}
+          texto={String(children)}
+          soloIcono
+          variante="secundario"
+          icono={ocupado ? <Spinner heredar className="h-4 w-4" /> : <IconoPuntos />}
+        />
+      ) : (
+        <button
+          {...propsDisparador}
+          type="button"
+          aria-label={etiqueta}
+          className={`${BOTON[variante]} aria-disabled:cursor-not-allowed aria-disabled:opacity-60`}
+        >
+          {ocupado ? (
+            <Spinner heredar className="h-4 w-4" />
+          ) : (
+            variante === "boton" && <IconoPuntos />
+          )}
+          {children}
+        </button>
+      )}
       {abierto && (
         <div
           ref={menu}
@@ -148,37 +180,38 @@ export function MenuAcciones({
           }`}
         >
           {titulo && (
-            <p
-              role="presentation"
-              className="truncate border-b border-borde px-4 py-2 text-sm font-semibold text-texto-suave"
-            >
-              {titulo}
-            </p>
+            <div role="presentation" className="flex flex-col border-b border-borde px-4 py-2">
+              <p className="truncate text-sm font-semibold text-texto">{titulo}</p>
+              {subtitulo && <p className="truncate text-sm text-texto-suave">{subtitulo}</p>}
+            </div>
           )}
           {items.map((item) => {
             const clases = `${ITEM} ${item.peligro ? "text-error" : "text-texto"}`;
-            return item.to ? (
-              <Link
-                key={item.texto}
-                to={item.to}
-                role="menuitem"
-                tabIndex={-1}
-                className={clases}
-                onClick={() => elegir(item)}
-              >
-                {item.texto}
-              </Link>
-            ) : (
-              <button
-                key={item.texto}
-                type="button"
-                role="menuitem"
-                tabIndex={-1}
-                className={clases}
-                onClick={() => elegir(item)}
-              >
-                {item.texto}
-              </button>
+            return (
+              <Fragment key={item.texto}>
+                {item.separado && <div role="separator" className="my-1 border-t border-borde" />}
+                {item.to ? (
+                  <Link
+                    to={item.to}
+                    role="menuitem"
+                    tabIndex={-1}
+                    className={clases}
+                    onClick={() => elegir(item)}
+                  >
+                    {item.texto}
+                  </Link>
+                ) : (
+                  <button
+                    type="button"
+                    role="menuitem"
+                    tabIndex={-1}
+                    className={clases}
+                    onClick={() => elegir(item)}
+                  >
+                    {item.texto}
+                  </button>
+                )}
+              </Fragment>
             );
           })}
         </div>

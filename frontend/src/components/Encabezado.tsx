@@ -1,7 +1,7 @@
 import { useCerrarSesion } from "../lib/useCerrarSesion";
 import { useEsAngosto } from "../lib/useEsAngosto";
 import { useSesionVigente, useSession, useTienePermiso } from "../stores/session";
-import { BotonEnlace, Enlace } from "./ui/Enlace";
+import { Enlace } from "./ui/Enlace";
 import { MenuAcciones, type ItemMenu } from "./ui/MenuAcciones";
 
 export function Encabezado() {
@@ -14,9 +14,9 @@ export function Encabezado() {
   const sesion = !!user && vigente;
 
   const itemsCuenta: ItemMenu[] = [
-    ...(puedeCrear ? [{ texto: "Crear evento", to: "/eventos/nuevo" }] : []),
     { texto: "Mi perfil", to: "/perfil" },
-    { texto: "Cerrar sesión", onSelect: cerrarSesion },
+    { texto: "Cambiar contraseña", to: "/cambiar-contrasena" },
+    { texto: "Cerrar sesión", onSelect: cerrarSesion, separado: true },
   ];
 
   const itemsVisitante: ItemMenu[] = [
@@ -36,27 +36,23 @@ export function Encabezado() {
             Mis Eventos
           </Enlace>
         </div>
-        {sesion && angosto ? (
-          <MenuAcciones
-            etiqueta="Menú de la cuenta"
-            variante="circulo"
-            alinear="fin"
-            titulo={nombre ?? undefined}
-            items={itemsCuenta}
-          >
-            {(nombre ?? "?").charAt(0).toLocaleUpperCase("es")}
-          </MenuAcciones>
-        ) : sesion ? (
+        {sesion ? (
           <>
             {puedeCrear && (
               <Enlace to="/eventos/nuevo" variante="navegacion">
                 Crear evento
               </Enlace>
             )}
-            <Enlace to="/perfil" variante="navegacion" title={nombre ?? undefined}>
-              {nombre}
-            </Enlace>
-            <BotonEnlace onClick={cerrarSesion}>Cerrar sesión</BotonEnlace>
+            <MenuAcciones
+              etiqueta="Menú de la cuenta"
+              variante="circulo"
+              alinear="fin"
+              titulo={nombre ?? undefined}
+              subtitulo={user.full_name ? user.email : undefined}
+              items={itemsCuenta}
+            >
+              {(nombre ?? "?").charAt(0).toLocaleUpperCase("es")}
+            </MenuAcciones>
           </>
         ) : angosto ? (
           // «Mis Eventos», «Iniciar sesión» y «Registrarse» miden unos 347 px con sus márgenes: en 320 px no entran.
