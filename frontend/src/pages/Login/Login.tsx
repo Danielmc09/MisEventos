@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from "react";
-import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { api } from "../../api/client";
 import type { components } from "../../api/schema";
 import { Button } from "../../components/ui/Button";
@@ -7,19 +7,21 @@ import { Input } from "../../components/ui/Input";
 import { Toast } from "../../components/ui/Toast";
 import { errorDeFormulario, type ErrorDeFormulario } from "../../lib/errores";
 import { conservarNext, rutaSegura } from "../../lib/next";
+import { useAvisoUnico } from "../../lib/useAvisoUnico";
 import { useSession } from "../../stores/session";
 
 export default function Login() {
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const next = params.get("next");
-  const aviso = (useLocation().state as { aviso?: string } | null)?.aviso;
+  const [aviso, descartarAviso] = useAvisoUnico();
   const [enviando, setEnviando] = useState(false);
   const [error, setError] = useState<ErrorDeFormulario | null>(null);
 
   async function enviar(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const datos = new FormData(e.currentTarget);
+    descartarAviso();
     setEnviando(true);
     setError(null);
     try {
