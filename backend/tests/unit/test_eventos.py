@@ -109,6 +109,9 @@ INICIO = AHORA + timedelta(days=30)
         ({"location": "a" * 201}, "location"),
         ({"status": "PUBLISHED"}, "status"),
         ({"organizer_id": str(ADMIN.id)}, "organizer_id"),
+        ({"name": "abc\x00"}, "name"),
+        ({"description": "texto\x00"}, "description"),
+        ({"location": "\x00lugar"}, "location"),
     ],
     ids=[
         "fin-igual-inicio",
@@ -124,6 +127,9 @@ INICIO = AHORA + timedelta(days=30)
         "lugar-201",
         "con-status",
         "con-organizer_id",
+        "nombre-con-nul",
+        "descripcion-con-nul",
+        "lugar-con-nul",
     ],
 )
 def test_un_cuerpo_invalido_responde_422_en_su_campo(cliente, eventos, token, cambios, campo):
@@ -137,6 +143,17 @@ def test_un_cuerpo_invalido_responde_422_en_su_campo(cliente, eventos, token, ca
     assert respuesta.headers["content-type"] == "application/problem+json"
     assert [e["field"] for e in respuesta.json()["errors"]] == [campo]
     assert eventos.eventos == {}
+
+
+def test_un_texto_con_el_caracter_nulo_se_rechaza_con_el_mensaje_en_espanol(
+    cliente, eventos, token
+):
+    respuesta = crear(cliente, cuerpo_valido(name="PyCon\x00"), token(ORGANIZADOR))
+
+    assert respuesta.status_code == 422
+    assert respuesta.json()["errors"] == [
+        {"field": "name", "message": "No puede contener el carácter nulo"}
+    ]
 
 
 def test_el_nombre_se_guarda_sin_espacios_al_inicio_ni_al_final(cliente, eventos, token):
@@ -402,6 +419,9 @@ def test_un_evento_cancelado_o_finalizado_no_se_edita(cliente, eventos, token, e
         # Y un inicio nuevo, con el fin guardado.
         ({"start_at": (INICIO + timedelta(days=1)).isoformat()}, "end_at"),
         ({"start_at": (AHORA - timedelta(hours=1)).isoformat()}, "start_at"),
+        ({"name": "abc\x00"}, "name"),
+        ({"description": "texto\x00"}, "description"),
+        ({"location": "\x00lugar"}, "location"),
     ],
     ids=[
         "con-status",
@@ -416,6 +436,9 @@ def test_un_evento_cancelado_o_finalizado_no_se_edita(cliente, eventos, token, e
         "fin-antes-del-inicio-guardado",
         "inicio-despues-del-fin-guardado",
         "inicio-pasado",
+        "nombre-con-nul",
+        "descripcion-con-nul",
+        "lugar-con-nul",
     ],
 )
 def test_una_edicion_invalida_responde_422_en_su_campo(cliente, eventos, token, cambios, campo):
