@@ -234,3 +234,57 @@ describe("editar una sesión", () => {
     expect(llamadas).toHaveLength(0);
   });
 });
+
+describe("ponentes de la sesión", () => {
+  const ana = {
+    id: "b1b1b1b1-0000-4000-8000-000000000001",
+    full_name: "Ana Pérez",
+    bio: null,
+    created_by: evento.organizer_id,
+    created_at: "2026-10-01T12:00:00Z",
+    updated_at: "2026-10-01T12:00:00Z",
+  };
+
+  test("el ponente elegido va en speaker_ids al crear", async () => {
+    const llamadas = espiarPost();
+    server.use(
+      http.get(`${API}/speakers`, () =>
+        responder("/speakers", "get", 200, {
+          items: [ana],
+          total: 1,
+          page: 1,
+          page_size: 20,
+          pages: 1,
+        }),
+      ),
+    );
+    const user = userEvent.setup();
+    abrir();
+
+    await completar(user);
+    await user.type(screen.getByLabelText("Buscar ponente"), "An");
+    await user.click(await screen.findByRole("button", { name: "Agregar a Ana Pérez" }));
+    await guardar(user);
+
+    await vi.waitFor(() =>
+      expect(llamadas).toEqual([expect.objectContaining({ speaker_ids: [ana.id] })]),
+    );
+  });
+
+  test("quitar un ponente al editar envía la lista nueva completa", async () => {
+    const cuerpos: unknown[] = [];
+    server.use(
+      http.patch(`${API}/sessions/${sesion.id}`, async ({ request }) => {
+        cuerpos.push(await request.json());
+        return responder("/sessions/{id_sesion}", "patch", 200, sesion);
+      }),
+    );
+    const user = userEvent.setup();
+    abrir({ sesion: { ...sesion, speakers: [{ id: ana.id, full_name: "Ana Pérez", bio: null }] } });
+
+    await user.click(screen.getByRole("button", { name: "Quitar a Ana Pérez" }));
+    await guardar(user, "Guardar cambios");
+
+    await vi.waitFor(() => expect(cuerpos).toEqual([{ speaker_ids: [] }]));
+  });
+});
