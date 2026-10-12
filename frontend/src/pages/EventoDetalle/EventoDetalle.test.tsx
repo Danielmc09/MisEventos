@@ -874,6 +874,23 @@ describe("panel de inscripciones del dueño", () => {
     expect(filas[2]).toHaveTextContent("Cancelada");
   });
 
+  test("quien se inscribió, canceló y volvió a inscribirse aparece dos veces sin avisos de React", async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    useSession.getState().iniciarSesion(dueno, "token", 3600);
+    servir();
+    servirPanel({}, [
+      inscritoFila,
+      { ...inscritoFila, status: "CANCELLED", created_at: "2026-10-09T15:00:00Z" },
+    ]);
+    abrir();
+
+    const tabla = await screen.findByRole("table", { name: "Lista de inscritos" });
+    expect(within(tabla).getAllByRole("row")).toHaveLength(3);
+    expect(within(tabla).getAllByText("luisa@mail.com")).toHaveLength(2);
+    expect(error).not.toHaveBeenCalled();
+    error.mockRestore();
+  });
+
   test("el admin también ve el panel", async () => {
     useSession.getState().iniciarSesion(admin, "token", 3600);
     servir();
