@@ -1,4 +1,4 @@
-import { screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { delay, http } from "msw";
 import { setupServer } from "msw/node";
@@ -153,4 +153,46 @@ test("al registrarse con un next hostil, va a /login sin next", async () => {
 
   await screen.findByRole("heading", { name: "Iniciar sesión" });
   expect(screen.getByLabelText("ubicación")).toHaveTextContent(/^\/login$/);
+});
+
+test("el error general queda en el formulario pasados los 4 s y se borra al reenviar con éxito", async () => {
+  server.use(
+    http.post(`${API}/auth/register`, () =>
+      responder("/auth/register", "post", 422, {
+        type: "validation-error",
+        title: "Los datos enviados no son válidos",
+        status: 422,
+        trace_id: "t-1",
+      }),
+    ),
+  );
+  const user = userEvent.setup();
+  montarRegistro();
+  await completar(user);
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+  try {
+    fireEvent.click(screen.getByRole("button", { name: /crear cuenta/i }));
+    await act(async () => {
+      for (let i = 0; i < 50 && !screen.queryByRole("alert"); i++)
+        await new Promise((r) => setImmediate(r));
+    });
+    expect(screen.getByRole("alert")).toHaveTextContent("Los datos enviados no son válidos");
+    act(() => vi.advanceTimersByTime(5000));
+
+    const alerta = screen.getByRole("alert");
+    expect(alerta).toHaveTextContent("Los datos enviados no son válidos");
+    expect(alerta.closest("form")).not.toBeNull();
+  } finally {
+    vi.useRealTimers();
+  }
+
+  server.use(
+    http.post(`${API}/auth/register`, () =>
+      responder("/auth/register", "post", 201, { message: "Listo" }),
+    ),
+  );
+  await user.click(screen.getByRole("button", { name: /crear cuenta/i }));
+
+  await screen.findByRole("heading", { name: "Iniciar sesión" });
+  expect(screen.queryByText("Los datos enviados no son válidos")).not.toBeInTheDocument();
 });
