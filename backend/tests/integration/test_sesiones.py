@@ -251,6 +251,35 @@ def test_el_mismo_ponente_en_sesiones_que_se_cruzan_en_eventos_distintos_respond
     )
 
 
+def test_el_choque_con_un_borrador_que_no_se_puede_ver_no_nombra_la_sesion(
+    cliente_db, usuarios, prefijo
+):
+    borrador = crear_evento(cliente_db, usuarios["otro"], f"{prefijo} Secreto", publicar=False)
+    ana = crear_ponente(cliente_db, usuarios["otro"], f"{prefijo} Ana Pérez")
+    oculta = crear_sesion(
+        cliente_db,
+        usuarios["otro"],
+        borrador,
+        cuerpo_sesion("10:00", "11:00", ana, title="Lanzamiento producto X"),
+    )
+    assert oculta.status_code == 201, oculta.text
+    evento = crear_evento(cliente_db, usuarios["orga"], f"{prefijo} PyCon")
+
+    choque = crear_sesion(
+        cliente_db, usuarios["orga"], evento, cuerpo_sesion("10:30", "11:30", ana)
+    )
+
+    # La ponente igual está ocupada, pero el borrador ajeno no se revela.
+    assert choque.status_code == 409
+    assert choque.json()["type"] == "speaker-conflict"
+    assert choque.json()["detail"] == f"{prefijo} Ana Pérez ya tiene otra sesión en ese horario"
+    assert "Lanzamiento producto X" not in choque.text
+    assert "Secreto" not in choque.text
+    # Es el mismo borrador que ese usuario no puede ver.
+    ver = cliente_db.get(f"/events/{borrador['id']}", headers=auth(usuarios["orga"]))
+    assert ver.status_code == 404
+
+
 def test_una_sesion_de_un_evento_cancelado_no_ocupa_al_ponente(cliente_db, usuarios, prefijo):
     token = usuarios["orga"]
     cancelado = crear_evento(cliente_db, token, f"{prefijo} PyCon")
