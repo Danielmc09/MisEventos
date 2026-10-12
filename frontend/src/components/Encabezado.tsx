@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import { tienePermiso } from "../lib/permisos";
 import { useCerrarSesion } from "../lib/useCerrarSesion";
 import { useSesionVigente, useSession } from "../stores/session";
 
@@ -19,9 +20,11 @@ export function Encabezado() {
         </Link>
         {user && vigente ? (
           <>
-            <Link to="/eventos/nuevo" className={enlace}>
-              Crear evento
-            </Link>
+            {tienePermiso(user, "evento:crear") && (
+              <Link to="/eventos/nuevo" className={enlace}>
+                Crear evento
+              </Link>
+            )}
             <Link to="/perfil" className={`${enlace} max-w-full truncate`}>
               {user.full_name || user.email}
             </Link>
