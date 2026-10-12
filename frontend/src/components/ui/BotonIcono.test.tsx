@@ -44,3 +44,36 @@ test("el tooltip aparece con el mouse", async () => {
   await user.unhover(screen.getByRole("button"));
   expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
 });
+
+test("Escape quita el tooltip aunque solo haya mouse encima, sin foco", async () => {
+  const user = userEvent.setup();
+  montar();
+  await user.hover(screen.getByRole("button"));
+  expect(screen.getByRole("tooltip")).toBeInTheDocument();
+
+  await user.keyboard("{Escape}");
+
+  expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
+});
+
+test("se puede pasar el mouse sobre el tooltip sin que desaparezca", async () => {
+  const user = userEvent.setup();
+  montar();
+  await user.hover(screen.getByRole("button"));
+
+  const tooltip = screen.getByRole("tooltip");
+  await user.hover(tooltip);
+
+  expect(screen.getByRole("tooltip")).toBeInTheDocument();
+  expect(tooltip).not.toHaveClass("pointer-events-none");
+});
+
+test("el tooltip sale debajo del botón, sin tapar el contenido de arriba", async () => {
+  const user = userEvent.setup();
+  montar();
+  await user.hover(screen.getByRole("button"));
+
+  const tooltip = screen.getByRole("tooltip");
+  expect(tooltip).toHaveClass("top-full", "left-0");
+  expect(tooltip).not.toHaveClass("bottom-full");
+});
