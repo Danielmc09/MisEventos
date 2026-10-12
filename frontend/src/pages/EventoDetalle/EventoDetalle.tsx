@@ -109,8 +109,12 @@ export default function EventoDetalle() {
               )}
             </div>
             <div className="flex flex-wrap items-center gap-3">
-              {evento.status === "PUBLISHED" && !evento.is_finished && (
-                <ChipCupos capacidad={evento.capacity} libres={evento.available_spots} />
+              {evento.status !== "CANCELLED" && !evento.is_finished && (
+                <ChipCupos
+                  capacidad={evento.capacity}
+                  libres={evento.available_spots}
+                  soloConteo={evento.status === "DRAFT"}
+                />
               )}
               <AccionInscripcion
                 evento={evento}

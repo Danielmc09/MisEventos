@@ -48,9 +48,13 @@ export function EventoCard({ evento, indice, children }: Props) {
         </TextoSecundario>
         {evento.location && <TextoSecundario pequeno>{evento.location}</TextoSecundario>}
       </div>
-      {conCupos && evento.status === "PUBLISHED" && !evento.is_finished && (
+      {conCupos && evento.status !== "CANCELLED" && !evento.is_finished && (
         <div className="mt-auto">
-          <ChipCupos capacidad={evento.capacity} libres={evento.available_spots} />
+          <ChipCupos
+            capacidad={evento.capacity}
+            libres={evento.available_spots}
+            soloConteo={evento.status === "DRAFT"}
+          />
         </div>
       )}
       {/* Por encima del área clickeable del título: lo que cuelga tiene sus propios controles. */}
