@@ -124,20 +124,35 @@ test("con sesión, /cambiar-contrasena muestra el formulario", async () => {
   expect(await screen.findByLabelText("Contraseña actual")).toBeInTheDocument();
 });
 
-test("con sesión ofrece Crear evento hacia /eventos/nuevo; sin sesión no", () => {
-  const { unmount } = montar("/");
-  expect(
-    within(encabezado()).queryByRole("link", { name: "Crear evento" }),
-  ).not.toBeInTheDocument();
-  unmount();
-
-  useSession.getState().iniciarSesion(usuario, "token-abc", 3600);
+test.each([
+  ["organizador", { ...usuario, role: "ORGANIZER" as const }],
+  ["admin", { ...usuario, role: "ADMIN" as const }],
+])("un %s ve Crear evento hacia /eventos/nuevo", (_rol, quien) => {
+  useSession.getState().iniciarSesion(quien, "token-abc", 3600);
   montar("/");
 
   expect(within(encabezado()).getByRole("link", { name: "Crear evento" })).toHaveAttribute(
     "href",
     "/eventos/nuevo",
   );
+});
+
+test("un asistente no ve Crear evento", () => {
+  useSession.getState().iniciarSesion(usuario, "token-abc", 3600);
+  montar("/");
+
+  expect(within(encabezado()).getByRole("button", { name: "Cerrar sesión" })).toBeInTheDocument();
+  expect(
+    within(encabezado()).queryByRole("link", { name: "Crear evento" }),
+  ).not.toBeInTheDocument();
+});
+
+test("un anónimo no ve Crear evento", () => {
+  montar("/");
+
+  expect(
+    within(encabezado()).queryByRole("link", { name: "Crear evento" }),
+  ).not.toBeInTheDocument();
 });
 
 test("/eventos/nuevo es una ruta protegida", async () => {
