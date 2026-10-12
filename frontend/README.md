@@ -79,12 +79,13 @@ Los tests viven junto al archivo que prueban (`Algo.tsx` y `Algo.test.tsx`).
 | `/eventos/nuevo` | Crear evento | Sí | `evento:crear` |
 | `/eventos/:id/editar` | Editar evento | Sí | Ser el organizador del evento o tener `evento:gestionar_todos` |
 | `/perfil` | Datos de la cuenta y mis inscripciones | Sí | Ninguno |
-| `/cambiar-contrasena` | Cambiar contraseña | Sí | Ninguno |
-| `/admin/usuarios` | Administración de usuarios | Sí | `usuarios:gestionar` |
+| `/cambiar-contrasena` | Cambiar contraseña. Con una contraseña temporal pendiente, es la única pantalla a la que se llega | Sí | Ninguno |
+| `/admin/usuarios` | Administración de usuarios: alta con contraseña temporal, edición y restablecimiento de contraseña | Sí | `usuarios:gestionar` |
 | `*` | Página no encontrada | No | Ninguno |
 
 Cómo se aplica:
 
+- Todas las rutas van dentro de `ExigirCambioDeContrasena`: con sesión vigente y `must_change_password`, cualquier ruta lleva a `/cambiar-contrasena`.
 - Las rutas con sesión van dentro de `RutaProtegida`. Sin sesión vigente llevan a `/login?next=<ruta>`.
 - Quien tiene sesión pero no el permiso ve un aviso en la misma pantalla ("No tenés permiso…"). La decisión final la toma siempre la API.
 - Los permisos los calcula la API y llegan con el usuario (`/auth/me`). El cliente solo los lee.
@@ -114,6 +115,7 @@ Las pantallas no escriben estilos sueltos: todo color, espaciado y tipografía s
 | `DialogoConfirmacion` | Confirma una acción; el foco arranca en "Volver" | `titulo`, `mensaje`, `confirmar`, `variante` (`primario` o `peligro`, por defecto `peligro`), `cargando`, `onConfirmar`, `onVolver` |
 | `ImagenPortada` | Ilustración decorativa de la cabecera del inicio, con `srcset` y tamaño fijo | — |
 | `Modal` | Diálogo para un formulario; Escape cierra | `titulo`, `onCerrar` |
+| `Monoespaciado` | Un valor que se lee carácter por carácter o se copia (una contraseña, un código), seleccionable de un clic | `children` |
 | `Paginacion` | Anterior, "Página N de M" y Siguiente; no se muestra con una sola página | `pagina`, `paginas`, `onCambiar` |
 | `Pestanas` | Pestañas con flechas del teclado | `etiqueta`, `pestanas`, `activa`, `onCambiar` |
 | `Tabla` | Tabla en escritorio; en móvil, bloques apilados con la etiqueta de cada columna | `descripcion`, `columnas`, `filas` |
@@ -122,6 +124,7 @@ Las pantallas no escriben estilos sueltos: todo color, espaciado y tipografía s
 | `Pagina`, `TituloPagina` | Contenedor de cada pantalla y su `h1` | `ancho` (`angosto`, `medio`, `ancho`) |
 | `TituloSeccion`, `TextoSecundario` | Títulos y texto de apoyo | `nivel`, `estilo`; `pequeno` |
 | `Lista`, `ListaDatos`, `Cifra`, `BarraProgreso`, `Tooltip` | Listas con nombre accesible, pares etiqueta y valor, dato destacado, barra de ocupación y rótulo corto. El `Tooltip` se dibuja en un portal sobre el `body`, así ninguna tabla con overflow lo recorta | ver el archivo de cada uno |
+| `IconoLlave` (en `iconos/`) | Ícono de "Restablecer contraseña" en la tabla de usuarios | — |
 
 ### De dominio (`components/`)
 
@@ -133,6 +136,9 @@ Las pantallas no escriben estilos sueltos: todo color, espaciado y tipografía s
 | `FormularioEvento` | Crear o editar un evento; muestra los errores 422 junto a cada campo | `evento` (si viene, edita) |
 | `FormularioSesion` | Crear o editar una sesión, con sus ponentes | `evento`, `sesion`, `onGuardada`, `onCancelar` |
 | `FormularioUsuario` | Editar nombre, correo, rol y estado de un usuario (administración) | `usuario`, `propio`, `onGuardado`, `onCancelar` |
+| `FormularioNuevoUsuario` | Crear un usuario con correo, nombre y rol; al crearlo muestra su contraseña temporal | `onCreado` (la lista se actualiza aunque el diálogo siga abierto), `onCerrar` |
+| `RestablecerContrasena` | Confirma el restablecimiento de la contraseña de un usuario y muestra la temporal nueva | `usuario`, `onTerminado` |
+| `DialogoContrasenaTemporal` | Muestra una contraseña temporal con "Copiar" y el aviso de que no se vuelve a mostrar. Vive solo mientras el diálogo está abierto: no pasa por ningún store | `nombre`, `contrasena`, `onCerrar` |
 | `SelectorPonentes` | Busca ponentes (con espera de 300 ms), los agrega como chips y permite crear uno nuevo | `seleccionados`, `onChange`, `error` |
 | `SeccionSesiones` | Lista de sesiones del evento con crear, editar, eliminar y reservar | `sesiones`, `evento`, `puede`, `inscrito`, `eventoPublicado`, `onGuardada`, `onEliminada`, `onReserva`, `onRefrescar` |
 | `ControlReserva` | Reservar o cancelar la reserva de una sesión, según inscripción y cupo | `sesion`, `inscrito`, `eventoPublicado`, `trabajando`, `onReservar`, `onCancelar` |
@@ -142,6 +148,7 @@ Las pantallas no escriben estilos sueltos: todo color, espaciado y tipografía s
 | `useInscripcion` | Lógica de inscribirse y cancelar la inscripción, con su diálogo | `evento`, `onEvento`, `onRefrescar`, `reservas`, `onCancelada` |
 | `Encabezado` | Marca, "Crear evento" (con `evento:crear`), ingreso y menú de cuenta | — |
 | `RutaProtegida` | Deja pasar solo con sesión vigente | — |
+| `ExigirCambioDeContrasena` | Con la contraseña temporal pendiente, lleva toda ruta a `/cambiar-contrasena` | — |
 
 ## Estado
 
@@ -155,6 +162,8 @@ Hay dos stores de Zustand (`src/stores/`).
 - `saliendo`: `true` tras un cierre voluntario, para que no se recuerde adónde volver.
 
 Se persiste en `localStorage` con la clave `sesion`: `user`, `accessToken` y `expiresAt`. `saliendo` no se persiste. `useSesionVigente` vacía la sesión si el token ya venció.
+
+El cambio obligatorio de contraseña vive en `user.must_change_password`, que llega con `/auth/me`. `exigirCambioDeContrasena()` lo pone en `true` cuando la API responde `password-change-required`; al cambiar la contraseña, la sesión se vuelve a iniciar con el token nuevo y `must_change_password: false`. Las contraseñas temporales que ve el admin no pasan por ningún store: viven en el estado del diálogo y se pierden al cerrarlo.
 
 Al cargar la app, si hay una sesión guardada vigente, `useRefrescarSesion` (`src/lib/useRefrescarSesion.ts`) pide `/auth/me` y esos datos mandan sobre lo guardado. Si la sesión cambió mientras llegaba la respuesta (otro token), esos datos no la pisan. Ante un error de red se queda lo guardado.
 
@@ -184,6 +193,7 @@ Todas las llamadas pasan por `api()` en `src/api/client.ts`. Ningún componente 
 - **Qué hace la pantalla:** decide por el `type` del error y muestra su `title`. Los errores por campo se muestran junto al campo.
 - **`204`:** devuelve `undefined`.
 - **`401`:** hoy no hay refresh token. El token dura 60 minutos. Un `401` vacía la sesión y lleva a `/login?next=<ruta actual>`, salvo que ya estés en `/login` o `/registro`, y solo si el token que se mandó sigue siendo el vigente: si ya hay otra sesión, no se toca. Antes de eso, `RutaProtegida` y `useSesionVigente` ya cierran la sesión si el token venció según `expiresAt`.
+- **`403` `password-change-required`:** el usuario tiene una contraseña temporal sin cambiar. El cliente marca la sesión como pendiente (`exigirCambioDeContrasena()`) y `ExigirCambioDeContrasena` lleva a `/cambiar-contrasena`. El error se lanza igual, como cualquier otro.
 - **Error de red:** si `fetch` falla (API caída, sin conexión), lanza un `ApiError` con `status: 0`, `type: "network-error"` y el título "No se pudo conectar con el servidor".
 - **Cerrar sesión:** avisa a la API (`POST /auth/logout`) y, falle o no, vacía la sesión y va a `/login`.
 
@@ -222,7 +232,10 @@ Para recorrerlo, levantá todo con `docker compose up --build`. Con `SEED_DEMO=t
 2. En el inicio, el filtro "Estado" ofrece Publicados, Cancelados, Borradores y Todos.
 3. Abrir un evento ajeno. Ver "Editar" y "Más acciones" (publicar, despublicar, cancelar, eliminar), y las pestañas Sesiones e Inscripciones.
 4. Entrar a "Administración" (`/admin/usuarios`). Filtrar por pestaña, rol, estado y texto. Editar un usuario: nombre, correo, rol y estado. Cambiar el correo, cambiar el rol y desactivar (o reactivar) piden confirmación en un diálogo. En la propia cuenta no se puede cambiar el rol ni el estado.
-5. Cambiar la contraseña desde "Mi perfil".
+5. "Nuevo usuario": crear uno con correo, nombre y rol. El diálogo muestra su contraseña temporal una sola vez, con "Copiar", y la lista ya lo incluye. Un correo ya registrado da el error junto al campo.
+6. En otra fila, el botón de la llave ("Restablecer"): pide confirmación y muestra la contraseña temporal nueva. No aparece en la propia fila ni en la de un usuario inactivo.
+7. Cerrar sesión e ingresar con el usuario nuevo y su contraseña temporal: la app lleva a `/cambiar-contrasena` con el aviso "Tenés que cambiar tu contraseña temporal para continuar", y cualquier otra ruta vuelve ahí. Después de cambiarla, la app sigue en "Mi perfil" y se navega normal.
+8. Cambiar la contraseña desde "Mi perfil".
 
 ### Organizador
 
