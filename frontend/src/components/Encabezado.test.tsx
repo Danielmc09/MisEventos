@@ -221,4 +221,18 @@ describe("en una pantalla angosta", () => {
     expect(nav.queryByRole("menuitem", { name: "Oscar Organizador" })).not.toBeInTheDocument();
     expect(nav.getByRole("menuitem", { name: "Cerrar sesión" })).toBeInTheDocument();
   });
+
+  test("sin sesión, el logo y un solo botón abren Iniciar sesión y Registrarse: tres textos no entran en 320 px", async () => {
+    const user = userEvent.setup();
+    montar("/");
+
+    const nav = within(encabezado());
+    expect(nav.queryByRole("link", { name: "Iniciar sesión" })).not.toBeInTheDocument();
+    expect(nav.queryByRole("link", { name: "Registrarse" })).not.toBeInTheDocument();
+
+    await user.click(nav.getByRole("button", { name: "Menú de la cuenta" }));
+
+    expect(nav.getByRole("menuitem", { name: "Iniciar sesión" })).toHaveAttribute("href", "/login");
+    expect(nav.getByRole("menuitem", { name: "Registrarse" })).toHaveAttribute("href", "/registro");
+  });
 });
