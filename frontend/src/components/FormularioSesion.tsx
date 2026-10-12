@@ -45,6 +45,18 @@ function validar(v: Valores, evento: FormularioSesionProps["evento"]): Record<st
   return errores;
 }
 
+const desdeSesion = (s: Sesion): Valores => ({
+  title: s.title,
+  description: s.description ?? "",
+  room: s.room ?? "",
+  start_at: aInputBogota(s.start_at),
+  end_at: aInputBogota(s.end_at),
+  capacity: s.capacity === null ? "" : String(s.capacity),
+});
+
+const mismosIds = (a: PonenteDeSesion[], b: PonenteDeSesion[]) =>
+  a.length === b.length && a.every((p) => b.some((q) => q.id === p.id));
+
 /** Los valores del formulario, como los espera la API. */
 const aCuerpo = (v: Valores, ponentes: PonenteDeSesion[]) => ({
   title: v.title.trim(),
@@ -62,8 +74,8 @@ export function FormularioSesion({
   onGuardada,
   onCancelar,
 }: FormularioSesionProps) {
-  const [valores, setValores] = useState<Valores>(VACIO);
-  const [ponentes, setPonentes] = useState<PonenteDeSesion[]>([]);
+  const [valores, setValores] = useState<Valores>(sesion ? desdeSesion(sesion) : VACIO);
+  const [ponentes, setPonentes] = useState<PonenteDeSesion[]>(sesion?.speakers ?? []);
   const [errores, setErrores] = useState<Record<string, string>>({});
   const [general, setGeneral] = useState<{ title: string; detail?: string } | null>(null);
   const [enviando, setEnviando] = useState(false);
@@ -84,11 +96,32 @@ export function FormularioSesion({
     setGeneral(null);
     setEnviando(true);
     try {
-      const guardada = await api<Sesion>(`/events/${evento.id}/sessions`, {
-        method: "POST",
-        body: JSON.stringify(aCuerpo(valores, ponentes)),
-      });
-      onGuardada(guardada);
+      const nuevo = aCuerpo(valores, ponentes);
+      if (!sesion) {
+        onGuardada(
+          await api<Sesion>(`/events/${evento.id}/sessions`, {
+            method: "POST",
+            body: JSON.stringify(nuevo),
+          }),
+        );
+        return;
+      }
+      // PATCH: solo lo que cambió; `speaker_ids` reemplaza la lista entera.
+      const antes = desdeSesion(sesion);
+      const cambios: Record<string, unknown> = Object.fromEntries(
+        (Object.keys(antes) as (keyof Valores)[])
+          .filter((k) => antes[k] !== valores[k])
+          .map((k) => [k, nuevo[k]]),
+      );
+      if (!mismosIds(sesion.speakers, ponentes)) cambios.speaker_ids = nuevo.speaker_ids;
+      onGuardada(
+        Object.keys(cambios).length
+          ? await api<Sesion>(`/sessions/${sesion.id}`, {
+              method: "PATCH",
+              body: JSON.stringify(cambios),
+            })
+          : sesion,
+      );
     } catch (e) {
       const { campos, general } = errorDeFormulario(e);
       setErrores(campos);
