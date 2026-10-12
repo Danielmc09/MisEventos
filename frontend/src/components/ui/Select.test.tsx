@@ -38,3 +38,18 @@ test("sin label visible se nombra con aria-label", () => {
   expect(screen.getByRole("combobox", { name: "Rol de Ana" })).toBeInTheDocument();
   expect(screen.queryByText("Rol de Ana")).not.toBeInTheDocument();
 });
+
+test("conserva el aria-describedby que le pasan y le suma el del error", () => {
+  render(
+    <>
+      <Select label="Rol" aria-describedby="ayuda" error="Elegí un rol">
+        <option value="">Todos</option>
+      </Select>
+      <p id="ayuda">Solo un administrador</p>
+    </>,
+  );
+
+  expect(screen.getByLabelText("Rol")).toHaveAccessibleDescription(
+    "Solo un administrador Elegí un rol",
+  );
+});

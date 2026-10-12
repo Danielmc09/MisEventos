@@ -221,4 +221,19 @@ describe("en una pantalla angosta", () => {
     expect(nav.queryByRole("menuitem", { name: "Oscar Organizador" })).not.toBeInTheDocument();
     expect(nav.getByRole("menuitem", { name: "Cerrar sesión" })).toBeInTheDocument();
   });
+
+  test.each([
+    ["con el permiso usuarios:gestionar lo muestra", ["usuarios:gestionar" as const], true],
+    ["sin el permiso no lo muestra", [], false],
+  ])("el menú de la cuenta %s", async (_caso, permisos, visible) => {
+    useSession.getState().iniciarSesion({ ...usuario, permisos }, "token-abc", 3600);
+    const user = userEvent.setup();
+    montar("/");
+
+    await user.click(within(encabezado()).getByRole("button", { name: "Menú de la cuenta" }));
+
+    const item = within(encabezado()).queryByRole("menuitem", { name: "Administración" });
+    if (visible) expect(item).toHaveAttribute("href", "/admin/usuarios");
+    else expect(item).not.toBeInTheDocument();
+  });
 });

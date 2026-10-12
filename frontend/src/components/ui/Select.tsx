@@ -22,7 +22,9 @@ export function Select({ label, error, id, className = "", children, ...props }:
         {...props}
         id={campoId}
         aria-invalid={error ? true : undefined}
-        aria-describedby={error ? errorId : undefined}
+        aria-describedby={
+          [props["aria-describedby"], error && errorId].filter(Boolean).join(" ") || undefined
+        }
         className={`${CAMPO} ${ALTURA_LINEA} ${bordeCampo(!!error)} ${className}`}
       >
         {children}
