@@ -34,12 +34,3 @@ export function Enlace({ variante = "texto", children, ...props }: EnlaceProps) 
     </Link>
   );
 }
-
-/** Una acción (no una navegación) con el aspecto de un enlace del encabezado. */
-export function BotonEnlace({ children, ...props }: Omit<ComponentProps<"button">, "className">) {
-  return (
-    <button type="button" {...props} className={ESTILOS.navegacion}>
-      {children}
-    </button>
-  );
-}
