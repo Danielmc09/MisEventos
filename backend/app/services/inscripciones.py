@@ -26,8 +26,13 @@ class Inscripciones(Protocol):
         self, id_usuario: UUID, estado: EstadoInscripcion, cuando: Cuando, offset: int, limite: int
     ) -> tuple[list[tuple[Registration, Event]], int]: ...
     def activa_de(self, id_usuario: UUID, id_evento: UUID) -> Registration | None: ...
+    def activa_para_escribir(self, id_usuario: UUID, id_evento: UUID) -> Registration | None: ...
     def crear(self, inscripcion: Registration) -> Registration: ...
     def guardar(self, inscripcion: Registration) -> Registration: ...
+
+
+class ReservasDelEvento(Protocol):
+    def cancelar_del_evento(self, id_usuario: UUID, id_evento: UUID, cuando: datetime) -> None: ...
 
 
 def _evento_empezado(detalle: str) -> Conflict:
@@ -67,20 +72,32 @@ def inscribirse(
 
 
 def cancelar(
-    eventos: Eventos, inscripciones: Inscripciones, usuario: User, id_evento: UUID
+    eventos: Eventos,
+    inscripciones: Inscripciones,
+    reservas: ReservasDelEvento,
+    usuario: User,
+    id_evento: UUID,
 ) -> None:
     """Cancela la inscripción activa del usuario, solo antes de que el evento empiece, y libera
-    el cupo. Toma el mismo bloqueo del evento que inscribirse, en el mismo orden. Sin una
-    inscripción activa propia es 404, exista o no el evento."""
+    el cupo. En la misma transacción cancela sus reservas de sesiones en ese evento. Sin una
+    inscripción activa propia es 404, exista o no el evento.
+
+    Bloquea primero el evento y después la inscripción, el orden de todo el sistema: una reserva
+    del mismo usuario que llega a la vez espera a que esto termine y encuentra la inscripción ya
+    cancelada, así que no queda ninguna reserva activa colgando de ella."""
     evento = eventos.por_id_para_escribir(id_evento)
-    inscripcion = None if evento is None else inscripciones.activa_de(usuario.id, evento.id)
+    inscripcion = (
+        None if evento is None else inscripciones.activa_para_escribir(usuario.id, evento.id)
+    )
     if evento is None or inscripcion is None:
         raise NotFound()
     if servicio_eventos.ya_empezo(evento):
         raise _evento_empezado("La inscripción se puede cancelar hasta que el evento empieza.")
+    ahora = datetime.now(UTC)
     inscripcion.status = EstadoInscripcion.CANCELLED
-    inscripcion.cancelled_at = datetime.now(UTC)
+    inscripcion.cancelled_at = ahora
     inscripciones.guardar(inscripcion)
+    reservas.cancelar_del_evento(usuario.id, evento.id, ahora)
 
 
 def mias(

@@ -16,6 +16,7 @@ SQLModel.metadata.naming_convention = CONVENCION_DE_NOMBRES
 from app.models.evento import Event  # noqa: E402
 from app.models.inscripcion import Registration  # noqa: E402
 from app.models.ponente import Speaker  # noqa: E402
+from app.models.reserva import SessionRegistration  # noqa: E402
 from app.models.sesion import Session, SessionSpeaker  # noqa: E402
 from app.models.usuario import User  # noqa: E402
 
@@ -24,6 +25,7 @@ __all__ = [
     "Event",
     "Registration",
     "Session",
+    "SessionRegistration",
     "SessionSpeaker",
     "Speaker",
     "User",

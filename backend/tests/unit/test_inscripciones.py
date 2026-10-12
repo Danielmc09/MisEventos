@@ -8,6 +8,7 @@ import pytest
 from app.api.dependencias import (
     repositorio_eventos,
     repositorio_inscripciones,
+    repositorio_reservas,
     repositorio_usuarios,
 )
 from app.core.permisos import Rol
@@ -19,6 +20,7 @@ from app.services.inscripciones import porcentaje_de_ocupacion
 from tests.unit.dobles import (
     RepositorioEventosFalso,
     RepositorioInscripcionesFalso,
+    RepositorioReservasFalso,
     RepositorioUsuariosFalso,
 )
 
@@ -33,6 +35,7 @@ class Repos:
         self.usuarios = RepositorioUsuariosFalso(ASISTENTE, OTRO_ASISTENTE, ORGANIZADOR, ADMIN)
         self.eventos = RepositorioEventosFalso()
         self.inscripciones = RepositorioInscripcionesFalso(self.eventos, self.usuarios)
+        self.reservas = RepositorioReservasFalso(self.eventos)
 
     def evento(
         self, estado: EstadoEvento = EstadoEvento.PUBLISHED, *, empezado: bool = False, **cambios
@@ -69,6 +72,7 @@ def repos(app) -> Repos:
     app.dependency_overrides[repositorio_usuarios] = lambda: nuevos.usuarios
     app.dependency_overrides[repositorio_eventos] = lambda: nuevos.eventos
     app.dependency_overrides[repositorio_inscripciones] = lambda: nuevos.inscripciones
+    app.dependency_overrides[repositorio_reservas] = lambda: nuevos.reservas
     return nuevos
 
 
@@ -258,7 +262,8 @@ def test_cancelar_la_propia_responde_204_y_la_deja_cancelada_con_fecha(cliente, 
     assert inscripcion.status == EstadoInscripcion.CANCELLED
     assert inscripcion.cancelled_at is not None
     assert inscripcion.cancelled_at >= antes
-    assert repos.eventos.bloqueos == [evento.id]
+    # Primero el evento y después la inscripción: el orden de todo el sistema.
+    assert repos.eventos.bloqueos == [evento.id, inscripcion.id]
 
 
 def test_cancelar_libera_el_cupo(cliente, repos, auth):

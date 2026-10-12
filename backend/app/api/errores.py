@@ -36,6 +36,7 @@ def problema(
     detalle: str | None = None,
     errores: list[ErrorDeCampo] | None = None,
     headers: dict[str, str] | None = None,
+    extensiones: dict[str, object] | None = None,
 ) -> JSONResponse:
     tipo_status, titulo_status = POR_STATUS.get(status, GENERICO)
     cuerpo = Problema(
@@ -45,9 +46,11 @@ def problema(
         detail=detalle,
         trace_id=trace_id,
         errors=errores,
+        **(extensiones or {}),
     )
     return JSONResponse(
-        cuerpo.model_dump(exclude_none=True),
+        # mode="json": las extensiones pueden traer UUID y fechas (las UTC salen con Z).
+        cuerpo.model_dump(mode="json", exclude_none=True),
         status_code=status,
         media_type=PROBLEM_JSON,
         headers=headers,
@@ -111,6 +114,7 @@ async def _dominio(request: Request, exc: DomainError) -> JSONResponse:
         detalle=exc.detalle,
         errores=[ErrorDeCampo(field=c, message=m) for c, m in (exc.errores or {}).items()] or None,
         headers=exc.headers,
+        extensiones=exc.extensiones,
     )
 
 
