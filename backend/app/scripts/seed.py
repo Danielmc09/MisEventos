@@ -180,6 +180,16 @@ def sembrar_eventos(usuarios: Usuarios, eventos: EventosDemo) -> None:
         )
 
 
+def sembrar_ponentes(usuarios: Usuarios, ponentes: object) -> None:
+    return None
+
+
+def sembrar_sesiones(
+    usuarios: Usuarios, eventos: object, sesiones: object, ponentes: object
+) -> None:
+    return None
+
+
 def sembrar(session: Session, credenciales: CredencialesDemo) -> None:
     """Crea lo que falte de los datos de demostración, en la transacción recibida.
 
