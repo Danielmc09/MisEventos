@@ -614,3 +614,268 @@ describe("formulario de edición", () => {
     expect(ultimo?.has("is_active")).toBe(false);
   });
 });
+
+describe("restablecer contraseña", () => {
+  const clave = crypto.randomUUID();
+  const RESTABLECER = "Restablecer la contraseña de";
+  const inactivo = fila({ id: "u-3", email: "ines@mail.com", full_name: "Inés", is_active: false });
+
+  function servirRestablecer(error?: "user-inactive") {
+    const ids: string[] = [];
+    server.use(
+      http.post(`${API}/admin/users/:id/reset-password`, ({ params }) => {
+        ids.push(String(params.id));
+        if (error)
+          return responder("/admin/users/{id_usuario}/reset-password", "post", 409, {
+            type: error,
+            title: "No se puede restablecer la contraseña de un usuario desactivado",
+            status: 409,
+            trace_id: "t-1",
+          });
+        return responder("/admin/users/{id_usuario}/reset-password", "post", 200, {
+          temporary_password: clave,
+        });
+      }),
+    );
+    return ids;
+  }
+
+  test("cada fila ajena ofrece Restablecer; la propia y las desactivadas, no", async () => {
+    entrarComo(admin);
+    servirUsuarios([adminFila, beto, inactivo]);
+    montarAdmin();
+    const filaBeto = (await screen.findByText("beto@mail.com")).closest("tr") as HTMLElement;
+    const propia = screen.getByText("admin@mail.com").closest("tr") as HTMLElement;
+    const filaInes = screen.getByText("ines@mail.com").closest("tr") as HTMLElement;
+
+    expect(
+      within(filaBeto).getByRole("button", { name: `${RESTABLECER} Beto` }),
+    ).toBeInTheDocument();
+    expect(within(propia).queryByRole("button", { name: new RegExp(RESTABLECER) })).toBeNull();
+    expect(within(filaInes).queryByRole("button", { name: new RegExp(RESTABLECER) })).toBeNull();
+  });
+
+  test("pide confirmación con su texto y, sin confirmar, no llama a la API", async () => {
+    entrarComo(admin);
+    servirUsuarios();
+    const ids = servirRestablecer();
+    const user = userEvent.setup();
+    montarAdmin();
+
+    await user.click(await screen.findByRole("button", { name: `${RESTABLECER} Beto` }));
+
+    const dialogo = screen.getByRole("alertdialog");
+    expect(dialogo).toHaveTextContent("¿Restablecer la contraseña de Beto?");
+    expect(dialogo).toHaveTextContent("Va a tener que elegir una nueva la próxima vez que entre.");
+    await user.click(within(dialogo).getByRole("button", { name: "Volver" }));
+    expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+    expect(ids).toHaveLength(0);
+  });
+
+  test("al confirmar muestra la contraseña temporal, y al cerrar desaparece", async () => {
+    entrarComo(admin);
+    servirUsuarios();
+    const ids = servirRestablecer();
+    const user = userEvent.setup();
+    montarAdmin();
+
+    await user.click(await screen.findByRole("button", { name: `${RESTABLECER} Beto` }));
+    await user.click(
+      within(screen.getByRole("alertdialog")).getByRole("button", { name: "Sí, restablecer" }),
+    );
+
+    const dialogo = within(
+      await screen.findByRole("dialog", { name: "Contraseña temporal de Beto" }),
+    );
+    expect(dialogo.getByText(clave)).toBeVisible();
+    expect(dialogo.getByText("No se va a volver a mostrar")).toBeVisible();
+    expect(ids).toEqual(["u-1"]);
+
+    await user.click(dialogo.getByRole("button", { name: "Cerrar" }));
+    expect(screen.queryByText(clave)).not.toBeInTheDocument();
+    expect(JSON.stringify(useSession.getState())).not.toContain(clave);
+    expect(JSON.stringify(localStorage)).not.toContain(clave);
+  });
+
+  test("un 409 muestra su title", async () => {
+    entrarComo(admin);
+    servirUsuarios();
+    servirRestablecer("user-inactive");
+    const user = userEvent.setup();
+    montarAdmin();
+
+    await user.click(await screen.findByRole("button", { name: `${RESTABLECER} Beto` }));
+    await user.click(
+      within(screen.getByRole("alertdialog")).getByRole("button", { name: "Sí, restablecer" }),
+    );
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "No se puede restablecer la contraseña de un usuario desactivado",
+    );
+    expect(screen.queryByRole("dialog", { name: /Contraseña temporal/ })).not.toBeInTheDocument();
+  });
+});
+
+describe("nuevo usuario", () => {
+  const clave = crypto.randomUUID();
+  const creado = {
+    ...fila({ id: "u-9", email: "nuevo@mail.com", full_name: "Nora" }),
+    temporary_password: clave,
+  };
+
+  function servirAlta() {
+    const cuerpos: Record<string, unknown>[] = [];
+    server.use(
+      http.post(`${API}/admin/users`, async ({ request }) => {
+        cuerpos.push((await request.json()) as Record<string, unknown>);
+        return responder("/admin/users", "post", 201, creado);
+      }),
+    );
+    return cuerpos;
+  }
+
+  async function abrirAlta(user: ReturnType<typeof userEvent.setup>) {
+    await user.click(await screen.findByRole("button", { name: "Nuevo usuario" }));
+    return within(screen.getByRole("dialog", { name: "Nuevo usuario" }));
+  }
+
+  async function llenar(form: ReturnType<typeof within>, user: ReturnType<typeof userEvent.setup>) {
+    await user.type(form.getByRole("textbox", { name: "Correo" }), "nuevo@mail.com");
+    await user.type(form.getByRole("textbox", { name: "Nombre" }), "Nora");
+    await user.selectOptions(form.getByRole("combobox", { name: "Rol" }), "ORGANIZER");
+    await user.click(form.getByRole("button", { name: "Crear usuario" }));
+  }
+
+  test("el formulario pide correo, nombre y rol, y manda esos tres campos", async () => {
+    entrarComo(admin);
+    servirUsuarios();
+    const cuerpos = servirAlta();
+    const user = userEvent.setup();
+    montarAdmin();
+
+    const form = await abrirAlta(user);
+    expect(form.getByRole("textbox", { name: "Correo" })).toBeInTheDocument();
+    expect(form.getByRole("combobox", { name: "Rol" })).toHaveValue("ATTENDEE");
+    await llenar(form, user);
+
+    await screen.findByRole("dialog", { name: "Contraseña temporal de Nora" });
+    expect(cuerpos).toEqual([{ email: "nuevo@mail.com", full_name: "Nora", role: "ORGANIZER" }]);
+  });
+
+  test("al crear, muestra la contraseña temporal una sola vez y actualiza la lista", async () => {
+    entrarComo(admin);
+    const pedidos = servirUsuarios();
+    servirAlta();
+    const user = userEvent.setup();
+    montarAdmin();
+    await screen.findByText("beto@mail.com");
+    const antes = pedidos.length;
+
+    await llenar(await abrirAlta(user), user);
+
+    const dialogo = within(
+      await screen.findByRole("dialog", { name: "Contraseña temporal de Nora" }),
+    );
+    expect(dialogo.getByText(clave)).toBeVisible();
+    expect(dialogo.getByText("No se va a volver a mostrar")).toBeVisible();
+    await waitFor(() => expect(pedidos.length).toBeGreaterThan(antes));
+  });
+
+  test("Copiar deja la contraseña en el portapapeles y avisa", async () => {
+    entrarComo(admin);
+    servirUsuarios();
+    servirAlta();
+    const user = userEvent.setup();
+    montarAdmin();
+    await llenar(await abrirAlta(user), user);
+
+    await user.click(await screen.findByRole("button", { name: "Copiar" }));
+
+    expect(await navigator.clipboard.readText()).toBe(clave);
+    expect(await screen.findByText("Copiada")).toBeVisible();
+    expect(screen.getByText("Copiada").closest('[role="status"]')).not.toBeNull();
+  });
+
+  test("al cerrar el diálogo la contraseña ya no está en la pantalla ni en el store", async () => {
+    entrarComo(admin);
+    servirUsuarios();
+    servirAlta();
+    const user = userEvent.setup();
+    montarAdmin();
+    await llenar(await abrirAlta(user), user);
+    await screen.findByText(clave);
+
+    await user.click(screen.getByRole("button", { name: "Cerrar" }));
+
+    expect(screen.queryByText(clave)).not.toBeInTheDocument();
+    expect(document.body).not.toHaveTextContent(clave);
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(JSON.stringify(useSession.getState())).not.toContain(clave);
+    expect(JSON.stringify(localStorage)).not.toContain(clave);
+  });
+
+  test("un correo vacío marca el campo con aria-invalid y no llama a la API", async () => {
+    entrarComo(admin);
+    servirUsuarios();
+    const cuerpos = servirAlta();
+    const user = userEvent.setup();
+    montarAdmin();
+
+    const form = await abrirAlta(user);
+    await user.click(form.getByRole("button", { name: "Crear usuario" }));
+
+    expect(form.getByRole("textbox", { name: "Correo" })).toHaveAttribute("aria-invalid", "true");
+    expect(cuerpos).toHaveLength(0);
+  });
+
+  test("un 409 email-taken se muestra en el campo correo con su title", async () => {
+    entrarComo(admin);
+    servirUsuarios();
+    server.use(
+      http.post(`${API}/admin/users`, () =>
+        responder("/admin/users", "post", 409, {
+          type: "email-taken",
+          title: TITULOS["email-taken"],
+          status: 409,
+          trace_id: "t-1",
+        }),
+      ),
+    );
+    const user = userEvent.setup();
+    montarAdmin();
+
+    const form = await abrirAlta(user);
+    await llenar(form, user);
+
+    const campo = form.getByRole("textbox", { name: "Correo" });
+    await waitFor(() => expect(campo).toHaveAttribute("aria-invalid", "true"));
+    expect(campo).toHaveAccessibleDescription(TITULOS["email-taken"]);
+    expect(screen.queryByRole("dialog", { name: /Contraseña temporal/ })).not.toBeInTheDocument();
+  });
+
+  test("un 422 por campo se muestra en ese campo, no como mensaje general", async () => {
+    entrarComo(admin);
+    servirUsuarios();
+    server.use(
+      http.post(`${API}/admin/users`, () =>
+        responder("/admin/users", "post", 422, {
+          type: "validation-error",
+          title: "Los datos enviados no son válidos",
+          status: 422,
+          trace_id: "t-1",
+          errors: [{ field: "email", message: "Debe ser un correo electrónico válido" }],
+        }),
+      ),
+    );
+    const user = userEvent.setup();
+    montarAdmin();
+
+    const form = await abrirAlta(user);
+    await llenar(form, user);
+
+    const campo = form.getByRole("textbox", { name: "Correo" });
+    await waitFor(() => expect(campo).toHaveAttribute("aria-invalid", "true"));
+    expect(campo).toHaveAccessibleDescription("Debe ser un correo electrónico válido");
+    expect(form.queryByText("Los datos enviados no son válidos")).not.toBeInTheDocument();
+  });
+});

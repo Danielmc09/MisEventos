@@ -10,12 +10,14 @@ import { Pagina, TituloPagina } from "../../components/ui/Pagina";
 import { Tarjeta } from "../../components/ui/Tarjeta";
 import { useAvisos } from "../../components/ui/Avisos";
 import { errorDeFormulario, type ErrorDeFormulario } from "../../lib/errores";
+import { Toast } from "../../components/ui/Toast";
 import { useSession } from "../../stores/session";
 
 export default function CambiarContrasena() {
   const navigate = useNavigate();
   const avisar = useAvisos();
   const [enviando, setEnviando] = useState(false);
+  const pendiente = useSession((s) => s.user?.must_change_password ?? false);
   const [error, setError] = useState<ErrorDeFormulario | null>(null);
 
   async function enviar(e: FormEvent<HTMLFormElement>) {
@@ -39,7 +41,10 @@ export default function CambiarContrasena() {
         },
       );
       const { user } = useSession.getState();
-      if (user) useSession.getState().iniciarSesion(user, access_token, expires_in);
+      if (user)
+        useSession
+          .getState()
+          .iniciarSesion({ ...user, must_change_password: false }, access_token, expires_in);
       avisar({ message: "Cambiaste tu contraseña", tone: "exito" });
       navigate("/perfil");
     } catch (err) {
@@ -52,6 +57,7 @@ export default function CambiarContrasena() {
   return (
     <Pagina ancho="angosto">
       <TituloPagina>Cambiar contraseña</TituloPagina>
+      {pendiente && <Toast message="Tenés que cambiar tu contraseña temporal para continuar" />}
       <Tarjeta as="div">
         <Formulario onSubmit={enviar}>
           <GrupoCampos>

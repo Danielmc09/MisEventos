@@ -13,6 +13,7 @@ import { TituloSeccion } from "./TituloSeccion";
 import { TextoSecundario } from "./TextoSecundario";
 import { Cifra } from "./Cifra";
 import { Lista } from "./Lista";
+import { Monoespaciado } from "./Monoespaciado";
 
 describe("Lista", () => {
   test("es una lista con nombre accesible y un elemento por hijo", () => {
@@ -266,5 +267,15 @@ describe("Paginacion", () => {
     await userEvent.click(screen.getByRole("button", { name: "Siguiente" }));
 
     expect(onCambiar).toHaveBeenCalledWith(2);
+  });
+});
+
+describe("Monoespaciado", () => {
+  test("muestra el valor en monoespaciado y se selecciona de un clic", () => {
+    render(<Monoespaciado>abc-123</Monoespaciado>);
+
+    const valor = screen.getByText("abc-123");
+    expect(valor).toHaveClass("font-mono");
+    expect(valor).toHaveClass("select-all");
   });
 });
