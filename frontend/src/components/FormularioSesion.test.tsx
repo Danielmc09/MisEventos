@@ -176,6 +176,62 @@ describe("errores de la API", () => {
     );
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
+
+  test("el error del servidor se limpia al editar un campo", async () => {
+    server.use(
+      http.post(rutaPost, () =>
+        responder("/events/{id_evento}/sessions", "post", 409, {
+          type: "speaker-conflict",
+          title: "El ponente ya tiene otra sesión en ese horario",
+          status: 409,
+          detail: "Ana Pérez ya está en «Testing en Python», 10:00 a 11:00",
+          trace_id: "t-7",
+        }),
+      ),
+    );
+    const user = userEvent.setup();
+    abrir();
+
+    await completar(user);
+    await guardar(user);
+    await screen.findByRole("alert");
+
+    await user.type(screen.getByLabelText("Sala"), "A");
+
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  test("el error de un campo del 422 se limpia al editar ese campo y no los otros", async () => {
+    server.use(
+      http.post(rutaPost, () =>
+        responder("/events/{id_evento}/sessions", "post", 422, {
+          type: "validation-error",
+          title: "Los datos enviados no son válidos",
+          status: 422,
+          trace_id: "t-8",
+          errors: [
+            { field: "room", message: "La sala es demasiado larga" },
+            { field: "capacity", message: "Capacidad inválida" },
+          ],
+        }),
+      ),
+    );
+    const user = userEvent.setup();
+    abrir();
+
+    await completar(user);
+    await guardar(user);
+    await vi.waitFor(() =>
+      expect(screen.getByLabelText("Sala")).toHaveAccessibleDescription(
+        "La sala es demasiado larga",
+      ),
+    );
+
+    await user.type(screen.getByLabelText("Sala"), "A");
+
+    expect(screen.getByLabelText("Sala")).not.toHaveAccessibleDescription();
+    expect(screen.getByLabelText("Capacidad")).toHaveAccessibleDescription("Capacidad inválida");
+  });
 });
 
 describe("editar una sesión", () => {
