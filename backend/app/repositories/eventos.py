@@ -6,6 +6,7 @@ from sqlmodel import Session, col, func, or_, select
 
 from app.models.evento import EstadoEvento, Event
 from app.models.inscripcion import EstadoInscripcion, Registration
+from app.models.reserva import EstadoReserva, SessionRegistration
 from app.models.sesion import Session as Sesion
 from app.schemas.eventos import Cuando, FiltrosEventos, OrdenEventos
 
@@ -104,6 +105,24 @@ class RepositorioEventos:
             Registration.status == EstadoInscripcion.ACTIVE,
         )
         return self.session.exec(consulta).first() is not None
+
+    def max_reservas_sin_capacidad(self, id_evento: UUID) -> int:
+        """La mayor cantidad de reservas activas de una sesión del evento sin capacidad propia
+        (las que usan la del evento); 0 si no hay. Una sola consulta agregada."""
+        por_sesion = (
+            select(func.count().label("activas"))
+            .select_from(SessionRegistration)
+            .join(Sesion, col(Sesion.id) == col(SessionRegistration.session_id))
+            .where(
+                Sesion.event_id == id_evento,
+                col(Sesion.capacity).is_(None),
+                SessionRegistration.status == EstadoReserva.ACTIVE,
+            )
+            .group_by(col(SessionRegistration.session_id))
+            .subquery()
+        )
+        consulta = select(func.coalesce(func.max(por_sesion.c.activas), 0))
+        return self.session.exec(consulta).one()
 
     def sesiones_de(self, id_evento: UUID) -> list[Sesion]:
         consulta = (

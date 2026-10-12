@@ -28,6 +28,7 @@ class Eventos(Protocol):
     def sesiones_de(self, id_evento: UUID) -> list[Sesion]: ...
     def inscritos(self, ids_evento: list[UUID]) -> dict[UUID, int]: ...
     def inscrito(self, id_usuario: UUID, id_evento: UUID) -> bool: ...
+    def max_reservas_sin_capacidad(self, id_evento: UUID) -> int: ...
     def guardar(self, evento: Event) -> Event: ...
     def eliminar(self, evento: Event) -> None: ...
     def buscar(
@@ -214,9 +215,25 @@ def _exigir_sesiones_que_entren(repo: Eventos, evento: Event, capacidad: int) ->
         )
 
 
+def _exigir_reservas_que_entren(repo: Eventos, evento: Event, capacidad: int) -> None:
+    """Una sesión sin capacidad propia usa la del evento: la nueva no puede dejarla por debajo
+    de sus reservas activas. El evento ya está bloqueado, así que nadie reserva mientras."""
+    reservadas = repo.max_reservas_sin_capacidad(evento.id)
+    if capacidad < reservadas:
+        raise Conflict(
+            f"Una sesión sin capacidad propia tiene {reservadas} reservas activas"
+            f" y la capacidad nueva es {capacidad}.",
+            tipo="capacity-below-reservations",
+            titulo="La capacidad no puede quedar por debajo de las reservas",
+        )
+
+
 def editar(repo: Eventos, usuario: User, id_evento: UUID, datos: EventoEdicion) -> ConInscritos:
-    """Las dos reglas de capacidad corren con el evento bloqueado: primero los inscritos, que
-    son personas con lugar tomado; después las sesiones, que se pueden achicar antes."""
+    """Las reglas de capacidad corren con el evento bloqueado. Primero las reservas de las
+    sesiones: toda reserva activa cuelga de una inscripción activa, así que quedar por debajo
+    de las reservas es también quedar por debajo de los inscritos, y si los inscritos fueran
+    primero ese error no saldría nunca. Después los inscritos, que son personas con lugar
+    tomado, y al final las sesiones, que se pueden achicar antes."""
     evento = para_escribir(repo, usuario, id_evento)
     if evento.status == EstadoEvento.CANCELLED or finalizado(evento):
         raise Conflict(titulo="Un evento cancelado o finalizado no se edita")
@@ -234,6 +251,7 @@ def editar(repo: Eventos, usuario: User, id_evento: UUID, datos: EventoEdicion) 
         )
     activas = repo.inscritos([evento.id])[evento.id]
     if "capacity" in cambios:
+        _exigir_reservas_que_entren(repo, evento, cambios["capacity"])
         if cambios["capacity"] < activas:
             raise Conflict(
                 f"El evento ya tiene {activas} inscripciones activas.",

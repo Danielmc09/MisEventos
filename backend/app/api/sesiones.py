@@ -88,7 +88,8 @@ def crear(
     summary="Editar una sesión",
     description=(
         "Se manda solo lo que cambia; `speaker_ids`, si viene, reemplaza la lista. "
-        "El dueño del evento o el admin."
+        "Con reservas activas, el horario no cambia (`session-has-reservations`) y la capacidad "
+        "no baja de lo reservado (`capacity-below-reservations`). El dueño del evento o el admin."
     ),
     responses=respuestas_de_error(401, 403, 404, 409, 422),
 )
@@ -99,18 +100,26 @@ def editar(
     eventos: RepoEventos,
     repo: RepoSesiones,
     ponentes: RepoPonentes,
+    reservas: RepoReservas,
 ) -> SesionSalida:
-    return _salida(sesiones.editar(eventos, repo, ponentes, usuario, id_sesion, datos))
+    return _salida(sesiones.editar(eventos, repo, ponentes, reservas, usuario, id_sesion, datos))
 
 
 @router.delete(
     "/sessions/{id_sesion}",
     status_code=status.HTTP_204_NO_CONTENT,
     summary="Eliminar una sesión",
-    description="El dueño del evento o el admin.",
+    description=(
+        "El dueño del evento o el admin. Con reservas activas no se elimina "
+        "(`session-has-reservations`)."
+    ),
     responses=respuestas_de_error(401, 403, 404, 409, 422),
 )
 def eliminar(
-    id_sesion: UUID, usuario: UsuarioActual, eventos: RepoEventos, repo: RepoSesiones
+    id_sesion: UUID,
+    usuario: UsuarioActual,
+    eventos: RepoEventos,
+    repo: RepoSesiones,
+    reservas: RepoReservas,
 ) -> None:
-    sesiones.eliminar(eventos, repo, usuario, id_sesion)
+    sesiones.eliminar(eventos, repo, reservas, usuario, id_sesion)
