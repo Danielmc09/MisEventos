@@ -1,8 +1,9 @@
 import { useState, type FormEvent } from "react";
-import { aInputBogota } from "../lib/fechas";
+import { api } from "../api/client";
+import { aInputBogota, aISOBogota } from "../lib/fechas";
 import type { Sesion } from "../lib/useSesiones";
 import type { Evento } from "../stores/eventos";
-import { SelectorPonentes } from "./SelectorPonentes";
+import { SelectorPonentes, type PonenteDeSesion } from "./SelectorPonentes";
 import { Button } from "./ui/Button";
 import { Input } from "./ui/Input";
 
@@ -42,9 +43,27 @@ function validar(v: Valores, evento: FormularioSesionProps["evento"]): Record<st
   return errores;
 }
 
-export function FormularioSesion({ evento, sesion, onCancelar }: FormularioSesionProps) {
+/** Los valores del formulario, como los espera la API. */
+const aCuerpo = (v: Valores, ponentes: PonenteDeSesion[]) => ({
+  title: v.title.trim(),
+  description: v.description || null,
+  room: v.room.trim() || null,
+  start_at: aISOBogota(v.start_at),
+  end_at: aISOBogota(v.end_at),
+  capacity: v.capacity === "" ? null : Number(v.capacity),
+  speaker_ids: ponentes.map((p) => p.id),
+});
+
+export function FormularioSesion({
+  evento,
+  sesion,
+  onGuardada,
+  onCancelar,
+}: FormularioSesionProps) {
   const [valores, setValores] = useState<Valores>(VACIO);
+  const [ponentes, setPonentes] = useState<PonenteDeSesion[]>([]);
   const [errores, setErrores] = useState<Record<string, string>>({});
+  const [enviando, setEnviando] = useState(false);
 
   const campo = (name: keyof Valores) => ({
     name,
@@ -54,9 +73,21 @@ export function FormularioSesion({ evento, sesion, onCancelar }: FormularioSesio
       setValores((v) => ({ ...v, [name]: e.target.value })),
   });
 
-  function enviar(e: FormEvent) {
+  async function enviar(e: FormEvent) {
     e.preventDefault();
-    setErrores(validar(valores, evento));
+    const invalidos = validar(valores, evento);
+    setErrores(invalidos);
+    if (Object.keys(invalidos).length) return;
+    setEnviando(true);
+    try {
+      const guardada = await api<Sesion>(`/events/${evento.id}/sessions`, {
+        method: "POST",
+        body: JSON.stringify(aCuerpo(valores, ponentes)),
+      });
+      onGuardada(guardada);
+    } finally {
+      setEnviando(false);
+    }
   }
 
   return (
@@ -66,8 +97,10 @@ export function FormularioSesion({ evento, sesion, onCancelar }: FormularioSesio
       <Input label="Inicio" type="datetime-local" {...campo("start_at")} />
       <Input label="Fin" type="datetime-local" {...campo("end_at")} />
       <Input label="Capacidad" type="number" {...campo("capacity")} />
-      <SelectorPonentes seleccionados={[]} onChange={() => {}} />
-      <Button type="submit">{sesion ? "Guardar cambios" : "Crear sesión"}</Button>
+      <SelectorPonentes seleccionados={ponentes} onChange={setPonentes} />
+      <Button type="submit" loading={enviando}>
+        {sesion ? "Guardar cambios" : "Crear sesión"}
+      </Button>
       <button type="button" onClick={onCancelar}>
         Cancelar
       </button>
