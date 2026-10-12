@@ -26,7 +26,7 @@ del frontend: [frontend/README.md](frontend/README.md).
 
 | Email | Rol | Contraseña | Qué conviene probar |
 |---|---|---|---|
-| `admin@miseventos.local` (el valor de `ADMIN_EMAIL`, se puede cambiar en `.env`) | Administrador (`ADMIN`) | `ADMIN_PASSWORD` (`Admin-Demo-2026`) | Administración de usuarios: rol, estado y datos. Ver y gestionar cualquier evento, incluidos los borradores |
+| `admin@miseventos.local` (el valor de `ADMIN_EMAIL`, se puede cambiar en `.env`) | Administrador (`ADMIN`) | `ADMIN_PASSWORD` (`Admin-Demo-2026`) | Administración de usuarios: rol, estado y datos; crear un usuario y restablecer una contraseña. Ver y gestionar cualquier evento, incluidos los borradores |
 | `organizador@miseventos.local` | Organizador (`ORGANIZER`) | `DEMO_PASSWORD` (`Demo-Local-2026`) | Crear, publicar, editar y cancelar eventos; sesiones con ponentes; el panel de inscritos |
 | `asistente@miseventos.local` | Asistente (`ATTENDEE`) | `DEMO_PASSWORD` (`Demo-Local-2026`) | Inscribirse, reservar sesiones (en "Python Day Medellín" hay una que se cruza y un taller con un solo lugar) y revisar "Mi perfil" |
 
@@ -47,6 +47,9 @@ encuentra estas contraseñas, el secreto JWT de `.env.example` o `SEED_DEMO=true
   ([ADR 0008](docs/adr/0008-concurrencia-for-update-en-orden-fijo.md)).
 - Administración de usuarios, con permisos derivados del rol
   ([ADR 0016](docs/adr/0016-un-rol-por-persona-y-permisos-en-el-codigo.md)).
+- Alta de usuarios por el admin y restablecimiento de contraseña: el sistema genera una contraseña
+  temporal, que se muestra una sola vez, y el usuario tiene que cambiarla en su primer ingreso antes
+  de poder hacer cualquier otra cosa.
 - Errores en formato problem+json con `trace_id` ([ADR 0003](docs/adr/0003-errores-rfc-9457.md)) y
   documentación OpenAPI en `/docs`.
 - Docker Compose con la base, la API y el frontend; contenedores sin root y la API con
@@ -65,8 +68,8 @@ encuentra estas contraseñas, el secreto JWT de `.env.example` o `SEED_DEMO=true
 | Lado | Comando | Cobertura actual |
 |---|---|---|
 | Backend, unitarios | `cd backend && poetry install && poetry run pytest -m "not integration"` | — |
-| Backend, completo (necesita PostgreSQL) | `docker compose up -d db`, exportar `TEST_DATABASE_URL` y `cd backend && poetry run pytest` | 99,58 % |
-| Frontend | `cd frontend && npm ci && npm run test:cov` | 97,87 % de líneas |
+| Backend, completo (necesita PostgreSQL) | `docker compose up -d db`, exportar `TEST_DATABASE_URL` y `cd backend && poetry run pytest` | 99,55 % |
+| Frontend | `cd frontend && npm ci && npm run test:cov` | 99,07 % de líneas |
 
 Las dos suites fallan por debajo del 80 % y dejan un reporte HTML (`backend/htmlcov/`,
 `frontend/coverage/`). El detalle, con la URL de la base de tests, está en
@@ -100,7 +103,6 @@ Diseñado y no implementado, con cómo se haría:
 | Qué falta | Cómo se haría |
 |---|---|
 | Auditoría de cambios | Un trigger por tabla que escribe en una tabla de auditoría, con el usuario que la app pasa en una variable de la transacción |
-| Alta de usuarios por el admin y restablecer contraseña | El admin crea la cuenta con una contraseña temporal y `must_change_password`; el primer login obliga a cambiarla. Lo mismo para restablecer |
 | Refresh token | Access token corto y refresh token en cookie `HttpOnly`, guardado como hash SHA-256, rotado en cada uso; si se reusa uno ya rotado, se revoca toda la familia |
 | Avisos de seguridad | Avisar al dueño de la cuenta cuando alguien intenta registrarse con su email, y avisar por correo de un cambio de contraseña o email |
 | Aviso de cruce entre eventos | Al inscribirse, buscar inscripciones activas en eventos que se superponen y avisar sin bloquear |

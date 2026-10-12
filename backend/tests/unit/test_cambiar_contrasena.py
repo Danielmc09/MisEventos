@@ -1,4 +1,5 @@
 import secrets
+from uuid import UUID
 
 import jwt
 import pytest
@@ -105,3 +106,43 @@ def test_con_la_actual_correcta_guarda_la_nueva_y_devuelve_un_token(
     assert verificar(usuario.password_hash, NUEVA)
     assert not verificar(usuario.password_hash, ACTUAL)
     assert usuario.must_change_password is False
+
+
+class RepositorioConResetEnCurso(RepositorioUsuariosFalso):
+    """Lo que ve el cambio de contraseña si un admin restableció la cuenta mientras tanto: la
+    lectura sin bloqueo trae la fila vieja; la que bloquea, la que el reset ya confirmó."""
+
+    def __init__(self, usuario: User, confirmado: User) -> None:
+        super().__init__(usuario)
+        self.confirmado = confirmado
+
+    def por_id_para_escribir(self, id_: UUID) -> User | None:
+        self.operaciones.append(("leer para escribir", id_))
+        return self.confirmado if id_ == self.confirmado.id else None
+
+
+def test_el_cambio_relee_la_fila_bloqueada_y_no_pisa_un_reset_confirmado(
+    con_repo, cliente, settings
+):
+    """Un admin restableció la cuenta (temporal T) entre que se leyó el usuario y se cambió la
+    contraseña: la actual que manda ya no es la vigente, así que 422 y T sigue valiendo."""
+    actual = secrets.token_urlsafe()
+    temporal = secrets.token_urlsafe()
+    leido = User(email="ana@mail.com", password_hash=hashear(actual), role=Rol.ATTENDEE)
+    confirmado = User(
+        id=leido.id,
+        email="ana@mail.com",
+        password_hash=hashear(temporal),
+        role=Rol.ATTENDEE,
+        must_change_password=True,
+    )
+    repo = con_repo(RepositorioConResetEnCurso(leido, confirmado))
+    token = crear_access_token(leido.id, settings.jwt_secret, 5)
+
+    respuesta = cambiar(cliente, token, {"current_password": actual, "new_password": NUEVA})
+
+    assert respuesta.status_code == 422, respuesta.text
+    assert campos_con_error(respuesta) == ["current_password"]
+    assert ("leer para escribir", leido.id) in repo.operaciones
+    assert verificar(confirmado.password_hash, temporal)
+    assert confirmado.must_change_password is True

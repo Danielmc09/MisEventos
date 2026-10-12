@@ -193,6 +193,7 @@ agrega `errors: [{"field", "message"}]`. Por qué este formato: [ADR 0003](../do
 | `unauthorized` | 401 | Falta el token, es inválido o venció, o el usuario está desactivado |
 | `invalid-credentials` | 401 | Login con email o contraseña incorrectos, o usuario desactivado (el mismo error para los tres casos) |
 | `forbidden` | 403 | Sin permiso para la acción |
+| `password-change-required` | 403 | El usuario tiene una contraseña temporal sin cambiar: hasta que la cambie, solo puede usar `GET /auth/me`, `PATCH /auth/me/password` y `POST /auth/logout` |
 | `not-found` | 404 | No existe, o no lo podés ver: un borrador ajeno responde `404`, no `403` |
 | `method-not-allowed` | 405 | Método HTTP no permitido en esa ruta |
 | `validation-error` | 422 | Datos inválidos; el detalle por campo va en `errors` |
@@ -217,7 +218,8 @@ agrega `errors: [{"field", "message"}]`. Por qué este formato: [ADR 0003](../do
 | `already-reserved` | 409 | Ya reservaste esa sesión |
 | `session-full` | 409 | La sesión no tiene lugares |
 | `session-conflict` | 409 | La sesión se cruza con otra que ya reservaste; las que chocan van en `conflicts` |
-| `cannot-modify-self` | 409 | Un admin no puede cambiarse el rol ni desactivarse a sí mismo |
+| `cannot-modify-self` | 409 | Un admin no puede cambiarse el rol, desactivarse ni restablecerse la contraseña a sí mismo (la propia se cambia con `PATCH /auth/me/password`) |
+| `user-inactive` | 409 | El usuario está desactivado: no se le restablece la contraseña hasta reactivarlo |
 | `last-admin` | 409 | Tiene que quedar al menos un administrador activo |
 | `email-taken` | 409 | Ese email ya lo usa otro usuario |
 | `internal-error` | 500 | Error no esperado. El cuerpo es genérico; el detalle está en el log con el mismo `trace_id` |
@@ -233,10 +235,10 @@ Las reglas del proyecto, ordenadas por el OWASP Top 10 2025:
 | A01 Control de acceso | Los permisos se validan en el servicio con `tiene_permiso()`, nunca comparando el rol | `app/core/permisos.py`, [ADR 0016](../docs/adr/0016-un-rol-por-persona-y-permisos-en-el-codigo.md) |
 | A01 | Un borrador ajeno responde `404`: no se revela que existe | `app/services/eventos.py` |
 | A01 | El registro crea siempre `ATTENDEE`; `role` en el cuerpo es `422`. Los roles los asigna un admin | [ADR 0012](../docs/adr/0012-el-registro-crea-attendee.md) |
-| A01 | Ningún esquema de entrada acepta campos de más: `status` y `organizer_id` nunca se asignan desde el cuerpo, y `role` e `is_active` solo los acepta `PATCH /admin/users/{id}`, que es exclusivo del admin | `app/schemas/` (`extra="forbid"`) |
+| A01 | Ningún esquema de entrada acepta campos de más: `status` y `organizer_id` nunca se asignan desde el cuerpo; `role` solo lo aceptan `POST /admin/users` y `PATCH /admin/users/{id}`, e `is_active` solo el `PATCH`, los dos exclusivos del admin. El alta del admin no acepta `password`: la genera el sistema | `app/schemas/` (`extra="forbid"`) |
 | A01 | Solo se cancela la inscripción o la reserva propia: la ruta usa `/me` y el usuario sale del token | `app/api/inscripciones.py`, `app/api/reservas.py` |
 | A01 | La lista de inscritos, con sus emails, la ven solo el dueño del evento y el admin | `app/services/inscripciones.py` |
-| A01 | Un admin no se cambia el rol ni se desactiva a sí mismo, y siempre queda uno activo | `app/services/administracion.py` |
+| A01 | Un admin no se cambia el rol, no se desactiva ni se restablece la contraseña a sí mismo, y siempre queda uno activo | `app/services/administracion.py` |
 | A02 Configuración | Con `ENV=production` la API no arranca con los valores de demostración ni con `SEED_DEMO=true` | `app/core/config.py` |
 | A02 | CORS solo con orígenes explícitos; `*` se rechaza | `app/core/config.py`, `app/main.py` |
 | A02 | El contenedor corre sin root, sin `pip` y sin `--reload` | `Dockerfile`, `arrancar.sh` |
@@ -248,6 +250,9 @@ Las reglas del proyecto, ordenadas por el OWASP Top 10 2025:
 | A07 Autenticación | El login responde el mismo `401` para email inexistente, contraseña incorrecta y usuario desactivado; con un email inexistente igual verifica contra un hash ficticio | `app/services/autenticacion.py` |
 | A07 | El usuario se lee de la base en cada request: desactivarlo o cambiarle el rol rige en el acto | `app/api/dependencias.py` |
 | A07 | Contraseñas de 8 a 128 caracteres; más largas se rechazan antes de Argon2 | `app/schemas/auth.py`, `app/services/autenticacion.py` |
+| A07 | La contraseña temporal de `POST /admin/users` y `POST /admin/users/{id}/reset-password` sale de `secrets` (16 caracteres), se guarda solo como hash Argon2id, se devuelve una sola vez con `Cache-Control: no-store` y no aparece en ningún log | `app/core/contrasenas.py`, `app/api/administracion.py` |
+| A07 | Con la contraseña temporal pendiente, todo lo que no sea ver el perfil, cambiarla o salir responde `403` `password-change-required`. El freno está en la dependencia que resuelve al usuario, así un endpoint nuevo queda frenado sin hacer nada | `app/api/dependencias.py` |
+| A07 | El cambio de contraseña bloquea la fila del usuario y la relee antes de verificar la actual: no pisa un restablecimiento que el admin confirmó mientras tanto | `app/services/autenticacion.py` |
 | A08 Integridad | El JWT exige firma HS256 válida, `exp`, `iat` y `sub`; `alg: none` y cualquier otro algoritmo se rechazan | `app/core/tokens.py` |
 | A09 Registro | Log JSON de una línea por request, con `trace_id`; nunca cuerpos, el header `Authorization`, contraseñas ni tokens. `401` y `403` van como `WARNING` | `app/api/middleware.py`, `app/core/logs.py` |
 | A10 Condiciones excepcionales | Un error no esperado responde `500` genérico, sin stack trace, mensaje ni SQL | `app/api/middleware.py` |

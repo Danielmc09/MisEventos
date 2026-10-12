@@ -1,0 +1,169 @@
+import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { http, HttpResponse } from "msw";
+import { setupServer } from "msw/node";
+import { MemoryRouter, useLocation } from "react-router-dom";
+import App from "./App";
+import { api } from "./api/client";
+import type { components } from "./api/schema";
+import { useSession } from "./stores/session";
+import { API, usuario } from "./test/helpers";
+import { responder } from "./test/msw";
+
+type Perfil = components["schemas"]["PerfilConPermisos"];
+
+const pendiente: Perfil = { ...usuario, must_change_password: true };
+const clave = crypto.randomUUID();
+const MENSAJE = "Tenés que cambiar tu contraseña temporal para continuar";
+
+const server = setupServer(
+  http.get(`${API}/auth/me`, () => responder("/auth/me", "get", 200, pendiente)),
+  http.get(`${API}/events`, () =>
+    responder("/events", "get", 200, { items: [], total: 0, page: 1, page_size: 12, pages: 0 }),
+  ),
+  http.post(`${API}/auth/logout`, () => new Response(null, { status: 204 })),
+);
+
+beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
+afterEach(() => {
+  server.resetHandlers();
+  useSession.getState().cerrarSesion();
+});
+afterAll(() => server.close());
+
+function Ubicacion() {
+  const { pathname, search } = useLocation();
+  return <output aria-label="ubicación">{pathname + search}</output>;
+}
+
+const montar = (ruta: string) =>
+  render(
+    <MemoryRouter initialEntries={[ruta]}>
+      <App />
+      <Ubicacion />
+    </MemoryRouter>,
+  );
+
+const ubicacion = () => screen.getByLabelText("ubicación");
+// El <output> de la ubicación también es role="status": se busca el aviso por su texto.
+const avisoDeCambio = () =>
+  screen.getAllByRole("status").find((aviso) => aviso.textContent?.includes(MENSAJE));
+
+test("después del login, con contraseña temporal, va directo a /cambiar-contrasena con el mensaje", async () => {
+  server.use(
+    http.post(`${API}/auth/login`, () =>
+      responder("/auth/login", "post", 200, {
+        access_token: "token-temporal",
+        token_type: "bearer",
+        expires_in: 3600,
+      }),
+    ),
+  );
+  const user = userEvent.setup();
+  montar("/login");
+
+  await user.type(await screen.findByLabelText("Correo electrónico"), pendiente.email);
+  await user.type(screen.getByLabelText("Contraseña"), clave);
+  await user.click(screen.getByRole("button", { name: /iniciar sesión/i }));
+
+  expect(await screen.findByRole("heading", { name: "Cambiar contraseña" })).toBeInTheDocument();
+  expect(ubicacion()).toHaveTextContent(/^\/cambiar-contrasena$/);
+  expect(avisoDeCambio()).toBeDefined();
+});
+
+test.each(["/", "/perfil", "/eventos/abc"])(
+  "con la contraseña temporal pendiente, %s lo devuelve a /cambiar-contrasena",
+  async (ruta) => {
+    useSession.getState().iniciarSesion(pendiente, "token-temporal", 3600);
+    montar(ruta);
+
+    expect(await screen.findByRole("heading", { name: "Cambiar contraseña" })).toBeInTheDocument();
+    expect(ubicacion()).toHaveTextContent(/^\/cambiar-contrasena$/);
+    expect(avisoDeCambio()).toBeDefined();
+  },
+);
+
+test("sin contraseña temporal pendiente, /cambiar-contrasena no muestra el mensaje", async () => {
+  server.use(http.get(`${API}/auth/me`, () => responder("/auth/me", "get", 200, usuario)));
+  useSession.getState().iniciarSesion(usuario, "token-abc", 3600);
+  montar("/cambiar-contrasena");
+
+  await screen.findByRole("heading", { name: "Cambiar contraseña" });
+  expect(screen.queryByText(MENSAJE)).not.toBeInTheDocument();
+});
+
+test("con la contraseña temporal pendiente, el menú de la cuenta y Cerrar sesión funcionan", async () => {
+  useSession.getState().iniciarSesion(pendiente, "token-temporal", 3600);
+  const user = userEvent.setup();
+  montar("/cambiar-contrasena");
+
+  await user.click(await screen.findByRole("button", { name: "Menú de la cuenta" }));
+  await user.click(screen.getByRole("menuitem", { name: "Cerrar sesión" }));
+
+  expect(await screen.findByRole("heading", { name: "Iniciar sesión" })).toBeInTheDocument();
+  expect(ubicacion()).toHaveTextContent(/^\/login$/);
+  expect(useSession.getState().accessToken).toBeNull();
+});
+
+test("un 403 password-change-required de la API lleva a /cambiar-contrasena", async () => {
+  server.use(
+    http.get(`${API}/auth/me`, () => responder("/auth/me", "get", 200, usuario)),
+    http.get(`${API}/me/registrations`, () =>
+      // El OpenAPI aún no declara el 403: el cuerpo es el problem+json que el backend sí devuelve.
+      HttpResponse.json(
+        {
+          type: "password-change-required",
+          title: "Tenés que cambiar tu contraseña temporal",
+          status: 403,
+          trace_id: "t-1",
+        },
+        { status: 403, headers: { "Content-Type": "application/problem+json" } },
+      ),
+    ),
+  );
+  useSession.getState().iniciarSesion(usuario, "token-abc", 3600);
+  montar("/perfil");
+  await screen.findByRole("heading", { name: "Perfil" });
+
+  await api("/me/registrations").catch(() => undefined);
+
+  await waitFor(() => expect(ubicacion()).toHaveTextContent(/^\/cambiar-contrasena$/));
+  await screen.findByRole("heading", { name: "Cambiar contraseña" });
+  expect(avisoDeCambio()).toBeDefined();
+  expect(useSession.getState().accessToken).toBe("token-abc");
+});
+
+test("un 403 que no es password-change-required no marca la sesión como pendiente ni cambia la ubicación", async () => {
+  server.use(
+    http.get(`${API}/auth/me`, () => responder("/auth/me", "get", 200, usuario)),
+    http.get(`${API}/me/registrations`, () =>
+      HttpResponse.json(
+        { type: "forbidden", title: "No tenés permiso", status: 403, trace_id: "t-2" },
+        { status: 403, headers: { "Content-Type": "application/problem+json" } },
+      ),
+    ),
+  );
+  useSession.getState().iniciarSesion(usuario, "token-abc", 3600);
+  montar("/perfil");
+  await screen.findByRole("heading", { name: "Perfil" });
+
+  const error = await api("/me/registrations").catch((e: unknown) => e);
+
+  expect(error).toMatchObject({ status: 403, type: "forbidden" });
+  expect(useSession.getState().user?.must_change_password).toBe(false);
+  expect(ubicacion()).toHaveTextContent(/^\/perfil$/);
+  expect(screen.queryByRole("heading", { name: "Cambiar contraseña" })).not.toBeInTheDocument();
+});
+
+test("con el flag persistido y el token vencido, entrar a / no lleva a /cambiar-contrasena", async () => {
+  useSession.setState({
+    user: pendiente,
+    accessToken: "token-viejo",
+    expiresAt: Date.now() - 1000,
+  });
+  montar("/");
+
+  await waitFor(() => expect(useSession.getState().accessToken).toBeNull());
+  expect(ubicacion()).toHaveTextContent(/^\/$/);
+  expect(screen.queryByRole("heading", { name: "Cambiar contraseña" })).not.toBeInTheDocument();
+});
