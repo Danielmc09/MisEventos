@@ -123,8 +123,18 @@ def publicar(repo: Eventos, usuario: User, id_evento: UUID) -> Event:
     return _cambiar_estado(repo, evento, {EstadoEvento.DRAFT}, EstadoEvento.PUBLISHED)
 
 
+def _con_inscripciones(detalle: str) -> Conflict:
+    return Conflict(
+        detalle, tipo="has-registrations", titulo="El evento tiene inscripciones activas"
+    )
+
+
 def despublicar(repo: Eventos, usuario: User, id_evento: UUID) -> Event:
+    """Un evento con inscripciones activas no vuelve a borrador: dejaría de verlo quien se
+    inscribió. El bloqueo de la fila hace que nadie se inscriba mientras tanto."""
     evento = para_escribir(repo, usuario, id_evento)
+    if repo.inscritos([evento.id])[evento.id]:
+        raise _con_inscripciones("Un evento con inscripciones activas no se despublica.")
     return _cambiar_estado(repo, evento, {EstadoEvento.PUBLISHED}, EstadoEvento.DRAFT)
 
 
@@ -169,10 +179,23 @@ def editar(repo: Eventos, usuario: User, id_evento: UUID, datos: EventoEdicion) 
             cambios.get("start_at", evento.start_at),
             cambios.get("end_at", evento.end_at),
         )
+    if "capacity" in cambios:
+        activas = repo.inscritos([evento.id])[evento.id]
+        if cambios["capacity"] < activas:
+            raise Conflict(
+                f"El evento ya tiene {activas} inscripciones activas.",
+                tipo="capacity-below-registrations",
+                titulo="La capacidad no puede quedar por debajo de los inscritos",
+            )
     for campo, valor in cambios.items():
         setattr(evento, campo, valor)
     return repo.guardar(evento)
 
 
 def eliminar(repo: Eventos, usuario: User, id_evento: UUID) -> None:
-    repo.eliminar(para_escribir(repo, usuario, id_evento))
+    """Con inscripciones activas no se borra: se perdería quién estaba inscrito. Cancelarlo sí
+    las conserva."""
+    evento = para_escribir(repo, usuario, id_evento)
+    if repo.inscritos([evento.id])[evento.id]:
+        raise _con_inscripciones("Cancelá el evento en lugar de eliminarlo")
+    repo.eliminar(evento)
