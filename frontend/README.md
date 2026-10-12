@@ -161,6 +161,8 @@ Al cargar la app, si hay una sesión guardada vigente, `useRefrescarSesion` (`sr
 Decisión: lo que se guarda en `localStorage` (usuario, permisos y vencimiento) no es secreto.
 Los permisos de la interfaz solo ocultan opciones: la seguridad la decide siempre el backend, y un 403 manda.
 
+El token de acceso sí es sensible: en `localStorage` un XSS podría leerlo, por eso dura 60 minutos y la interfaz no inserta HTML sin escapar; la mejora prevista es un refresh token en cookie `HttpOnly` (ver [límites conocidos](../README.md#límites-conocidos-y-extensiones)).
+
 **`eventos`** es una caché del listado de la pantalla de inicio:
 
 - Guarda cada página pedida, por combinación de filtros (la query string), con la hora en que llegó.
