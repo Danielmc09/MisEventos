@@ -15,3 +15,7 @@ def verificar(hash_guardado: str, contrasena: str) -> bool:
         return _hasher.verify(hash_guardado, contrasena)
     except (VerificationError, InvalidHashError):
         return False
+
+
+def generar_contrasena_temporal() -> str:
+    return ""
