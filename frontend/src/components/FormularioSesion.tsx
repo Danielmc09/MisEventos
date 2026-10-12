@@ -6,6 +6,7 @@ import { aInputBogota, aISOBogota } from "../lib/fechas";
 import type { Sesion } from "../lib/useSesiones";
 import type { Evento } from "../stores/eventos";
 import { SelectorPonentes, type PonenteDeSesion } from "./SelectorPonentes";
+import { AlertaError } from "./ui/AlertaError";
 import { Button } from "./ui/Button";
 import { Input } from "./ui/Input";
 
@@ -16,6 +17,8 @@ export interface FormularioSesionProps {
   onGuardada: (sesion: Sesion) => void;
   onCancelar: () => void;
 }
+
+const CAMPOS_VISIBLES = ["title", "room", "start_at", "end_at", "capacity", "speaker_ids"] as const;
 
 const VACIO = { title: "", description: "", room: "", start_at: "", end_at: "", capacity: "" };
 type Valores = typeof VACIO;
@@ -97,6 +100,11 @@ export function FormularioSesion({
 
   const cambiarPonentes = (nuevos: PonenteDeSesion[]) => {
     setPonentes(nuevos);
+    setErrores((previos) => {
+      const resto = { ...previos };
+      delete resto.speaker_ids;
+      return resto;
+    });
     setGeneral(null);
   };
 
@@ -135,10 +143,15 @@ export function FormularioSesion({
           : sesion,
       );
     } catch (e) {
-      const { campos, general } = errorDeFormulario(e);
+      const { campos, general, detalle } = errorDeFormulario(e, CAMPOS_VISIBLES);
       setErrores(campos);
       if (general)
-        setGeneral({ title: general, detail: e instanceof ApiError ? e.detail : undefined });
+        setGeneral({
+          title: general,
+          detail:
+            [e instanceof ApiError ? e.detail : null, detalle].filter(Boolean).join(". ") ||
+            undefined,
+        });
     } finally {
       setEnviando(false);
     }
@@ -151,13 +164,12 @@ export function FormularioSesion({
       <Input label="Inicio" type="datetime-local" {...campo("start_at")} />
       <Input label="Fin" type="datetime-local" {...campo("end_at")} />
       <Input label="Capacidad" type="number" {...campo("capacity")} />
-      <SelectorPonentes seleccionados={ponentes} onChange={cambiarPonentes} />
-      {general && (
-        <p role="alert" className="text-red-700">
-          <strong>{general.title}</strong>
-          {general.detail && <span className="block">{general.detail}</span>}
-        </p>
-      )}
+      <SelectorPonentes
+        seleccionados={ponentes}
+        onChange={cambiarPonentes}
+        error={errores.speaker_ids}
+      />
+      {general && <AlertaError title={general.title} detail={general.detail} />}
       <Button type="submit" loading={enviando}>
         {sesion ? "Guardar cambios" : "Crear sesión"}
       </Button>

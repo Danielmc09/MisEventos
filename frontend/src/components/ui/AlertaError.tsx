@@ -1,0 +1,13 @@
+export interface AlertaErrorProps {
+  title: string;
+  detail?: string;
+}
+
+export function AlertaError({ title, detail }: AlertaErrorProps) {
+  return (
+    <p role="alert" className="text-red-700">
+      <strong>{title}</strong>
+      {detail && <span className="block">{detail}</span>}
+    </p>
+  );
+}
