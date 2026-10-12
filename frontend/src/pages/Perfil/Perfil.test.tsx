@@ -238,16 +238,17 @@ describe("Mis inscripciones", () => {
   });
 
   test.each([
-    ["Próximos", "No tenés inscripciones próximas"],
-    ["Pasados", "No tenés inscripciones pasadas"],
-    ["Cancelados", "No tenés inscripciones canceladas"],
-  ])("la pestaña %s vacía muestra su mensaje", async (pestana, mensaje) => {
+    ["Próximos", "Todavía no tenés inscripciones"],
+    ["Pasados", "Todavía no tenés inscripciones pasadas"],
+    ["Cancelados", "Todavía no tenés inscripciones canceladas"],
+  ])("la pestaña %s vacía explica qué va ahí y ofrece Ver eventos", async (pestana, mensaje) => {
     const user = userEvent.setup();
     montarPerfil();
 
     await user.click(screen.getByRole("tab", { name: pestana }));
 
     expect(await screen.findByText(mensaje)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Ver eventos" })).toHaveAttribute("href", "/");
   });
 
   test("un evento cancelado por el organizador se ve con la insignia Evento cancelado", async () => {
