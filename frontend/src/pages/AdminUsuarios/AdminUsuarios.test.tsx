@@ -264,4 +264,44 @@ describe("acciones", () => {
     expect(screen.getByRole("textbox", { name: "Nombre" })).toHaveAttribute("aria-invalid", "true");
     expect(cuerpos).toHaveLength(0);
   });
+
+  test("reactivar pide confirmación, manda is_active true y avisa", async () => {
+    entrarComo(admin);
+    servirUsuarios([adminFila, fila({ is_active: false })]);
+    const cuerpos = servirPatch();
+    const user = userEvent.setup();
+    montarAdmin();
+
+    await user.click(await screen.findByRole("button", { name: "Reactivar a Beto" }));
+    await user.click(
+      within(screen.getByRole("alertdialog")).getByRole("button", { name: "Reactivar" }),
+    );
+    expect(await screen.findByText("Reactivaste a Beto")).toBeInTheDocument();
+    expect(cuerpos).toEqual([{ is_active: true }]);
+  });
+
+  test("al editar su propio nombre, el encabezado muestra el nombre nuevo", async () => {
+    entrarComo(admin);
+    servirUsuarios();
+    server.use(
+      http.patch(`${API}/admin/users/:id`, async ({ request }) => {
+        const { full_name } = (await request.json()) as { full_name: string };
+        return responder("/admin/users/{id_usuario}", "patch", 200, { ...adminFila, full_name });
+      }),
+    );
+    const user = userEvent.setup();
+    montarAdmin();
+
+    await user.click(await screen.findByRole("button", { name: "Editar nombre de Admin" }));
+    const campo = screen.getByRole("textbox", { name: "Nombre" });
+    await user.clear(campo);
+    await user.type(campo, "Administradora");
+    await user.click(screen.getByRole("button", { name: "Guardar" }));
+
+    expect(await screen.findByRole("link", { name: "Administradora" })).toHaveAttribute(
+      "href",
+      "/perfil",
+    );
+    expect(useSession.getState().user?.full_name).toBe("Administradora");
+  });
 });
