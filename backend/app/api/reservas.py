@@ -42,3 +42,24 @@ def reservar(
 ) -> ReservaSalida:
     reserva = reservas.reservar(eventos, sesiones, inscripciones, repo, usuario, id_sesion)
     return ReservaSalida.model_validate(reserva, from_attributes=True)
+
+
+@router.delete(
+    "/sessions/{id_sesion}/reservations/me",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Cancelar mi reserva",
+    description=(
+        "Cancela la reserva activa del usuario actual, que sale del token, y libera el lugar. "
+        "Sin reserva activa, 404; con la sesión ya empezada, 409 `session-started`."
+    ),
+    responses=respuestas_de_error(401, 404, 409, 422),
+)
+def cancelar(
+    id_sesion: UUID,
+    usuario: UsuarioActual,
+    eventos: RepoEventos,
+    sesiones: RepoSesiones,
+    inscripciones: RepoInscripciones,
+    repo: RepoReservas,
+) -> None:
+    reservas.cancelar(eventos, sesiones, inscripciones, repo, usuario, id_sesion)

@@ -25,7 +25,7 @@ from uuid import UUID
 from app.core.excepciones import Conflict, NotFound
 from app.models.evento import EstadoEvento, Event
 from app.models.inscripcion import Registration
-from app.models.reserva import SessionRegistration
+from app.models.reserva import EstadoReserva, SessionRegistration
 from app.models.sesion import Session as Sesion
 from app.models.usuario import User
 from app.services import eventos as servicio_eventos
@@ -147,3 +147,25 @@ def reservar(
     if cruces:
         raise _choque(cruces)
     return reservas.crear(SessionRegistration(user_id=usuario.id, session_id=sesion.id))
+
+
+def cancelar(
+    eventos: Eventos,
+    sesiones: Sesiones,
+    inscripciones: InscripcionesParaReservar,
+    reservas: Reservas,
+    usuario: User,
+    id_sesion: UUID,
+) -> None:
+    """Cancela la reserva activa del usuario, solo antes de que la sesión empiece, y libera el
+    lugar. Toma los mismos bloqueos que reservar, en el mismo orden. Sin una reserva activa
+    propia es 404, aunque la sesión ya haya empezado."""
+    _, _, sesion = _bloquear(eventos, sesiones, inscripciones, usuario, id_sesion)
+    reserva = reservas.activa_de(usuario.id, sesion.id)
+    if reserva is None:
+        raise NotFound()
+    if _empezo(sesion):
+        raise _sesion_empezada("La reserva se puede cancelar hasta que la sesión empieza.")
+    reserva.status = EstadoReserva.CANCELLED
+    reserva.cancelled_at = datetime.now(UTC)
+    reservas.guardar(reserva)
