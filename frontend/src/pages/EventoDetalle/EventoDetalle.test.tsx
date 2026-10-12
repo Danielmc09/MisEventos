@@ -211,11 +211,14 @@ describe("acciones según quién mira y el estado", () => {
     expect(screen.queryByRole("button", { name: "Eliminar" })).not.toBeInTheDocument();
     await abrirMenu(user);
     expect(screen.getAllByRole("menuitem").map((i) => i.textContent)).toEqual([
+      "Inscribirme a mi evento",
       "Despublicar",
       "Cancelar evento",
       "Eliminar",
-      "Inscribirme a mi evento",
     ]);
+    // Lo destructivo queda al final, separado de lo cotidiano.
+    const separador = screen.getByRole("separator");
+    expect(separador.nextElementSibling).toHaveTextContent("Cancelar evento");
   });
 
   test("la fila del dueño tiene solo Editar y Más acciones del evento", async () => {

@@ -35,13 +35,23 @@ const montar = (ruta: string) =>
 
 const encabezado = () => screen.getByRole("banner");
 
-test("sin sesión ofrece Iniciar sesión y Registrarse", async () => {
+test("sin sesión ofrece Ingresar y Registrarse, sin el menú Entrar", () => {
   montar("/");
 
   const nav = within(encabezado());
-  expect(nav.getByRole("link", { name: "Iniciar sesión" })).toHaveAttribute("href", "/login");
+  expect(nav.getByRole("link", { name: "Ingresar" })).toHaveAttribute("href", "/login");
   expect(nav.getByRole("link", { name: "Registrarse" })).toHaveAttribute("href", "/registro");
-  expect(nav.queryByRole("button", { name: "Cerrar sesión" })).not.toBeInTheDocument();
+  expect(nav.queryByRole("button", { name: "Menú de la cuenta" })).not.toBeInTheDocument();
+  expect(nav.queryByText("Entrar")).not.toBeInTheDocument();
+  expect(nav.queryByRole("link", { name: "Iniciar sesión" })).not.toBeInTheDocument();
+});
+
+test("Registrarse se oculta por debajo de 375 px y Ingresar siempre se ve", () => {
+  montar("/");
+
+  const nav = within(encabezado());
+  expect(nav.getByRole("link", { name: "Registrarse" })).toHaveClass("hidden", "xs:inline-flex");
+  expect(nav.getByRole("link", { name: "Ingresar" })).not.toHaveClass("hidden");
 });
 
 const abrirCuenta = async (user: ReturnType<typeof userEvent.setup>) => {
@@ -238,19 +248,5 @@ describe("en una pantalla angosta", () => {
       "/eventos/nuevo",
     );
     expect(nav.getByRole("button", { name: "Menú de la cuenta" })).toHaveTextContent("O");
-  });
-
-  test("sin sesión, el logo y un solo botón abren Iniciar sesión y Registrarse: tres textos no entran en 320 px", async () => {
-    const user = userEvent.setup();
-    montar("/");
-
-    const nav = within(encabezado());
-    expect(nav.queryByRole("link", { name: "Iniciar sesión" })).not.toBeInTheDocument();
-    expect(nav.queryByRole("link", { name: "Registrarse" })).not.toBeInTheDocument();
-
-    await user.click(nav.getByRole("button", { name: "Menú de la cuenta" }));
-
-    expect(nav.getByRole("menuitem", { name: "Iniciar sesión" })).toHaveAttribute("href", "/login");
-    expect(nav.getByRole("menuitem", { name: "Registrarse" })).toHaveAttribute("href", "/registro");
   });
 });
