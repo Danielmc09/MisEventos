@@ -93,7 +93,7 @@ export interface paths {
     };
     /**
      * Usuario actual
-     * @description Los datos del usuario dueño del access token.
+     * @description Los datos del usuario dueño del access token y los permisos de su rol.
      */
     get: operations["me_auth_me_get"];
     put?: never;
@@ -332,6 +332,90 @@ export interface paths {
     patch: operations["editar_sessions__id_sesion__patch"];
     trace?: never;
   };
+  "/events/{id_evento}/registrations": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Inscritos de un evento
+     * @description Una página de los inscritos, activos y cancelados, con su nombre y email. Solo el dueño del evento o el admin; un borrador que no puede ver, 404.
+     */
+    get: operations["inscritos_events__id_evento__registrations_get"];
+    put?: never;
+    /**
+     * Inscribirse a un evento
+     * @description El usuario actual se inscribe a un evento publicado que todavía no empezó, si queda cupo. 409 con `event-not-open`, `event-started`, `already-registered` o `capacity-full`, en ese orden.
+     */
+    post: operations["inscribirse_events__id_evento__registrations_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/events/{id_evento}/registrations/me": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    /**
+     * Cancelar mi inscripción
+     * @description Cancela la inscripción activa del usuario actual, que sale del token. Solo antes de que el evento empiece (409 `event-started`); sin inscripción activa, 404. Libera el cupo.
+     */
+    delete: operations["cancelar_events__id_evento__registrations_me_delete"];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/me/registrations": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Mis inscripciones
+     * @description Las inscripciones del usuario actual, cada una con el resumen de su evento. Por defecto, las activas de eventos que no terminaron.
+     */
+    get: operations["mias_me_registrations_get"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/events/{id_evento}/stats": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Estadísticas de un evento
+     * @description Inscripciones activas y canceladas, cupos libres y porcentaje de ocupación (un decimal). Solo el dueño del evento o el admin.
+     */
+    get: operations["estadisticas_events__id_evento__stats_get"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -379,11 +463,85 @@ export interface components {
       /** Message */
       message: string;
     };
+    /** EstadisticasSalida */
+    EstadisticasSalida: {
+      /** Active */
+      active: number;
+      /** Cancelled */
+      cancelled: number;
+      /** Capacity */
+      capacity: number;
+      /** Available Spots */
+      available_spots: number;
+      /** Occupancy Pct */
+      occupancy_pct: number;
+    };
     /**
      * EstadoEvento
      * @enum {string}
      */
     EstadoEvento: "DRAFT" | "PUBLISHED" | "CANCELLED";
+    /**
+     * EstadoInscripcion
+     * @enum {string}
+     */
+    EstadoInscripcion: "ACTIVE" | "CANCELLED";
+    /** EventoDetalle */
+    EventoDetalle: {
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string;
+      /** Name */
+      name: string;
+      /** Description */
+      description: string | null;
+      /** Location */
+      location: string | null;
+      /**
+       * Start At
+       * Format: date-time
+       */
+      start_at: string;
+      /**
+       * End At
+       * Format: date-time
+       */
+      end_at: string;
+      /** Capacity */
+      capacity: number;
+      status: components["schemas"]["EstadoEvento"];
+      /**
+       * Organizer Id
+       * Format: uuid
+       */
+      organizer_id: string;
+      /**
+       * Created At
+       * Format: date-time
+       */
+      created_at: string;
+      /**
+       * Updated At
+       * Format: date-time
+       */
+      updated_at: string;
+      /**
+       * Registered Count
+       * @default 0
+       */
+      registered_count: number;
+      /**
+       * Is Registered
+       * @default false
+       */
+      is_registered: boolean;
+      /** Available Spots */
+      readonly available_spots: number;
+      /** Is Finished */
+      readonly is_finished: boolean;
+    };
     /**
      * EventoEdicion
      * @description Solo lo que cambia. Las fechas se comparan con lo guardado en el servicio.
@@ -474,6 +632,69 @@ export interface components {
       /** Is Finished */
       readonly is_finished: boolean;
     };
+    /**
+     * InscripcionEntrada
+     * @description Sin campos: quién se inscribe sale del token y a qué evento, de la ruta. Cualquier campo
+     *     que llegue se rechaza, como en el resto de la API.
+     */
+    InscripcionEntrada: Record<string, never>;
+    /** InscripcionMia */
+    InscripcionMia: {
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string;
+      /**
+       * Event Id
+       * Format: uuid
+       */
+      event_id: string;
+      status: components["schemas"]["EstadoInscripcion"];
+      /**
+       * Created At
+       * Format: date-time
+       */
+      created_at: string;
+      /** Cancelled At */
+      cancelled_at: string | null;
+      event: components["schemas"]["ResumenEvento"];
+    };
+    /** InscripcionSalida */
+    InscripcionSalida: {
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string;
+      /**
+       * Event Id
+       * Format: uuid
+       */
+      event_id: string;
+      status: components["schemas"]["EstadoInscripcion"];
+      /**
+       * Created At
+       * Format: date-time
+       */
+      created_at: string;
+    };
+    /**
+     * Inscrito
+     * @description Lo que el dueño del evento ve de cada inscrito.
+     */
+    Inscrito: {
+      /** Full Name */
+      full_name: string | null;
+      /** Email */
+      email: string;
+      status: components["schemas"]["EstadoInscripcion"];
+      /**
+       * Created At
+       * Format: date-time
+       */
+      created_at: string;
+    };
     /** Mensaje */
     Mensaje: {
       /** Message */
@@ -497,6 +718,32 @@ export interface components {
       /** Pages */
       pages: number;
     };
+    /** Pagina[InscripcionMia] */
+    Pagina_InscripcionMia_: {
+      /** Items */
+      items: components["schemas"]["InscripcionMia"][];
+      /** Total */
+      total: number;
+      /** Page */
+      page: number;
+      /** Page Size */
+      page_size: number;
+      /** Pages */
+      pages: number;
+    };
+    /** Pagina[Inscrito] */
+    Pagina_Inscrito_: {
+      /** Items */
+      items: components["schemas"]["Inscrito"][];
+      /** Total */
+      total: number;
+      /** Page */
+      page: number;
+      /** Page Size */
+      page_size: number;
+      /** Pages */
+      pages: number;
+    };
     /** Pagina[PonenteSalida] */
     Pagina_PonenteSalida_: {
       /** Items */
@@ -510,6 +757,44 @@ export interface components {
       /** Pages */
       pages: number;
     };
+    /**
+     * PerfilConPermisos
+     * @description El usuario dueño del token y lo que puede hacer, para que el cliente no repita el mapa.
+     */
+    PerfilConPermisos: {
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string;
+      /** Email */
+      email: string;
+      /** Full Name */
+      full_name: string | null;
+      role: components["schemas"]["Rol"];
+      /** Is Active */
+      is_active: boolean;
+      /** Must Change Password */
+      must_change_password: boolean;
+      /**
+       * Created At
+       * Format: date-time
+       */
+      created_at: string;
+      /** Permisos */
+      permisos: components["schemas"]["Permiso"][];
+    };
+    /**
+     * Permiso
+     * @enum {string}
+     */
+    Permiso:
+      | "evento:crear"
+      | "evento:gestionar_todos"
+      | "ponente:gestionar"
+      | "ponente:gestionar_todos"
+      | "usuarios:gestionar"
+      | "auditoria:ver";
     /**
      * PonenteDeSesion
      * @description Lo público de un ponente: sin el email.
@@ -601,6 +886,29 @@ export interface components {
       password: string;
       /** Full Name */
       full_name?: string | null;
+    };
+    /**
+     * ResumenEvento
+     * @description Lo que el perfil muestra del evento de cada inscripción.
+     */
+    ResumenEvento: {
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string;
+      /** Name */
+      name: string;
+      /**
+       * Start At
+       * Format: date-time
+       */
+      start_at: string;
+      /** Location */
+      location: string | null;
+      status: components["schemas"]["EstadoEvento"];
+      /** Is Finished */
+      readonly is_finished: boolean;
     };
     /**
      * Rol
@@ -706,28 +1014,6 @@ export interface components {
       token_type: "bearer";
       /** Expires In */
       expires_in: number;
-    };
-    /** UsuarioSalida */
-    UsuarioSalida: {
-      /**
-       * Id
-       * Format: uuid
-       */
-      id: string;
-      /** Email */
-      email: string;
-      /** Full Name */
-      full_name: string | null;
-      role: components["schemas"]["Rol"];
-      /** Is Active */
-      is_active: boolean;
-      /** Must Change Password */
-      must_change_password: boolean;
-      /**
-       * Created At
-       * Format: date-time
-       */
-      created_at: string;
     };
   };
   responses: never;
@@ -881,7 +1167,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["UsuarioSalida"];
+          "application/json": components["schemas"]["PerfilConPermisos"];
         };
       };
       /** @description Necesitás iniciar sesión */
@@ -1058,7 +1344,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["EventoSalida"];
+          "application/json": components["schemas"]["EventoDetalle"];
         };
       };
       /** @description No encontramos lo que buscás */
@@ -1936,6 +2222,310 @@ export interface operations {
       };
       /** @description La operación choca con el estado actual */
       409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problema"];
+          "application/json": components["schemas"]["Problema"];
+        };
+      };
+      /** @description Los datos enviados no son válidos */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problema"];
+          "application/json": components["schemas"]["Problema"];
+        };
+      };
+    };
+  };
+  inscritos_events__id_evento__registrations_get: {
+    parameters: {
+      query?: {
+        /** @description Página, desde 1 hasta 10000 */
+        page?: number;
+        /** @description Elementos por página, hasta 100 */
+        page_size?: number;
+      };
+      header?: never;
+      path: {
+        id_evento: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Pagina_Inscrito_"];
+        };
+      };
+      /** @description Necesitás iniciar sesión */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problema"];
+          "application/json": components["schemas"]["Problema"];
+        };
+      };
+      /** @description No tenés permiso para hacer esto */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problema"];
+          "application/json": components["schemas"]["Problema"];
+        };
+      };
+      /** @description No encontramos lo que buscás */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problema"];
+          "application/json": components["schemas"]["Problema"];
+        };
+      };
+      /** @description Los datos enviados no son válidos */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problema"];
+          "application/json": components["schemas"]["Problema"];
+        };
+      };
+    };
+  };
+  inscribirse_events__id_evento__registrations_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id_evento: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: {
+      content: {
+        "application/json": components["schemas"]["InscripcionEntrada"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["InscripcionSalida"];
+        };
+      };
+      /** @description Necesitás iniciar sesión */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problema"];
+          "application/json": components["schemas"]["Problema"];
+        };
+      };
+      /** @description No encontramos lo que buscás */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problema"];
+          "application/json": components["schemas"]["Problema"];
+        };
+      };
+      /** @description La operación choca con el estado actual */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problema"];
+          "application/json": components["schemas"]["Problema"];
+        };
+      };
+      /** @description Los datos enviados no son válidos */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problema"];
+          "application/json": components["schemas"]["Problema"];
+        };
+      };
+    };
+  };
+  cancelar_events__id_evento__registrations_me_delete: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id_evento: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Necesitás iniciar sesión */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problema"];
+          "application/json": components["schemas"]["Problema"];
+        };
+      };
+      /** @description No encontramos lo que buscás */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problema"];
+          "application/json": components["schemas"]["Problema"];
+        };
+      };
+      /** @description La operación choca con el estado actual */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problema"];
+          "application/json": components["schemas"]["Problema"];
+        };
+      };
+      /** @description Los datos enviados no son válidos */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problema"];
+          "application/json": components["schemas"]["Problema"];
+        };
+      };
+    };
+  };
+  mias_me_registrations_get: {
+    parameters: {
+      query?: {
+        /** @description `ACTIVE` o `CANCELLED` */
+        status?: components["schemas"]["EstadoInscripcion"];
+        /** @description `upcoming` o `past` */
+        when?: components["schemas"]["Cuando"];
+        /** @description Página, desde 1 hasta 10000 */
+        page?: number;
+        /** @description Elementos por página, hasta 100 */
+        page_size?: number;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Pagina_InscripcionMia_"];
+        };
+      };
+      /** @description Necesitás iniciar sesión */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problema"];
+          "application/json": components["schemas"]["Problema"];
+        };
+      };
+      /** @description Los datos enviados no son válidos */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problema"];
+          "application/json": components["schemas"]["Problema"];
+        };
+      };
+    };
+  };
+  estadisticas_events__id_evento__stats_get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id_evento: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["EstadisticasSalida"];
+        };
+      };
+      /** @description Necesitás iniciar sesión */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problema"];
+          "application/json": components["schemas"]["Problema"];
+        };
+      };
+      /** @description No tenés permiso para hacer esto */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problema"];
+          "application/json": components["schemas"]["Problema"];
+        };
+      };
+      /** @description No encontramos lo que buscás */
+      404: {
         headers: {
           [name: string]: unknown;
         };

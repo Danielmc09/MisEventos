@@ -2,6 +2,8 @@ import jwt
 import pytest
 from sqlalchemy import text
 
+from app.core.permisos import PERMISOS_POR_ROL, Rol
+
 pytestmark = pytest.mark.integration
 
 CLAVE = "Clave-Segura-1"
@@ -69,3 +71,19 @@ def test_un_usuario_desactivado_con_un_token_vigente_recibe_401(cliente_db, cone
 
     assert respuesta.status_code == 401
     assert respuesta.headers["www-authenticate"] == "Bearer"
+
+
+@pytest.mark.parametrize("rol", list(Rol))
+def test_me_de_un_usuario_real_trae_exactamente_los_permisos_de_su_rol(cliente_db, conexion, rol):
+    registrar(cliente_db, "ana@mail.com")
+    conexion.execute(
+        text("UPDATE users SET role = :rol WHERE email = :e"),
+        {"rol": rol.value, "e": "ana@mail.com"},
+    )
+    token = login(cliente_db, "ana@mail.com").json()["access_token"]
+
+    perfil = me(cliente_db, token)
+
+    assert perfil.status_code == 200
+    assert perfil.json()["role"] == rol.value
+    assert perfil.json()["permisos"] == sorted(PERMISOS_POR_ROL[rol])

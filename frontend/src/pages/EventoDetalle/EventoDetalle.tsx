@@ -9,10 +9,12 @@ import { Spinner } from "../../components/ui/Spinner";
 import { formatearFecha } from "../../lib/fechas";
 import { SeccionSesiones } from "../../components/SeccionSesiones";
 import { Toast, type ToastProps } from "../../components/ui/Toast";
+import { PanelInscripciones } from "../../components/PanelInscripciones";
+import { AccionInscripcion } from "../../components/AccionInscripcion";
 import { useEvento } from "../../lib/useEvento";
 import { useSesiones } from "../../lib/useSesiones";
 import { useEventos, type Evento } from "../../stores/eventos";
-import { useSession } from "../../stores/session";
+import { useSession, useTienePermiso } from "../../stores/session";
 
 type Accion = "publish" | "unpublish" | "cancel" | "delete";
 
@@ -38,7 +40,7 @@ const CONFIRMACION = {
 
 export default function EventoDetalle() {
   const { id } = useParams();
-  const { cargando, evento, error, setEvento } = useEvento(id);
+  const { cargando, evento, error, setEvento, refrescar } = useEvento(id);
   const sesiones = useSesiones(id);
   const navigate = useNavigate();
   const user = useSession((s) => s.user);
@@ -47,7 +49,8 @@ export default function EventoDetalle() {
   const [trabajando, setTrabajando] = useState(false);
   const [aviso, setAviso] = useState<Pick<ToastProps, "message" | "tone"> | null>(null);
 
-  const puede = !!evento && !!user && (user.role === "ADMIN" || user.id === evento.organizer_id);
+  const gestionaTodos = useTienePermiso("evento:gestionar_todos");
+  const puede = !!evento && !!user && (gestionaTodos || user.id === evento.organizer_id);
 
   async function ejecutar(accion: Accion) {
     setTrabajando(true);
@@ -94,6 +97,14 @@ export default function EventoDetalle() {
           {evento.location && <p className="text-gray-600">{evento.location}</p>}
           {evento.description && <p className="whitespace-pre-line">{evento.description}</p>}
           <p className="font-medium">Quedan {evento.available_spots} cupos</p>
+          <div className="flex flex-wrap items-center gap-3">
+            <AccionInscripcion
+              evento={evento}
+              onEvento={setEvento}
+              onRefrescar={refrescar}
+              onAviso={setAviso}
+            />
+          </div>
           {puede && (
             <div className="mt-2 flex flex-wrap gap-3">
               {evento.status !== "CANCELLED" && !evento.is_finished && (
@@ -115,15 +126,16 @@ export default function EventoDetalle() {
                 </Button>
               )}
               {evento.status !== "CANCELLED" && !evento.is_finished && (
-                <Button className="bg-red-700" onClick={() => setPendiente("cancel")}>
+                <Button variante="peligro" onClick={() => setPendiente("cancel")}>
                   Cancelar
                 </Button>
               )}
-              <Button className="bg-red-700" onClick={() => setPendiente("delete")}>
+              <Button variante="peligro" onClick={() => setPendiente("delete")}>
                 Eliminar
               </Button>
             </div>
           )}
+          {puede && <PanelInscripciones eventoId={evento.id} version={evento.registered_count} />}
           <SeccionSesiones
             cargando={sesiones.cargando}
             sesiones={sesiones.sesiones}

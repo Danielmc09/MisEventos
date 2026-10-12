@@ -1,7 +1,11 @@
 import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
+import type { components } from "../api/schema";
 import { evento } from "../test/helpers";
 import { EventoCard } from "./EventoCard";
+
+// El fixture es del 11 de octubre: el estado depende del reloj, así que acá la fecha es relativa a ahora.
+const manana = new Date(Date.now() + 24 * 3600_000).toISOString();
 
 const montar = (e = evento) =>
   render(
@@ -40,13 +44,53 @@ test.each([
   ["DRAFT", false, "Borrador"],
   ["PUBLISHED", true, "Finalizado"],
 ] as const)("estado %s con is_finished=%s muestra %s", (status, is_finished, texto) => {
-  montar({ ...evento, status, is_finished });
+  montar({ ...evento, status, is_finished, start_at: manana });
 
   expect(screen.getByText(texto)).toBeInTheDocument();
+});
+
+test("un evento publicado que ya empezó muestra En curso", () => {
+  montar({ ...evento, start_at: new Date(Date.now() - 2 * 3600_000).toISOString() });
+
+  expect(screen.getByText("En curso")).toBeInTheDocument();
 });
 
 test("muestra cuántos cupos quedan", () => {
   montar({ ...evento, available_spots: 7 });
 
   expect(screen.getByText("Quedan 7 cupos")).toBeInTheDocument();
+});
+
+describe("con el resumen del evento (sin cupos)", () => {
+  const resumen: components["schemas"]["ResumenEvento"] = {
+    id: evento.id,
+    name: "PyCon Bogotá",
+    start_at: "2026-10-11T01:30:00Z",
+    location: "Ágora Bogotá",
+    status: "PUBLISHED",
+    is_finished: false,
+  };
+
+  test("muestra nombre, fecha y lugar pero no los cupos", () => {
+    render(
+      <MemoryRouter>
+        <EventoCard evento={resumen} />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByRole("link", { name: "PyCon Bogotá" })).toBeInTheDocument();
+    expect(screen.getByText(/10 de oct de 2026/i)).toBeInTheDocument();
+    expect(screen.getByText("Ágora Bogotá")).toBeInTheDocument();
+    expect(screen.queryByText(/Quedan/)).not.toBeInTheDocument();
+  });
+
+  test("un evento cancelado por el organizador muestra la insignia Evento cancelado", () => {
+    render(
+      <MemoryRouter>
+        <EventoCard evento={{ ...resumen, status: "CANCELLED" }} />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByText("Evento cancelado")).toBeInTheDocument();
+  });
 });

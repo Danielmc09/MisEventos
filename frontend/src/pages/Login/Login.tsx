@@ -36,7 +36,7 @@ export default function Login() {
           }),
         },
       );
-      const user = await api<components["schemas"]["UsuarioSalida"]>("/auth/me", {
+      const user = await api<components["schemas"]["PerfilConPermisos"]>("/auth/me", {
         headers: { Authorization: `Bearer ${access_token}` },
       });
       useSession.getState().iniciarSesion(user, access_token, expires_in);

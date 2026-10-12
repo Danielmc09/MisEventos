@@ -2,13 +2,14 @@ import { useParams } from "react-router-dom";
 import { FormularioEvento } from "../../components/FormularioEvento";
 import { Spinner } from "../../components/ui/Spinner";
 import { useEvento } from "../../lib/useEvento";
-import { useSession } from "../../stores/session";
+import { useSession, useTienePermiso } from "../../stores/session";
 
 export default function EventoEditar() {
   const { id } = useParams();
   const { cargando, evento, error } = useEvento(id);
   const user = useSession((s) => s.user);
-  const puede = evento && user && (user.role === "ADMIN" || user.id === evento.organizer_id);
+  const gestionaTodos = useTienePermiso("evento:gestionar_todos");
+  const puede = evento && user && (gestionaTodos || user.id === evento.organizer_id);
 
   return (
     <main className="mx-auto max-w-3xl p-6">

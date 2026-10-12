@@ -5,7 +5,7 @@ import type { components } from "../api/schema";
 
 export const API = "http://localhost:8000";
 
-export const usuario: components["schemas"]["UsuarioSalida"] = {
+export const usuario: components["schemas"]["PerfilConPermisos"] = {
   id: "7c9e6679-7425-40de-944b-e07fc1f90ae7",
   email: "ana@mail.com",
   full_name: "Ana",
@@ -13,6 +13,7 @@ export const usuario: components["schemas"]["UsuarioSalida"] = {
   is_active: true,
   must_change_password: false,
   created_at: "2026-10-11T15:30:00Z",
+  permisos: [],
 };
 
 function Ubicacion() {
@@ -39,7 +40,7 @@ export function montar(inicial: string | Partial<Location>, rutas: [string, Reac
   );
 }
 
-export const evento: components["schemas"]["EventoSalida"] = {
+export const evento: components["schemas"]["EventoDetalle"] = {
   id: "0b8f3c52-6a1e-4c1d-9d57-3f2a1b7c9e10",
   name: "PyCon Bogotá",
   description: null,
@@ -54,6 +55,7 @@ export const evento: components["schemas"]["EventoSalida"] = {
   registered_count: 0,
   available_spots: 100,
   is_finished: false,
+  is_registered: false,
 };
 
 export const sesion: components["schemas"]["SesionSalida"] = {

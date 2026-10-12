@@ -4,6 +4,7 @@ from datetime import UTC, datetime
 from uuid import UUID
 
 from app.models.evento import EstadoEvento, Event
+from app.models.inscripcion import EstadoInscripcion, Registration
 from app.models.ponente import Speaker
 from app.models.sesion import Session as Sesion
 from app.models.usuario import User
@@ -36,8 +37,11 @@ class RepositorioEventosFalso:
         self.eventos = {e.id: e for e in eventos}
         self.busquedas: list[dict] = []
         self.sesiones: dict[UUID, Sesion] = {}
+        self.inscripciones: dict[UUID, Registration] = {}
         # Qué filas se bloquearon y en qué orden. Se puede compartir con otro doble.
         self.bloqueos: list[UUID] = []
+        # Con qué ids se contó cada vez: el listado cuenta toda la página en una sola llamada.
+        self.conteos: list[list[UUID]] = []
 
     def buscar(
         self, filtros, *, ver_todo: bool, borradores_de: UUID | None, offset: int, limite: int
@@ -71,6 +75,19 @@ class RepositorioEventosFalso:
     def por_id_para_escribir(self, id_: UUID) -> Event | None:
         self.bloqueos.append(id_)
         return self.eventos.get(id_)
+
+    def inscritos(self, ids_evento: list[UUID]) -> dict[UUID, int]:
+        self.conteos.append(list(ids_evento))
+        activas = [i for i in self.inscripciones.values() if i.status == EstadoInscripcion.ACTIVE]
+        return {id_: sum(1 for i in activas if i.event_id == id_) for id_ in ids_evento}
+
+    def inscrito(self, id_usuario: UUID, id_evento: UUID) -> bool:
+        return any(
+            i.user_id == id_usuario
+            and i.event_id == id_evento
+            and i.status == EstadoInscripcion.ACTIVE
+            for i in self.inscripciones.values()
+        )
 
     def sesiones_de(self, id_evento: UUID) -> list[Sesion]:
         propias = [s for s in self.sesiones.values() if s.event_id == id_evento]
@@ -200,3 +217,77 @@ class RepositorioSesionesFalso:
     def eliminar(self, sesion: Sesion) -> None:
         del self.eventos.sesiones[sesion.id]
         self.vinculos.pop(sesion.id, None)
+
+
+class RepositorioInscripcionesFalso:
+    """Guarda las inscripciones en el doble de eventos, que es el que las cuenta. Los datos de
+    cada inscrito salen del doble de usuarios."""
+
+    def __init__(
+        self, eventos: RepositorioEventosFalso, usuarios: RepositorioUsuariosFalso | None = None
+    ) -> None:
+        self.eventos = eventos
+        self.usuarios = usuarios or RepositorioUsuariosFalso()
+        # Con qué se pidieron las inscripciones de un usuario; el filtro real lo hace la base.
+        self.consultas_del_usuario: list[dict] = []
+
+    def del_usuario(
+        self, id_usuario: UUID, estado: EstadoInscripcion, cuando, offset: int, limite: int
+    ) -> tuple[list[tuple[Registration, Event]], int]:
+        self.consultas_del_usuario.append(
+            {"id_usuario": id_usuario, "estado": estado, "cuando": cuando}
+        )
+        ahora = datetime.now(UTC)
+        filas = [
+            (i, self.eventos.eventos[i.event_id])
+            for i in self.eventos.inscripciones.values()
+            if i.user_id == id_usuario
+            and i.status == estado
+            and (self.eventos.eventos[i.event_id].end_at < ahora) == (cuando == "past")
+        ]
+        return filas[offset : offset + limite], len(filas)
+
+    def del_evento(
+        self, id_evento: UUID, offset: int, limite: int
+    ) -> tuple[list[tuple[Registration, User]], int]:
+        filas = [
+            (i, self.usuarios.usuarios[i.user_id])
+            for i in sorted(self.eventos.inscripciones.values(), key=lambda i: i.created_at)
+            if i.event_id == id_evento
+        ]
+        return filas[offset : offset + limite], len(filas)
+
+    def por_estado(self, id_evento: UUID) -> dict[EstadoInscripcion, int]:
+        del_evento = [i for i in self.eventos.inscripciones.values() if i.event_id == id_evento]
+        return {e: sum(1 for i in del_evento if i.status == e) for e in EstadoInscripcion}
+
+    def alguna_de(self, id_usuario: UUID, id_evento: UUID) -> Registration | None:
+        return next(
+            (
+                i
+                for i in self.eventos.inscripciones.values()
+                if i.user_id == id_usuario and i.event_id == id_evento
+            ),
+            None,
+        )
+
+    def activa_de(self, id_usuario: UUID, id_evento: UUID) -> Registration | None:
+        return next(
+            (
+                i
+                for i in self.eventos.inscripciones.values()
+                if i.user_id == id_usuario
+                and i.event_id == id_evento
+                and i.status == EstadoInscripcion.ACTIVE
+            ),
+            None,
+        )
+
+    def crear(self, inscripcion: Registration) -> Registration:
+        inscripcion.created_at = datetime.now(UTC)
+        return self.guardar(inscripcion)
+
+    def guardar(self, inscripcion: Registration) -> Registration:
+        inscripcion.updated_at = datetime.now(UTC)
+        self.eventos.inscripciones[inscripcion.id] = inscripcion
+        return inscripcion

@@ -3,7 +3,8 @@ import { useEffect } from "react";
 import { persist } from "zustand/middleware";
 import type { components } from "../api/schema";
 
-export type Usuario = components["schemas"]["UsuarioSalida"];
+export type Usuario = components["schemas"]["PerfilConPermisos"];
+export type Permiso = components["schemas"]["Permiso"];
 
 interface SessionState {
   user: Usuario | null;
@@ -35,6 +36,11 @@ export const useSession = create<SessionState>()(
     },
   ),
 );
+
+/** Los permisos los calcula la API: el cliente solo los lee. Una sesión guardada sin la lista no tiene ninguno. */
+export function useTienePermiso(permiso: Permiso): boolean {
+  return useSession((s) => s.user?.permisos?.includes(permiso) ?? false);
+}
 
 /** Hay sesión si hay token y no venció. Si venció, la vacía. */
 export function useSesionVigente() {

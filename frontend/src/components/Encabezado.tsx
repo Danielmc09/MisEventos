@@ -1,11 +1,12 @@
 import { Link } from "react-router-dom";
 import { useCerrarSesion } from "../lib/useCerrarSesion";
-import { useSesionVigente, useSession } from "../stores/session";
+import { useSesionVigente, useSession, useTienePermiso } from "../stores/session";
 
 const enlace = "text-indigo-700 hover:underline";
 
 export function Encabezado() {
   const user = useSession((s) => s.user);
+  const puedeCrear = useTienePermiso("evento:crear");
   const vigente = useSesionVigente();
   const cerrarSesion = useCerrarSesion();
   return (
@@ -19,9 +20,11 @@ export function Encabezado() {
         </Link>
         {user && vigente ? (
           <>
-            <Link to="/eventos/nuevo" className={enlace}>
-              Crear evento
-            </Link>
+            {puedeCrear && (
+              <Link to="/eventos/nuevo" className={enlace}>
+                Crear evento
+              </Link>
+            )}
             <Link to="/perfil" className={`${enlace} max-w-full truncate`}>
               {user.full_name || user.email}
             </Link>

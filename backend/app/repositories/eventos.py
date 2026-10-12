@@ -5,6 +5,7 @@ from sqlalchemy import ColumnElement
 from sqlmodel import Session, col, func, or_, select
 
 from app.models.evento import EstadoEvento, Event
+from app.models.inscripcion import EstadoInscripcion, Registration
 from app.models.sesion import Session as Sesion
 from app.schemas.eventos import Cuando, FiltrosEventos, OrdenEventos
 
@@ -77,6 +78,32 @@ class RepositorioEventos:
         """Bloquea la fila hasta el fin de la transacción: dos cambios a la vez no se pisan."""
         consulta = select(Event).where(Event.id == id_evento).with_for_update()
         return self.session.exec(consulta).first()
+
+    def inscritos(self, ids_evento: list[UUID]) -> dict[UUID, int]:
+        """Las inscripciones activas de cada evento, en una sola consulta para todos."""
+        por_evento = dict.fromkeys(ids_evento, 0)
+        if not ids_evento:
+            return por_evento
+        consulta = (
+            select(Registration.event_id, func.count())
+            .where(
+                col(Registration.event_id).in_(ids_evento),
+                Registration.status == EstadoInscripcion.ACTIVE,
+            )
+            .group_by(col(Registration.event_id))
+        )
+        for id_evento, cantidad in self.session.exec(consulta).all():
+            por_evento[id_evento] = cantidad
+        return por_evento
+
+    def inscrito(self, id_usuario: UUID, id_evento: UUID) -> bool:
+        """Si el usuario tiene una inscripción activa en el evento."""
+        consulta = select(Registration.id).where(
+            Registration.user_id == id_usuario,
+            Registration.event_id == id_evento,
+            Registration.status == EstadoInscripcion.ACTIVE,
+        )
+        return self.session.exec(consulta).first() is not None
 
     def sesiones_de(self, id_evento: UUID) -> list[Sesion]:
         consulta = (

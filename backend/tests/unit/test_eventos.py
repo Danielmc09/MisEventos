@@ -7,6 +7,7 @@ from app.api.dependencias import repositorio_eventos, repositorio_usuarios
 from app.core.permisos import Rol
 from app.core.tokens import crear_access_token
 from app.models.evento import EstadoEvento, Event
+from app.models.inscripcion import EstadoInscripcion, Registration
 from app.models.sesion import Session as Sesion
 from app.models.usuario import User
 from app.services import eventos as servicio_eventos
@@ -575,6 +576,34 @@ def test_bajar_la_capacidad_hasta_la_de_la_sesion_mas_grande_se_acepta(cliente, 
 
     assert respuesta.status_code == 200, respuesta.text
     assert eventos.eventos[existente.id].capacity == 80
+
+
+def test_la_capacidad_nueva_respeta_a_la_vez_los_inscritos_y_las_sesiones(cliente, eventos, token):
+    existente = eventos.crear(evento(PUBLICADO))
+    con_sesion(eventos, existente, 1, 2, capacidad=80)
+    for _ in range(5):
+        activa = Registration(user_id=uuid4(), event_id=existente.id)
+        eventos.inscripciones[activa.id] = activa
+    cancelada = Registration(
+        user_id=uuid4(), event_id=existente.id, status=EstadoInscripcion.CANCELLED
+    )
+    eventos.inscripciones[cancelada.id] = cancelada
+
+    # Debajo de los inscritos y de la sesión: manda el límite de las personas inscritas.
+    debajo_de_inscritos = editar(cliente, existente.id, {"capacity": 3}, token(ORGANIZADOR))
+    debajo_de_la_sesion = editar(cliente, existente.id, {"capacity": 50}, token(ORGANIZADOR))
+    assert eventos.eventos[existente.id].capacity == 100
+    justo = editar(cliente, existente.id, {"capacity": 80}, token(ORGANIZADOR))
+
+    assert debajo_de_inscritos.status_code == 409
+    assert debajo_de_inscritos.json()["type"] == "capacity-below-registrations"
+    assert debajo_de_la_sesion.status_code == 409
+    assert debajo_de_la_sesion.json()["type"] == "sessions-capacity-above"
+    assert justo.status_code == 200, justo.text
+    assert justo.json()["capacity"] == 80
+    assert justo.json()["available_spots"] == 75
+    assert eventos.eventos[existente.id].capacity == 80
+    assert eventos.bloqueos == [existente.id] * 3
 
 
 def test_sin_token_no_se_edita(cliente, eventos):

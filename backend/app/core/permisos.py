@@ -33,3 +33,8 @@ PERMISOS_POR_ROL: dict[Rol, frozenset[Permiso]] = {
 
 def tiene_permiso(usuario: ConRol, permiso: Permiso) -> bool:
     return permiso in PERMISOS_POR_ROL[usuario.role]
+
+
+def permisos_de(usuario: ConRol) -> list[Permiso]:
+    """Los permisos del usuario, ordenados por identificador para que la respuesta sea estable."""
+    return sorted(PERMISOS_POR_ROL[usuario.role])

@@ -74,7 +74,7 @@ class EventoSalida(BaseModel):
     organizer_id: UUID
     created_at: FechaUTC
     updated_at: FechaUTC
-    # Hasta que existan las inscripciones no hay inscritos que contar.
+    # Las inscripciones activas. Quien no las cuenta responde 0.
     registered_count: int = 0
 
     @computed_field
@@ -87,6 +87,11 @@ class EventoSalida(BaseModel):
     def is_finished(self) -> bool:
         # "Finalizado" no se guarda: se calcula en cada respuesta.
         return self.end_at < datetime.now(UTC)
+
+
+class EventoDetalle(EventoSalida):
+    # Si el usuario tiene una inscripción activa. Para un anónimo, false.
+    is_registered: bool = False
 
 
 class Cuando(StrEnum):

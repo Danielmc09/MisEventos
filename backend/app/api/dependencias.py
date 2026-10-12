@@ -10,6 +10,7 @@ from app.core.db import SesionDB
 from app.core.excepciones import Unauthorized
 from app.models.usuario import User
 from app.repositories.eventos import RepositorioEventos
+from app.repositories.inscripciones import RepositorioInscripciones
 from app.repositories.ponentes import RepositorioPonentes
 from app.repositories.salud import RepositorioSalud
 from app.repositories.sesiones import RepositorioSesiones
@@ -73,6 +74,10 @@ def repositorio_sesiones(session: SesionDB) -> RepositorioSesiones:
     return RepositorioSesiones(session)
 
 
+def repositorio_inscripciones(session: SesionDB) -> RepositorioInscripciones:
+    return RepositorioInscripciones(session)
+
+
 def repositorio_salud(session: SesionDB) -> RepositorioSalud:
     return RepositorioSalud(session)
 
@@ -82,6 +87,7 @@ RepoUsuarios = Annotated[RepositorioUsuarios, Depends(repositorio_usuarios)]
 RepoEventos = Annotated[RepositorioEventos, Depends(repositorio_eventos)]
 RepoPonentes = Annotated[RepositorioPonentes, Depends(repositorio_ponentes)]
 RepoSesiones = Annotated[RepositorioSesiones, Depends(repositorio_sesiones)]
+RepoInscripciones = Annotated[RepositorioInscripciones, Depends(repositorio_inscripciones)]
 RepoSalud = Annotated[RepositorioSalud, Depends(repositorio_salud)]
 
 
