@@ -93,9 +93,13 @@ def me(usuario: UsuarioConCambioPendiente) -> PerfilConPermisos:
     responses=respuestas_de_error(401, 422),
 )
 def cambiar_contrasena(
-    datos: CambioContrasenaEntrada, usuario: UsuarioConCambioPendiente, settings: ConfigApp
+    datos: CambioContrasenaEntrada,
+    usuario: UsuarioConCambioPendiente,
+    repo: RepoUsuarios,
+    settings: ConfigApp,
 ) -> TokenAcceso:
     token = autenticacion.cambiar_contrasena(
+        repo,
         usuario,
         datos.current_password,
         datos.new_password,
