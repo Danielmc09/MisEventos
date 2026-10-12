@@ -1,9 +1,12 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { MemoryRouter } from "react-router-dom";
 import { Button } from "./Button";
 import { AlertaError } from "./AlertaError";
 import { Input } from "./Input";
 import { Textarea } from "./Textarea";
+import { Insignia } from "./Insignia";
+import { EnlaceBoton } from "./EnlaceBoton";
 
 describe("Button", () => {
   test("en estado de carga queda deshabilitado y muestra el spinner", () => {
@@ -76,5 +79,43 @@ describe("AlertaError", () => {
 
     expect(screen.getByRole("alert")).toHaveTextContent("No se pudo guardar");
     expect(screen.getByRole("alert")).toHaveTextContent("La descripción es demasiado larga");
+  });
+});
+
+describe("Button: variantes", () => {
+  test.each([
+    ["peligro", "bg-red-700"],
+    ["secundario", "border-gray-300"],
+    ["primario", "bg-indigo-600"],
+  ] as const)("la variante %s tiene su estilo", (variante, clase) => {
+    render(<Button variante={variante}>Acción</Button>);
+
+    expect(screen.getByRole("button", { name: "Acción" })).toHaveClass(clase);
+  });
+
+  test("la variante peligro no conserva el color primario", () => {
+    render(<Button variante="peligro">Acción</Button>);
+
+    expect(screen.getByRole("button", { name: "Acción" })).not.toHaveClass("bg-indigo-600");
+  });
+});
+
+describe("Insignia", () => {
+  test("muestra su texto", () => {
+    render(<Insignia tono="exito">Estás inscrito</Insignia>);
+
+    expect(screen.getByText("Estás inscrito")).toBeInTheDocument();
+  });
+});
+
+describe("EnlaceBoton", () => {
+  test("es un enlace a la ruta dada", () => {
+    render(
+      <MemoryRouter>
+        <EnlaceBoton to="/login">Iniciá sesión</EnlaceBoton>
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByRole("link", { name: "Iniciá sesión" })).toHaveAttribute("href", "/login");
   });
 });

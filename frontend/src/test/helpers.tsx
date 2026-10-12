@@ -39,7 +39,7 @@ export function montar(inicial: string | Partial<Location>, rutas: [string, Reac
   );
 }
 
-export const evento: components["schemas"]["EventoSalida"] = {
+export const evento: components["schemas"]["EventoDetalle"] = {
   id: "0b8f3c52-6a1e-4c1d-9d57-3f2a1b7c9e10",
   name: "PyCon Bogotá",
   description: null,
@@ -54,6 +54,7 @@ export const evento: components["schemas"]["EventoSalida"] = {
   registered_count: 0,
   available_spots: 100,
   is_finished: false,
+  is_registered: false,
 };
 
 export const sesion: components["schemas"]["SesionSalida"] = {
