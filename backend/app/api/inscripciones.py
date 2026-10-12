@@ -32,3 +32,19 @@ def inscribirse(
 ) -> InscripcionSalida:
     inscripcion = inscripciones.inscribirse(eventos, repo, usuario, id_evento)
     return InscripcionSalida.model_validate(inscripcion, from_attributes=True)
+
+
+@router.delete(
+    "/events/{id_evento}/registrations/me",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Cancelar mi inscripción",
+    description=(
+        "Cancela la inscripción activa del usuario actual, que sale del token. Solo antes de que "
+        "el evento empiece (409 `event-started`); sin inscripción activa, 404. Libera el cupo."
+    ),
+    responses=respuestas_de_error(401, 404, 409, 422),
+)
+def cancelar(
+    id_evento: UUID, usuario: UsuarioActual, eventos: RepoEventos, repo: RepoInscripciones
+) -> None:
+    inscripciones.cancelar(eventos, repo, usuario, id_evento)

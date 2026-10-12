@@ -2,12 +2,13 @@
 
 Lanza excepciones de dominio; no sabe nada de HTTP."""
 
+from datetime import UTC, datetime
 from typing import Protocol
 from uuid import UUID
 
 from app.core.excepciones import Conflict, NotFound
 from app.models.evento import EstadoEvento
-from app.models.inscripcion import Registration
+from app.models.inscripcion import EstadoInscripcion, Registration
 from app.models.usuario import User
 from app.services import eventos as servicio_eventos
 from app.services.eventos import Eventos
@@ -45,3 +46,20 @@ def inscribirse(
             titulo="El evento no tiene cupos",
         )
     return inscripciones.crear(Registration(user_id=usuario.id, event_id=evento.id))
+
+
+def cancelar(
+    eventos: Eventos, inscripciones: Inscripciones, usuario: User, id_evento: UUID
+) -> None:
+    """Cancela la inscripción activa del usuario, solo antes de que el evento empiece, y libera
+    el cupo. Toma el mismo bloqueo del evento que inscribirse, en el mismo orden. Sin una
+    inscripción activa propia es 404, exista o no el evento."""
+    evento = eventos.por_id_para_escribir(id_evento)
+    inscripcion = None if evento is None else inscripciones.activa_de(usuario.id, evento.id)
+    if evento is None or inscripcion is None:
+        raise NotFound()
+    if servicio_eventos.ya_empezo(evento):
+        raise _evento_empezado()
+    inscripcion.status = EstadoInscripcion.CANCELLED
+    inscripcion.cancelled_at = datetime.now(UTC)
+    inscripciones.guardar(inscripcion)
