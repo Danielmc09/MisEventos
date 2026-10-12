@@ -86,6 +86,22 @@ def test_el_formulario_se_revisa_aunque_el_content_type_venga_escrito_distinto(c
     assert respuesta.json()["errors"] == [{"field": "username", "message": MENSAJE}]
 
 
+@pytest.mark.parametrize(
+    ("metodo", "ruta", "esperado"),
+    [("POST", "/auth/logout", 204), ("GET", "/events", 200)],
+    ids=["logout", "listado"],
+)
+@pytest.mark.usefixtures("token")  # los repositorios en memoria
+def test_un_endpoint_sin_formulario_no_lee_el_cuerpo_aunque_el_content_type_lo_anuncie(
+    cliente, metodo, ruta, esperado
+):
+    # Un multipart sin boundary no se puede parsear: si la revisión del nulo leyera el cuerpo
+    # de un endpoint que no declara formulario, respondería 400.
+    respuesta = cliente.request(metodo, ruta, headers={"Content-Type": "multipart/form-data"})
+
+    assert respuesta.status_code == esperado
+
+
 # --- El esquema base, sin HTTP --------------------------------------------------------------
 
 
