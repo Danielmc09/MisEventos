@@ -41,7 +41,10 @@ export default function CambiarContrasena() {
         },
       );
       const { user } = useSession.getState();
-      if (user) useSession.getState().iniciarSesion(user, access_token, expires_in);
+      if (user)
+        useSession
+          .getState()
+          .iniciarSesion({ ...user, must_change_password: false }, access_token, expires_in);
       avisar({ message: "Cambiaste tu contraseña", tone: "exito" });
       navigate("/perfil");
     } catch (err) {
