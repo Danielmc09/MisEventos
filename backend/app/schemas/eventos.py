@@ -74,7 +74,7 @@ class EventoSalida(BaseModel):
     organizer_id: UUID
     created_at: FechaUTC
     updated_at: FechaUTC
-    # Hasta que existan las inscripciones no hay inscritos que contar.
+    # Las inscripciones activas. Quien no las cuenta responde 0.
     registered_count: int = 0
 
     @computed_field

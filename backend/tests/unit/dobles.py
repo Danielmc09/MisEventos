@@ -4,6 +4,7 @@ from datetime import UTC, datetime
 from uuid import UUID
 
 from app.models.evento import Event
+from app.models.inscripcion import EstadoInscripcion, Registration
 from app.models.ponente import Speaker
 from app.models.sesion import Session as Sesion
 from app.models.usuario import User
@@ -36,6 +37,7 @@ class RepositorioEventosFalso:
         self.eventos = {e.id: e for e in eventos}
         self.busquedas: list[dict] = []
         self.sesiones: dict[UUID, Sesion] = {}
+        self.inscripciones: dict[UUID, Registration] = {}
         # Qué filas se bloquearon y en qué orden. Se puede compartir con otro doble.
         self.bloqueos: list[UUID] = []
 
@@ -71,6 +73,10 @@ class RepositorioEventosFalso:
     def por_id_para_escribir(self, id_: UUID) -> Event | None:
         self.bloqueos.append(id_)
         return self.eventos.get(id_)
+
+    def inscritos(self, ids_evento: list[UUID]) -> dict[UUID, int]:
+        activas = [i for i in self.inscripciones.values() if i.status == EstadoInscripcion.ACTIVE]
+        return {id_: sum(1 for i in activas if i.event_id == id_) for id_ in ids_evento}
 
     def sesiones_de(self, id_evento: UUID) -> list[Sesion]:
         propias = [s for s in self.sesiones.values() if s.event_id == id_evento]
@@ -186,3 +192,31 @@ class RepositorioSesionesFalso:
     def eliminar(self, sesion: Sesion) -> None:
         del self.eventos.sesiones[sesion.id]
         self.vinculos.pop(sesion.id, None)
+
+
+class RepositorioInscripcionesFalso:
+    """Guarda las inscripciones en el doble de eventos, que es el que las cuenta."""
+
+    def __init__(self, eventos: RepositorioEventosFalso) -> None:
+        self.eventos = eventos
+
+    def activa_de(self, id_usuario: UUID, id_evento: UUID) -> Registration | None:
+        return next(
+            (
+                i
+                for i in self.eventos.inscripciones.values()
+                if i.user_id == id_usuario
+                and i.event_id == id_evento
+                and i.status == EstadoInscripcion.ACTIVE
+            ),
+            None,
+        )
+
+    def crear(self, inscripcion: Registration) -> Registration:
+        inscripcion.created_at = datetime.now(UTC)
+        return self.guardar(inscripcion)
+
+    def guardar(self, inscripcion: Registration) -> Registration:
+        inscripcion.updated_at = datetime.now(UTC)
+        self.eventos.inscripciones[inscripcion.id] = inscripcion
+        return inscripcion
