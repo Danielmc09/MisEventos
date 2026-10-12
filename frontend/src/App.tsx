@@ -3,6 +3,7 @@ import { Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { registrarRouter } from "./api/navegacion";
 import { Encabezado } from "./components/Encabezado";
 import { RutaProtegida } from "./components/RutaProtegida";
+import { ProveedorAvisos } from "./components/ui/Avisos";
 import { Spinner } from "./components/ui/Spinner";
 
 const Inicio = lazy(() => import("./pages/Inicio/Inicio"));
@@ -24,7 +25,7 @@ export default function App() {
   );
 
   return (
-    <>
+    <ProveedorAvisos>
       <Encabezado />
       <Suspense
         fallback={
@@ -47,6 +48,6 @@ export default function App() {
           <Route path="*" element={<NoEncontrada />} />
         </Routes>
       </Suspense>
-    </>
+    </ProveedorAvisos>
   );
 }

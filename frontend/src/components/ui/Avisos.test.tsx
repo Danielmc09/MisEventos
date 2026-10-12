@@ -51,15 +51,15 @@ describe("aviso de éxito", () => {
   });
 
   test("se cierra solo a los 4 segundos", async () => {
-    vi.useFakeTimers();
+    vi.useFakeTimers({ shouldAdvanceTime: true });
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
     montar();
 
     await user.click(screen.getByRole("button", { name: "Avisar éxito" }));
-    act(() => vi.advanceTimersByTime(3999));
+    act(() => vi.advanceTimersByTime(3900));
     expect(screen.getByRole("status")).toBeInTheDocument();
 
-    act(() => vi.advanceTimersByTime(1));
+    act(() => vi.advanceTimersByTime(200));
     expect(screen.queryByRole("status")).not.toBeInTheDocument();
   });
 

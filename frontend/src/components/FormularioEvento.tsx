@@ -5,6 +5,7 @@ import { errorDeFormulario } from "../lib/errores";
 import { aInputBogota, aISOBogota } from "../lib/fechas";
 import { useEventos, type Evento } from "../stores/eventos";
 import { AlertaError } from "./ui/AlertaError";
+import { useAvisos } from "./ui/Avisos";
 import { Button } from "./ui/Button";
 import { Input } from "./ui/Input";
 import { Textarea } from "./ui/Textarea";
@@ -61,6 +62,7 @@ const aCuerpo = (v: Valores) => ({
 export function FormularioEvento({ evento }: { evento?: Evento }) {
   const navigate = useNavigate();
   const invalidar = useEventos((s) => s.invalidar);
+  const avisar = useAvisos();
   const [valores, setValores] = useState<Valores>(evento ? desdeEvento(evento) : VACIO);
   const [errores, setErrores] = useState<Record<string, string>>({});
   const [general, setGeneral] = useState<{ title: string; detail?: string } | null>(null);
@@ -105,6 +107,7 @@ export function FormularioEvento({ evento }: { evento?: Evento }) {
           });
       }
       invalidar();
+      avisar({ message: evento ? "Guardaste los cambios" : "Creaste el evento", tone: "exito" });
       navigate(`/eventos/${id}`);
     } catch (e) {
       const { campos, general, detalle } = errorDeFormulario(e, CAMPOS_VISIBLES);
