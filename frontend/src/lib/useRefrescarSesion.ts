@@ -6,10 +6,11 @@ import { useSession } from "../stores/session";
 let enCurso: Promise<void> | null = null;
 
 /** Pide los datos frescos del usuario; una sola petición aunque se llame dos veces seguidas. */
-function refrescar(): Promise<void> {
+function refrescar(token: string): Promise<void> {
   enCurso ??= api<components["schemas"]["PerfilConPermisos"]>("/auth/me")
     .then((user) => {
-      if (useSession.getState().accessToken) useSession.setState({ user });
+      // Si la sesión cambió mientras llegaba la respuesta, esos datos son de otro token.
+      if (useSession.getState().accessToken === token) useSession.setState({ user });
     })
     // Un 401 ya cerró la sesión en el cliente; ante un error de red se queda lo guardado.
     .catch(() => undefined)
@@ -23,6 +24,6 @@ function refrescar(): Promise<void> {
 export function useRefrescarSesion() {
   useEffect(() => {
     const { accessToken, expiresAt } = useSession.getState();
-    if (accessToken && (expiresAt ?? 0) > Date.now()) void refrescar();
+    if (accessToken && (expiresAt ?? 0) > Date.now()) void refrescar(accessToken);
   }, []);
 }

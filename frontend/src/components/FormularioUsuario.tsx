@@ -2,6 +2,7 @@ import { useId, useState, type FormEvent } from "react";
 import { api } from "../api/client";
 import { ApiError } from "../api/errors";
 import type { components } from "../api/schema";
+import { errorDeFormulario } from "../lib/errores";
 import { useSession } from "../stores/session";
 import { AlertaError } from "./ui/AlertaError";
 import { useAvisos } from "./ui/Avisos";
@@ -23,7 +24,56 @@ export const ROLES: Record<Rol, string> = {
   ADMIN: "Administrador",
 };
 
+const CAMPOS_VISIBLES = ["full_name", "email"];
+
 export const nombreDe = (u: UsuarioAdmin) => u.full_name || u.email;
+
+interface TextoConfirmacion {
+  titulo: string;
+  mensaje: string;
+  confirmar: string;
+}
+
+/** Lo que dice el diálogo por cada cambio que pide confirmación. Con varios a la vez, un solo diálogo los menciona todos. */
+function textosDe(cuerpo: Edicion, nombre: string, rol: Rol): TextoConfirmacion[] {
+  const textos: TextoConfirmacion[] = [];
+  if (cuerpo.email !== undefined)
+    textos.push({
+      titulo: `¿Cambiar el correo de ${nombre}?`,
+      mensaje: "Va a tener que iniciar sesión con el correo nuevo.",
+      confirmar: "Sí, cambiar el correo",
+    });
+  if (cuerpo.role !== undefined)
+    textos.push({
+      titulo: `¿Cambiar el rol de ${nombre}?`,
+      mensaje: `Va a pasar a ser ${ROLES[rol].toLowerCase()}. Tiene efecto en su siguiente acción.`,
+      confirmar: "Cambiar rol",
+    });
+  if (cuerpo.is_active !== undefined)
+    textos.push(
+      cuerpo.is_active
+        ? {
+            titulo: `¿Reactivar a ${nombre}?`,
+            mensaje: "Va a poder volver a entrar con su cuenta.",
+            confirmar: "Reactivar",
+          }
+        : {
+            titulo: `¿Desactivar a ${nombre}?`,
+            mensaje: "Se va a cerrar su sesión y no va a poder volver a entrar.",
+            confirmar: "Sí, desactivar",
+          },
+    );
+  return textos;
+}
+
+function textoUnico(textos: TextoConfirmacion[], nombre: string): TextoConfirmacion {
+  if (textos.length === 1) return textos[0];
+  return {
+    titulo: `¿Guardar estos cambios de ${nombre}?`,
+    mensaje: textos.map((t) => t.mensaje).join(" "),
+    confirmar: "Sí, guardar los cambios",
+  };
+}
 
 export interface FormularioUsuarioProps {
   usuario: UsuarioAdmin;
@@ -47,7 +97,7 @@ export function FormularioUsuario({
   const [activo, setActivo] = useState(String(usuario.is_active));
   const [errorNombre, setErrorNombre] = useState<string>();
   const [errorEmail, setErrorEmail] = useState<string>();
-  const [general, setGeneral] = useState<string>();
+  const [general, setGeneral] = useState<{ title: string; detail?: string }>();
   const [enviando, setEnviando] = useState(false);
   const [pendiente, setPendiente] = useState<Edicion>();
 
@@ -65,8 +115,11 @@ export function FormularioUsuario({
     } catch (err) {
       setPendiente(undefined);
       setEnviando(false);
-      if (err instanceof ApiError && err.type === "email-taken") setErrorEmail(err.title);
-      else setGeneral(err instanceof ApiError ? err.title : "Ocurrió un error inesperado");
+      if (err instanceof ApiError && err.type === "email-taken") return setErrorEmail(err.title);
+      const { campos, general, detalle } = errorDeFormulario(err, CAMPOS_VISIBLES);
+      setErrorNombre(campos.full_name);
+      setErrorEmail(campos.email);
+      setGeneral(general ? { title: general, detail: detalle ?? undefined } : undefined);
     }
   }
 
@@ -75,7 +128,8 @@ export function FormularioUsuario({
     setGeneral(undefined);
     const nombreLimpio = nombre.trim();
     const emailLimpio = email.trim();
-    const faltaNombre = !nombreLimpio ? "Escribí el nombre" : undefined;
+    // Un nombre que existía no se puede borrar; si ya estaba vacío, sigue vacío y no se manda.
+    const faltaNombre = !nombreLimpio && usuario.full_name ? "Escribí el nombre" : undefined;
     const faltaEmail = !emailLimpio ? "Escribí el correo" : undefined;
     setErrorNombre(faltaNombre);
     setErrorEmail(faltaEmail);
@@ -88,7 +142,12 @@ export function FormularioUsuario({
     if (!propio && (activo === "true") !== usuario.is_active) cuerpo.is_active = activo === "true";
 
     if (Object.keys(cuerpo).length === 0) onCancelar();
-    else if (cuerpo.role !== undefined || cuerpo.is_active !== undefined) setPendiente(cuerpo);
+    else if (
+      cuerpo.email !== undefined ||
+      cuerpo.role !== undefined ||
+      cuerpo.is_active !== undefined
+    )
+      setPendiente(cuerpo);
     else void guardar(cuerpo);
   }
 
@@ -137,7 +196,7 @@ export function FormularioUsuario({
               No podés cambiar tu propio rol ni tu estado
             </TextoSecundario>
           )}
-          {general && <AlertaError title={general} />}
+          {general && <AlertaError {...general} />}
           <div className="flex flex-wrap justify-end gap-3">
             <Button type="button" variante="secundario" onClick={onCancelar}>
               Cancelar
@@ -150,25 +209,7 @@ export function FormularioUsuario({
       </Modal>
       {pendiente && (
         <DialogoConfirmacion
-          titulo={
-            pendiente.is_active === undefined
-              ? `¿Cambiar el rol de ${nombreDe(usuario)}?`
-              : `¿${pendiente.is_active ? "Reactivar" : "Desactivar"} a ${nombreDe(usuario)}?`
-          }
-          mensaje={
-            pendiente.is_active === undefined
-              ? `Va a pasar a ser ${ROLES[rol].toLowerCase()}. Tiene efecto en su siguiente acción.`
-              : pendiente.is_active
-                ? "Va a poder volver a entrar con su cuenta."
-                : "No va a poder iniciar sesión."
-          }
-          confirmar={
-            pendiente.is_active === undefined
-              ? "Cambiar rol"
-              : pendiente.is_active
-                ? "Reactivar"
-                : "Sí, desactivar"
-          }
+          {...textoUnico(textosDe(pendiente, nombreDe(usuario), rol), nombreDe(usuario))}
           variante={pendiente.is_active === false ? "peligro" : "primario"}
           cargando={enviando}
           onConfirmar={() => void guardar(pendiente)}
