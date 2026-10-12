@@ -72,6 +72,13 @@ class RepositorioInscripciones:
             cuantas[estado] = cantidad
         return cuantas
 
+    def alguna_de(self, id_usuario: UUID, id_evento: UUID) -> Registration | None:
+        """Cualquier inscripción del usuario en el evento, activa o cancelada."""
+        consulta = select(Registration).where(
+            Registration.user_id == id_usuario, Registration.event_id == id_evento
+        )
+        return self.session.exec(consulta).first()
+
     def activa_de(self, id_usuario: UUID, id_evento: UUID) -> Registration | None:
         consulta = select(Registration).where(
             Registration.user_id == id_usuario,
