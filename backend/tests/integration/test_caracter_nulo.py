@@ -82,6 +82,11 @@ def entrada_valida(campo: CampoDeTexto, email: str, clave: str) -> dict:
         "SesionEntrada": cuerpo_de_sesion,
         "SesionEdicion": lambda: {"title": f"Editada {uuid4().hex[:8]}"},
         "UsuarioEdicion": lambda: {"full_name": "Ana Pérez"},
+        "UsuarioAlta": lambda: {
+            "email": f"alta-{uuid4().hex}@mail.com",
+            "full_name": "Ana Pérez",
+            "role": "ATTENDEE",
+        },
     }
     assert campo.esquema in validos, f"falta el request válido de {campo.esquema}"
     return validos[campo.esquema]()
@@ -143,4 +148,6 @@ def test_el_caracter_nulo_en_cualquier_campo_de_texto_nunca_da_500(cliente_db, c
     assert de_admin_usuarios["PATCH /admin/users/{id_usuario} [body] full_name"] == 422
     assert de_admin_usuarios["PATCH /admin/users/{id_usuario} [body] email"] == 422
     assert de_admin_usuarios["GET /admin/users [query] q"] == 422
+    assert de_admin_usuarios["POST /admin/users [body] full_name"] == 422
+    assert de_admin_usuarios["POST /admin/users [body] email"] == 422
     assert set(de_admin_usuarios.values()) == {422}, de_admin_usuarios
