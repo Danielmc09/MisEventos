@@ -26,10 +26,6 @@ export function ControlReserva({
 }: Props) {
   if (!eventoPublicado || new Date(sesion.start_at) <= new Date()) return null;
 
-  if (!inscrito) {
-    return <TextoSecundario>Inscribite al evento para reservar sesiones</TextoSecundario>;
-  }
-
   // La capacidad efectiva (la propia o la heredada del evento) es lo reservado más lo que queda.
   const chip = (
     <ChipDisponibilidad
@@ -37,6 +33,15 @@ export function ControlReserva({
       libres={sesion.available_spots}
     />
   );
+
+  if (!inscrito) {
+    return (
+      <div className="flex flex-wrap items-center gap-3">
+        <TextoSecundario>Inscribite al evento para reservar sesiones</TextoSecundario>
+        {chip}
+      </div>
+    );
+  }
 
   if (sesion.is_reserved) {
     return (
