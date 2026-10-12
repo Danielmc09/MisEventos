@@ -1,3 +1,4 @@
+from app.core import contrasenas
 from app.core.contrasenas import generar_contrasena_temporal, hashear, verificar
 
 
@@ -38,3 +39,22 @@ def test_la_contrasena_temporal_se_puede_copiar_y_escribir_sin_ambiguedades():
 
     assert generadas.isascii() and generadas.isalnum()
     assert not set(generadas) & set("0O1lI")
+
+
+def test_la_contrasena_temporal_sale_del_generador_criptografico(monkeypatch):
+    """`random` es predecible: quien vea algunas salidas puede adivinar las siguientes. La
+    temporal tiene que salir de `secrets`."""
+    elegidos: list[str] = []
+
+    class SecretsQueAnota:
+        @staticmethod
+        def choice(alfabeto: str) -> str:
+            elegidos.append(alfabeto)
+            return alfabeto[len(elegidos) % len(alfabeto)]
+
+    monkeypatch.setattr(contrasenas, "secrets", SecretsQueAnota)
+
+    temporal = contrasenas.generar_contrasena_temporal()
+
+    assert len(elegidos) == 16
+    assert temporal == "".join(a[(i + 1) % len(a)] for i, a in enumerate(elegidos))
