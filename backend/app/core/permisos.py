@@ -13,6 +13,8 @@ class Rol(StrEnum):
 class Permiso(StrEnum):
     EVENTO_CREAR = "evento:crear"
     EVENTO_GESTIONAR_TODOS = "evento:gestionar_todos"
+    PONENTE_GESTIONAR = "ponente:gestionar"
+    PONENTE_GESTIONAR_TODOS = "ponente:gestionar_todos"
     USUARIOS_GESTIONAR = "usuarios:gestionar"
     AUDITORIA_VER = "auditoria:ver"
 
@@ -24,7 +26,7 @@ class ConRol(Protocol):
 # Los roles están anidados: cada uno puede todo lo del anterior. Un rol nuevo es una fila más.
 PERMISOS_POR_ROL: dict[Rol, frozenset[Permiso]] = {
     Rol.ATTENDEE: frozenset(),
-    Rol.ORGANIZER: frozenset({Permiso.EVENTO_CREAR}),
+    Rol.ORGANIZER: frozenset({Permiso.EVENTO_CREAR, Permiso.PONENTE_GESTIONAR}),
     Rol.ADMIN: frozenset(Permiso),
 }
 

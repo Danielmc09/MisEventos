@@ -161,3 +161,62 @@ def test_los_eventos_demo_se_buscan_y_un_anonimo_no_ve_el_borrador(cliente_db, c
     assert len([e for e in python.json()["items"] if e["name"] in demo]) >= 2
     assert borradores.json()["total"] == 0
     assert len([e for e in pasados.json()["items"] if e["name"] in demo]) == 1
+
+
+def sesiones_y_ponentes_demo(conexion) -> tuple[list, list, list]:
+    ponentes = conexion.execute(
+        text(
+            "SELECT s.id FROM speakers s JOIN users u ON u.id = s.created_by"
+            " WHERE lower(u.email) = 'organizador@miseventos.local'"
+        )
+    ).all()
+    sesiones = conexion.execute(
+        text(
+            "SELECT se.id FROM sessions se JOIN events e ON e.id = se.event_id"
+            " JOIN users u ON u.id = e.organizer_id"
+            " WHERE lower(u.email) = 'organizador@miseventos.local'"
+        )
+    ).all()
+    vinculos = conexion.execute(
+        text(
+            "SELECT ss.session_id, ss.speaker_id FROM session_speakers ss"
+            " JOIN sessions se ON se.id = ss.session_id JOIN events e ON e.id = se.event_id"
+            " JOIN users u ON u.id = e.organizer_id"
+            " WHERE lower(u.email) = 'organizador@miseventos.local'"
+        )
+    ).all()
+    return sorted(ponentes), sorted(sesiones), sorted(vinculos)
+
+
+def test_correr_el_seed_dos_veces_no_duplica_ponentes_sesiones_ni_asignaciones(conexion):
+    correr_seed(conexion)
+    primera = sesiones_y_ponentes_demo(conexion)
+
+    correr_seed(conexion)
+
+    ponentes, sesiones, vinculos = primera
+    assert len(ponentes) >= 3 and len(sesiones) >= 3 and len(vinculos) >= 4
+    assert sesiones_y_ponentes_demo(conexion) == primera
+
+
+def test_un_anonimo_ve_las_sesiones_demo_de_python_day_con_sus_ponentes_sin_email(
+    cliente_db, conexion
+):
+    correr_seed(conexion)
+    (id_evento,) = conexion.execute(
+        text(
+            "SELECT e.id FROM events e JOIN users u ON u.id = e.organizer_id"
+            " WHERE e.name = :nombre AND lower(u.email) = 'organizador@miseventos.local'"
+        ),
+        {"nombre": "Python Day Medellín"},
+    ).one()
+
+    respuesta = cliente_db.get(f"/events/{id_evento}/sessions")
+
+    assert respuesta.status_code == 200
+    sesiones = respuesta.json()
+    assert len(sesiones) >= 3
+    assert any(len(s["speakers"]) == 2 for s in sesiones)
+    assert all("email" not in p for s in sesiones for p in s["speakers"])
+    salas = {s["room"] for s in sesiones if s["room"]}
+    assert len(salas) >= 2

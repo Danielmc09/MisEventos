@@ -1,9 +1,11 @@
+import logging
 from datetime import UTC, datetime, timedelta
 
 import pytest
 
 from app.core.config import Settings
 from app.core.contrasenas import hashear, verificar
+from app.core.excepciones import DomainError
 from app.core.permisos import Rol
 from app.models.evento import EstadoEvento, Event
 from app.models.usuario import User
@@ -12,9 +14,16 @@ from app.scripts.seed import (
     CredencialesDemo,
     credenciales_demo,
     sembrar_eventos,
+    sembrar_ponentes,
+    sembrar_sesiones,
     sembrar_usuarios,
 )
-from tests.unit.dobles import RepositorioEventosFalso, RepositorioUsuariosFalso
+from tests.unit.dobles import (
+    RepositorioEventosFalso,
+    RepositorioPonentesFalso,
+    RepositorioSesionesFalso,
+    RepositorioUsuariosFalso,
+)
 
 CREDENCIALES = {
     "ADMIN_EMAIL": "admin@miseventos.local",
@@ -331,3 +340,215 @@ def test_un_evento_de_otro_organizador_con_el_mismo_nombre_no_cuenta_como_demo()
 def test_sin_el_organizador_demo_falla_nombrandolo():
     with pytest.raises(RuntimeError, match="organizador@miseventos.local"):
         sembrar_eventos(RepositorioUsuariosFalso(), RepositorioEventosFalso())
+
+
+# --- Ponentes y sesiones demo --------------------------------------------------------------
+
+
+class Demo:
+    """Los dobles de una base con lo que el seed deja: usuarios, eventos, ponentes y sesiones."""
+
+    def __init__(self) -> None:
+        self.usuarios = RepositorioUsuariosFalso(ORGANIZADOR_DEMO)
+        self.eventos = RepositorioEventosFalso()
+        self.ponentes = RepositorioPonentesFalso()
+        self.sesiones = RepositorioSesionesFalso(self.eventos, self.ponentes)
+        sembrar_eventos(self.usuarios, self.eventos)
+
+    def sembrar(self) -> None:
+        sembrar_ponentes(self.usuarios, self.ponentes)
+        sembrar_sesiones(self.usuarios, self.eventos, self.sesiones, self.ponentes)
+
+    def evento(self, nombre: str) -> Event:
+        return next(e for e in self.eventos.eventos.values() if e.name == nombre)
+
+    def sesiones_de(self, nombre: str):
+        return self.eventos.sesiones_de(self.evento(nombre).id)
+
+    def vinculos(self) -> set[tuple]:
+        return {(s, p) for s, ps in self.sesiones.vinculos.items() for p in ps}
+
+
+@pytest.fixture
+def demo() -> Demo:
+    base = Demo()
+    base.sembrar()
+    return base
+
+
+def test_crea_ponentes_demo_con_email_a_nombre_del_organizador(demo):
+    ponentes = list(demo.ponentes.ponentes.values())
+
+    assert len(ponentes) >= 3
+    assert all(p.created_by == ORGANIZADOR_DEMO.id for p in ponentes)
+    assert all(p.email and "@" in p.email for p in ponentes)
+    assert len({p.email.lower() for p in ponentes}) == len(ponentes)
+
+
+def test_python_day_tiene_dos_sesiones_paralelas_en_salas_distintas(demo):
+    sesiones = demo.sesiones_de("Python Day Medellín")
+
+    paralelas = [
+        (a, b)
+        for i, a in enumerate(sesiones)
+        for b in sesiones[i + 1 :]
+        if a.start_at < b.end_at and b.start_at < a.end_at
+    ]
+    assert paralelas
+    assert all(a.room and b.room for a, b in paralelas)
+    assert all(a.room.strip().lower() != b.room.strip().lower() for a, b in paralelas)
+
+
+def test_python_day_tiene_una_sesion_con_dos_ponentes(demo):
+    sesiones = demo.sesiones_de("Python Day Medellín")
+
+    cuantos = [len(demo.sesiones.vinculos.get(s.id, [])) for s in sesiones]
+    assert 2 in cuantos
+
+
+def test_un_ponente_participa_en_dos_eventos_demo(demo):
+    eventos_de: dict = {}
+    for id_sesion, ids in demo.sesiones.vinculos.items():
+        evento = demo.eventos.sesiones[id_sesion].event_id
+        for id_ponente in ids:
+            eventos_de.setdefault(id_ponente, set()).add(evento)
+
+    assert any(len(eventos) >= 2 for eventos in eventos_de.values())
+
+
+def test_las_sesiones_demo_respetan_las_reglas_de_horario(demo):
+    sesiones = list(demo.eventos.sesiones.values())
+    assert sesiones
+    for s in sesiones:
+        evento = demo.eventos.eventos[s.event_id]
+        assert evento.start_at <= s.start_at < s.end_at <= evento.end_at, s.title
+        assert s.capacity is None or s.capacity <= evento.capacity, s.title
+
+    def cruzan(a, b):
+        return a.start_at < b.end_at and b.start_at < a.end_at
+
+    pares = [(a, b) for i, a in enumerate(sesiones) for b in sesiones[i + 1 :] if cruzan(a, b)]
+    for a, b in pares:
+        ponentes_a = set(demo.sesiones.vinculos.get(a.id, []))
+        assert not ponentes_a & set(demo.sesiones.vinculos.get(b.id, [])), (a.title, b.title)
+        if a.event_id == b.event_id and a.room and b.room:
+            assert a.room.strip().lower() != b.room.strip().lower(), (a.title, b.title)
+
+
+def test_no_agrega_sesiones_al_taller_ni_toca_las_fechas_o_la_capacidad_de_los_eventos():
+    base = Demo()
+    antes = {
+        e.id: (e.start_at, e.end_at, e.capacity, e.status) for e in base.eventos.eventos.values()
+    }
+
+    base.sembrar()
+
+    despues = {
+        e.id: (e.start_at, e.end_at, e.capacity, e.status) for e in base.eventos.eventos.values()
+    }
+    assert despues == antes
+    assert base.sesiones_de("Taller de python para principiantes") == []
+    assert base.eventos.sesiones
+
+
+def test_correrlo_dos_veces_no_duplica_ponentes_sesiones_ni_asignaciones(demo):
+    ponentes = set(demo.ponentes.ponentes)
+    sesiones = set(demo.eventos.sesiones)
+    vinculos = demo.vinculos()
+    assert ponentes and sesiones and vinculos
+
+    demo.sembrar()
+
+    assert set(demo.ponentes.ponentes) == ponentes
+    assert set(demo.eventos.sesiones) == sesiones
+    assert demo.vinculos() == vinculos
+
+
+def test_no_pisa_un_ponente_ni_una_sesion_que_alguien_cambio_y_recrea_lo_borrado(demo):
+    assert demo.ponentes.ponentes and demo.eventos.sesiones
+    ponente = next(iter(demo.ponentes.ponentes.values()))
+    ponente.bio = "Bio que escribió el organizador"
+    con_dos = next(s for s, ps in demo.sesiones.vinculos.items() if len(ps) == 2)
+    demo.sesiones.vinculos[con_dos] = demo.sesiones.vinculos[con_dos][:1]
+    demo.eventos.sesiones[con_dos].room = "Sala que eligió el organizador"
+    borrada = next(s for s in demo.eventos.sesiones.values() if s.id != con_dos)
+    demo.sesiones.eliminar(borrada)
+    total = len(demo.eventos.sesiones) + 1
+
+    demo.sembrar()
+
+    assert ponente.bio == "Bio que escribió el organizador"
+    assert len(demo.sesiones.vinculos[con_dos]) == 1
+    assert demo.eventos.sesiones[con_dos].room == "Sala que eligió el organizador"
+    assert len(demo.eventos.sesiones) == total
+    assert borrada.title in {s.title for s in demo.eventos.sesiones.values()}
+
+
+def test_una_sesion_demo_que_el_organizador_movio_y_dejo_sin_ponentes_no_se_vuelve_a_crear(demo):
+    titulos = [s.title for s in demo.sesiones_de("Python Day Medellín")]
+    assert titulos
+    movida = demo.sesiones_de("Python Day Medellín")[0]
+    movida.start_at += timedelta(hours=6)
+    movida.end_at += timedelta(hours=6)
+    movida.room = None
+    demo.sesiones.vinculos[movida.id] = []
+
+    demo.sembrar()
+
+    assert sorted(s.title for s in demo.sesiones_de("Python Day Medellín")) == sorted(titulos)
+
+
+def test_una_sesion_que_ya_no_entra_en_su_evento_se_saltea_sin_frenar_el_resto():
+    base = Demo()
+    python_day = base.evento("Python Day Medellín")
+    python_day.end_at = python_day.start_at + timedelta(minutes=30)
+
+    base.sembrar()
+
+    assert base.sesiones_de("Python Day Medellín") == []
+    assert base.sesiones_de("PyCon Bogotá")
+    assert python_day.end_at == python_day.start_at + timedelta(minutes=30)
+
+
+def test_una_sesion_salteada_deja_un_aviso_que_nombra_la_sesion_y_el_evento(caplog):
+    base = Demo()
+    python_day = base.evento("Python Day Medellín")
+    python_day.end_at = python_day.start_at + timedelta(minutes=30)
+
+    with caplog.at_level(logging.WARNING, logger="miseventos.seed"):
+        base.sembrar()
+
+    avisos = [
+        r.getMessage()
+        for r in caplog.records
+        if r.name == "miseventos.seed" and r.levelno == logging.WARNING
+    ]
+    assert any("Testing en Python" in m and "Python Day Medellín" in m for m in avisos), avisos
+
+
+def test_una_sesion_con_mas_capacidad_que_su_evento_se_saltea_con_un_aviso_y_sigue(caplog):
+    base = Demo()
+    python_day = base.evento("Python Day Medellín")
+    python_day.capacity = 110
+
+    with caplog.at_level(logging.WARNING, logger="miseventos.seed"):
+        try:
+            base.sembrar()
+        except DomainError as error:
+            pytest.fail(f"el seed se cortó con {error!r} en lugar de saltear la sesión")
+
+    titulos = {s.title for s in base.sesiones_de("Python Day Medellín")}
+    assert "Testing en Python" not in titulos
+    assert "Pandas para análisis de datos" in titulos
+    assert base.sesiones_de("PyCon Bogotá")
+    avisos = [
+        r.getMessage()
+        for r in caplog.records
+        if r.name == "miseventos.seed" and r.levelno == logging.WARNING
+    ]
+    assert any(
+        "«Testing en Python»" in m
+        and "Python Day Medellín" in m
+        and "No puede superar la del evento (110)" in m
+        for m in avisos
+    ), avisos

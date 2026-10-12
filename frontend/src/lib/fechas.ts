@@ -19,3 +19,30 @@ export const aISOBogota = (local: string) => `${local}:00-05:00`;
 /** Del ISO de la API al valor de un `datetime-local` en hora de Bogotá. */
 export const aInputBogota = (iso: string) =>
   new Date(new Date(iso).getTime() - DESFASE_BOGOTA_MS).toISOString().slice(0, 16);
+
+const diaBogotaFmt = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Bogota" });
+const etiquetaDiaFmt = new Intl.DateTimeFormat("es-CO", {
+  weekday: "long",
+  day: "numeric",
+  month: "long",
+  year: "numeric",
+  timeZone: "America/Bogota",
+});
+const horaFmt = new Intl.DateTimeFormat("es-CO", {
+  hour: "2-digit",
+  minute: "2-digit",
+  hourCycle: "h23",
+  timeZone: "America/Bogota",
+});
+
+/** El día calendario en Bogotá (`2026-10-10`): sirve para agrupar y ordenar. */
+export const diaBogota = (iso: string) => diaBogotaFmt.format(new Date(iso));
+
+/** "Sábado, 10 de octubre de 2026", en hora de Bogotá. */
+export const etiquetaDia = (iso: string) => {
+  const texto = etiquetaDiaFmt.format(new Date(iso));
+  return texto.charAt(0).toUpperCase() + texto.slice(1);
+};
+
+/** "20:30", en hora de Bogotá. */
+export const horaBogota = (iso: string) => horaFmt.format(new Date(iso));

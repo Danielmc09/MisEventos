@@ -7,6 +7,7 @@ from app.api.dependencias import repositorio_eventos, repositorio_usuarios
 from app.core.permisos import Rol
 from app.core.tokens import crear_access_token
 from app.models.evento import EstadoEvento, Event
+from app.models.sesion import Session as Sesion
 from app.models.usuario import User
 from app.services import eventos as servicio_eventos
 from tests.unit.dobles import RepositorioEventosFalso, RepositorioUsuariosFalso
@@ -457,6 +458,123 @@ def test_una_edicion_invalida_responde_422_en_su_campo(cliente, eventos, token, 
         INICIO + timedelta(hours=8),
         100,
     )
+
+
+def con_sesion(
+    eventos: RepositorioEventosFalso,
+    evento: Event,
+    desde: int,
+    hasta: int,
+    capacidad: int | None = None,
+) -> None:
+    """Una sesión entre las horas `desde` y `hasta` contadas desde el inicio del evento."""
+    sesion = Sesion(
+        event_id=evento.id,
+        title="Testing en Python",
+        start_at=evento.start_at + timedelta(hours=desde),
+        end_at=evento.start_at + timedelta(hours=hasta),
+        capacity=capacidad,
+    )
+    eventos.sesiones[sesion.id] = sesion
+
+
+def test_achicar_las_fechas_dejando_sesiones_afuera_responde_409(cliente, eventos, token):
+    existente = evento(PUBLICADO)
+    existente.start_at, existente.end_at = INICIO, INICIO + timedelta(hours=8)
+    eventos.crear(existente)
+    con_sesion(eventos, existente, 0, 1)  # queda afuera: empieza antes del nuevo inicio
+    con_sesion(eventos, existente, 2, 3)
+    con_sesion(eventos, existente, 6, 8)  # queda afuera: termina después del nuevo fin
+    cambios = {
+        "start_at": (INICIO + timedelta(hours=1)).isoformat(),
+        "end_at": (INICIO + timedelta(hours=5)).isoformat(),
+    }
+
+    respuesta = editar(cliente, existente.id, cambios, token(ORGANIZADOR))
+
+    assert respuesta.status_code == 409
+    problema = respuesta.json()
+    assert problema["type"] == "sessions-outside-range"
+    assert problema["detail"] == "2 sesiones quedan fuera de las fechas nuevas"
+    guardado = eventos.eventos[existente.id]
+    assert (guardado.start_at, guardado.end_at) == (INICIO, INICIO + timedelta(hours=8))
+
+
+def test_achicar_las_fechas_dejando_una_sola_sesion_afuera_lo_dice_en_singular(
+    cliente, eventos, token
+):
+    existente = evento(PUBLICADO)
+    existente.start_at, existente.end_at = INICIO, INICIO + timedelta(hours=8)
+    eventos.crear(existente)
+    con_sesion(eventos, existente, 6, 8)
+
+    respuesta = editar(
+        cliente,
+        existente.id,
+        {"end_at": (INICIO + timedelta(hours=7)).isoformat()},
+        token(ORGANIZADOR),
+    )
+
+    assert respuesta.status_code == 409
+    assert respuesta.json()["detail"] == "1 sesión queda fuera de las fechas nuevas"
+
+
+def test_cambiar_las_fechas_sin_dejar_sesiones_afuera_se_acepta(cliente, eventos, token):
+    existente = evento(PUBLICADO)
+    existente.start_at, existente.end_at = INICIO, INICIO + timedelta(hours=8)
+    eventos.crear(existente)
+    con_sesion(eventos, existente, 1, 2)
+    con_sesion(eventos, existente, 3, 4)
+    # Justo en los bordes de las sesiones: la primera empieza al inicio, la última termina al fin.
+    cambios = {
+        "start_at": (INICIO + timedelta(hours=1)).isoformat(),
+        "end_at": (INICIO + timedelta(hours=4)).isoformat(),
+    }
+
+    respuesta = editar(cliente, existente.id, cambios, token(ORGANIZADOR))
+
+    assert respuesta.status_code == 200, respuesta.text
+    assert eventos.eventos[existente.id].end_at == INICIO + timedelta(hours=4)
+
+
+def test_bajar_la_capacidad_por_debajo_de_la_de_sesiones_responde_409(cliente, eventos, token):
+    existente = eventos.crear(evento(PUBLICADO))
+    con_sesion(eventos, existente, 1, 2, capacidad=80)
+    con_sesion(eventos, existente, 2, 3, capacidad=60)
+    con_sesion(eventos, existente, 3, 4, capacidad=50)  # igual a la nueva: no cuenta
+    con_sesion(eventos, existente, 4, 5)  # sin capacidad propia: no cuenta
+
+    respuesta = editar(cliente, existente.id, {"capacity": 50}, token(ORGANIZADOR))
+
+    assert respuesta.status_code == 409
+    problema = respuesta.json()
+    assert problema["type"] == "sessions-capacity-above"
+    assert problema["detail"] == "2 sesiones tienen más capacidad que la nueva"
+    assert eventos.eventos[existente.id].capacity == 100
+    assert eventos.bloqueos == [existente.id]
+
+
+def test_bajar_la_capacidad_dejando_una_sola_sesion_por_encima_lo_dice_en_singular(
+    cliente, eventos, token
+):
+    existente = eventos.crear(evento(PUBLICADO))
+    con_sesion(eventos, existente, 1, 2, capacidad=80)
+
+    respuesta = editar(cliente, existente.id, {"capacity": 79}, token(ORGANIZADOR))
+
+    assert respuesta.status_code == 409
+    assert respuesta.json()["detail"] == "1 sesión tiene más capacidad que la nueva"
+
+
+def test_bajar_la_capacidad_hasta_la_de_la_sesion_mas_grande_se_acepta(cliente, eventos, token):
+    existente = eventos.crear(evento(PUBLICADO))
+    con_sesion(eventos, existente, 1, 2, capacidad=80)
+    con_sesion(eventos, existente, 2, 3)
+
+    respuesta = editar(cliente, existente.id, {"capacity": 80}, token(ORGANIZADOR))
+
+    assert respuesta.status_code == 200, respuesta.text
+    assert eventos.eventos[existente.id].capacity == 80
 
 
 def test_sin_token_no_se_edita(cliente, eventos):

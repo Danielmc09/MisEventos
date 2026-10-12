@@ -55,3 +55,17 @@ export const evento: components["schemas"]["EventoSalida"] = {
   available_spots: 100,
   is_finished: false,
 };
+
+export const sesion: components["schemas"]["SesionSalida"] = {
+  id: "a1b2c3d4-0000-4000-8000-000000000001",
+  event_id: evento.id,
+  title: "Apertura",
+  description: null,
+  room: null,
+  start_at: "2026-10-11T01:30:00Z",
+  end_at: "2026-10-11T02:30:00Z",
+  capacity: null,
+  speakers: [],
+  created_at: "2026-10-01T12:00:00Z",
+  updated_at: "2026-10-01T12:00:00Z",
+};

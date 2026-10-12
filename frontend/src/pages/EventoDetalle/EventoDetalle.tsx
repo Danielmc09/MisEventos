@@ -7,8 +7,10 @@ import { Button } from "../../components/ui/Button";
 import { DialogoConfirmacion } from "../../components/ui/DialogoConfirmacion";
 import { Spinner } from "../../components/ui/Spinner";
 import { formatearFecha } from "../../lib/fechas";
+import { SeccionSesiones } from "../../components/SeccionSesiones";
 import { Toast, type ToastProps } from "../../components/ui/Toast";
 import { useEvento } from "../../lib/useEvento";
+import { useSesiones } from "../../lib/useSesiones";
 import { useEventos, type Evento } from "../../stores/eventos";
 import { useSession } from "../../stores/session";
 
@@ -37,6 +39,7 @@ const CONFIRMACION = {
 export default function EventoDetalle() {
   const { id } = useParams();
   const { cargando, evento, error, setEvento } = useEvento(id);
+  const sesiones = useSesiones(id);
   const navigate = useNavigate();
   const user = useSession((s) => s.user);
   const invalidar = useEventos((s) => s.invalidar);
@@ -121,6 +124,16 @@ export default function EventoDetalle() {
               </Button>
             </div>
           )}
+          <SeccionSesiones
+            cargando={sesiones.cargando}
+            sesiones={sesiones.sesiones}
+            error={sesiones.error}
+            evento={evento}
+            // Un evento cancelado o finalizado ya no admite cambios en sus sesiones.
+            puede={puede && evento.status !== "CANCELLED" && !evento.is_finished}
+            onGuardada={sesiones.guardar}
+            onEliminada={sesiones.quitar}
+          />
         </>
       )}
       {pendiente && (
