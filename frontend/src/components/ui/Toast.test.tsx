@@ -18,3 +18,12 @@ test("un aviso de error se anuncia como alert y se puede cerrar", async () => {
 
   expect(onClose).toHaveBeenCalledTimes(1);
 });
+
+test.each([
+  ["exito", "Éxito"],
+  ["error", "Error"],
+] as const)("el aviso de tono %s lleva un ícono además del color", (tone, nombre) => {
+  render(<Toast message="Listo" tone={tone} />);
+
+  expect(screen.getByRole("img", { name: nombre })).toBeInTheDocument();
+});

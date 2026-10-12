@@ -53,7 +53,7 @@ test("con éxito guarda el token nuevo, avisa y lleva a /perfil", async () => {
   await completar(user);
 
   expect(await screen.findByRole("heading", { name: "Perfil" })).toBeInTheDocument();
-  expect(screen.getByText("Tu contraseña se cambió")).toBeInTheDocument();
+  expect(screen.getByText("Cambiaste tu contraseña")).toBeInTheDocument();
   expect(useSession.getState().accessToken).toBe("token-nuevo");
   expect(useSession.getState().user).toEqual(usuario);
   expect(cuerpo).toEqual({ current_password: claveVieja, new_password: claveNueva });

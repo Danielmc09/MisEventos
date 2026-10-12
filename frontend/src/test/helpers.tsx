@@ -2,6 +2,7 @@ import { render } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { MemoryRouter, Route, Routes, useLocation, type Location } from "react-router-dom";
 import type { components } from "../api/schema";
+import { ProveedorAvisos } from "../components/ui/Avisos";
 
 export const API = "http://localhost:8000";
 
@@ -30,12 +31,14 @@ function Ubicacion() {
 export function montar(inicial: string | Partial<Location>, rutas: [string, ReactNode][]) {
   return render(
     <MemoryRouter initialEntries={[inicial]}>
-      <Routes>
-        {rutas.map(([path, element]) => (
-          <Route key={path} path={path} element={element} />
-        ))}
-      </Routes>
-      <Ubicacion />
+      <ProveedorAvisos>
+        <Routes>
+          {rutas.map(([path, element]) => (
+            <Route key={path} path={path} element={element} />
+          ))}
+        </Routes>
+        <Ubicacion />
+      </ProveedorAvisos>
     </MemoryRouter>,
   );
 }

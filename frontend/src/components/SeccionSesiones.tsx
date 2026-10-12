@@ -7,11 +7,11 @@ import type { Evento } from "../stores/eventos";
 import { ControlReserva } from "./ControlReserva";
 import { FormularioSesion } from "./FormularioSesion";
 import { AlertaError } from "./ui/AlertaError";
+import { useAvisos } from "./ui/Avisos";
 import { Button } from "./ui/Button";
 import { DialogoConfirmacion } from "./ui/DialogoConfirmacion";
 import { Modal } from "./ui/Modal";
 import { Spinner } from "./ui/Spinner";
-import { Toast, type ToastProps } from "./ui/Toast";
 
 interface Props {
   cargando: boolean;
@@ -75,17 +75,17 @@ export function SeccionSesiones({
   const [trabajando, setTrabajando] = useState(false);
   const [reservando, setReservando] = useState<string | null>(null);
   const [errorReserva, setErrorReserva] = useState<ErrorReserva | null>(null);
-  const [aviso, setAviso] = useState<Pick<ToastProps, "message" | "tone"> | null>(null);
+  const avisar = useAvisos();
 
   async function eliminar(sesion: Sesion) {
     setTrabajando(true);
     try {
       await api<void>(`/sessions/${sesion.id}`, { method: "DELETE" });
       onEliminada(sesion.id);
-      setAviso({ message: "Sesión eliminada", tone: "exito" });
+      avisar({ message: "Eliminaste la sesión", tone: "exito" });
     } catch (e) {
       const title = e instanceof ApiError ? e.title : "Ocurrió un error inesperado";
-      setAviso({ message: title, tone: "error" });
+      avisar({ message: title, tone: "error" });
     } finally {
       setTrabajando(false);
       setPendiente(null);
@@ -99,6 +99,10 @@ export function SeccionSesiones({
       if (reservar) await api(`/sessions/${sesion.id}/reservations`, { method: "POST" });
       else await api<void>(`/sessions/${sesion.id}/reservations/me`, { method: "DELETE" });
       onReserva(sesion.id, reservar);
+      avisar({
+        message: reservar ? `Reservaste «${sesion.title}»` : "Cancelaste tu reserva",
+        tone: "exito",
+      });
     } catch (e) {
       const error = e instanceof ApiError ? e : null;
       const choque = error?.type === "session-conflict";
@@ -197,8 +201,8 @@ export function SeccionSesiones({
             sesion={formulario === "nueva" ? undefined : formulario}
             onGuardada={(guardada) => {
               onGuardada(guardada);
-              setAviso({
-                message: formulario === "nueva" ? "Sesión creada" : "Sesión actualizada",
+              avisar({
+                message: formulario === "nueva" ? "Creaste la sesión" : "Actualizaste la sesión",
                 tone: "exito",
               });
               setFormulario(null);
@@ -216,11 +220,6 @@ export function SeccionSesiones({
           onConfirmar={() => eliminar(pendiente)}
           onVolver={() => setPendiente(null)}
         />
-      )}
-      {aviso && (
-        <div className="fixed right-4 bottom-4 z-20">
-          <Toast {...aviso} onClose={() => setAviso(null)} />
-        </div>
       )}
     </section>
   );

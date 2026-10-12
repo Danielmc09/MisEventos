@@ -256,7 +256,7 @@ describe("ejecutar acciones", () => {
 
     await user.click(await screen.findByRole("button", { name: "Publicar" }));
 
-    expect(await screen.findByText("Evento publicado")).toBeInTheDocument();
+    expect(await screen.findByText("Publicaste el evento")).toBeInTheDocument();
     expect(screen.getByText("Publicado")).toBeInTheDocument();
     await useEventos.getState().listar("");
     expect(listados()).toBe(2);
@@ -285,7 +285,7 @@ describe("ejecutar acciones", () => {
 
     await user.click(screen.getByRole("button", { name: "Cancelar" }));
     await user.click(screen.getByRole("button", { name: "Sí, cancelar el evento" }));
-    expect(await screen.findByText("Evento cancelado")).toBeInTheDocument();
+    expect(await screen.findByText("Cancelaste el evento")).toBeInTheDocument();
     expect(llamadas).toBe(1);
     expect(screen.getByText("Cancelado")).toBeInTheDocument();
   });
@@ -321,8 +321,24 @@ describe("ejecutar acciones", () => {
     await user.click(screen.getByRole("button", { name: "Sí, eliminar el evento" }));
 
     expect(await screen.findByText("Página de inicio")).toBeInTheDocument();
+    expect(screen.getByText("Eliminaste el evento")).toBeInTheDocument();
     await useEventos.getState().listar("");
     expect(listados()).toBe(2);
+  });
+
+  test("despublicar avisa", async () => {
+    servir(abierto);
+    server.use(
+      http.post(`${ruta}/unpublish`, () =>
+        responder("/events/{id_evento}/unpublish", "post", 200, { ...abierto, status: "DRAFT" }),
+      ),
+    );
+    const user = userEvent.setup();
+    abrir();
+
+    await user.click(await screen.findByRole("button", { name: "Despublicar" }));
+
+    expect(await screen.findByText("Despublicaste el evento")).toBeInTheDocument();
   });
 });
 
@@ -457,7 +473,7 @@ describe("sección de sesiones", () => {
       await user.click(screen.getByRole("button", { name: "Eliminar sesión Apertura" }));
       await user.click(screen.getByRole("button", { name: "Sí, eliminar la sesión" }));
 
-      expect(await screen.findByText("Sesión eliminada")).toBeInTheDocument();
+      expect(await screen.findByText("Eliminaste la sesión")).toBeInTheDocument();
       expect(llamadas).toBe(1);
       expect(screen.queryByRole("heading", { name: "Apertura" })).not.toBeInTheDocument();
       expect(screen.getByText("Este evento todavía no tiene sesiones")).toBeInTheDocument();
@@ -513,7 +529,7 @@ describe("agregar y editar sesiones", () => {
     await user.type(within(dialogo).getByLabelText("Fin"), "2026-10-10T23:00");
     await user.click(within(dialogo).getByRole("button", { name: "Crear sesión" }));
 
-    expect(await screen.findByText("Sesión creada")).toBeInTheDocument();
+    expect(await screen.findByText("Creaste la sesión")).toBeInTheDocument();
     expect(cuerpos).toHaveLength(1);
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Charla de pruebas" })).toBeInTheDocument();
@@ -541,7 +557,7 @@ describe("agregar y editar sesiones", () => {
     await user.type(within(dialogo).getByLabelText("Título"), "Apertura general");
     await user.click(within(dialogo).getByRole("button", { name: "Guardar cambios" }));
 
-    expect(await screen.findByText("Sesión actualizada")).toBeInTheDocument();
+    expect(await screen.findByText("Actualizaste la sesión")).toBeInTheDocument();
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Apertura general" })).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Apertura" })).not.toBeInTheDocument();
@@ -1246,12 +1262,14 @@ describe("reservas de sesiones", () => {
       await user.click(item.getByRole("button", { name: "Reservar lugar" }));
 
       expect(await item.findByText("Reservado")).toBeInTheDocument();
+      expect(screen.getByText("Reservaste «Taller de Pytest»")).toBeInTheDocument();
       expect(item.getByText("Quedan 2 lugares")).toBeInTheDocument();
       expect(item.queryByRole("button", { name: "Reservar lugar" })).not.toBeInTheDocument();
 
       await user.click(item.getByRole("button", { name: "Cancelar reserva" }));
 
       expect(await item.findByRole("button", { name: "Reservar lugar" })).toBeInTheDocument();
+      expect(screen.getByText("Cancelaste tu reserva")).toBeInTheDocument();
       expect(item.getByText("Quedan 3 lugares")).toBeInTheDocument();
       expect(item.queryByText("Reservado")).not.toBeInTheDocument();
       expect(pedidos.n).toBe(1);

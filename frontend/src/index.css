@@ -1,1 +1,10 @@
 @import "tailwindcss";
+
+@theme {
+  --color-exito-suave: #dcfce7;
+  --color-exito: #166534;
+  --color-error-suave: #fee2e2;
+  --color-error: #991b1b;
+  --color-info-suave: #e5e7eb;
+  --color-info: #1f2937;
+}

@@ -11,20 +11,17 @@ import { Button } from "./ui/Button";
 import { DialogoConfirmacion } from "./ui/DialogoConfirmacion";
 import { EnlaceBoton } from "./ui/EnlaceBoton";
 import { Insignia } from "./ui/Insignia";
-import type { ToastProps } from "./ui/Toast";
+import { useAvisos } from "./ui/Avisos";
 
 const avisoReservas = (n: number) =>
   n === 1
     ? "También se cancelará tu reserva de sesión."
     : `También se cancelarán tus ${plural(n, "reserva", "reservas")} de sesiones.`;
 
-export type Aviso = Pick<ToastProps, "message" | "tone">;
-
 interface Props {
   evento: EventoDetalle;
   onEvento: (evento: EventoDetalle) => void;
   onRefrescar: () => void;
-  onAviso: (aviso: Aviso) => void;
   /** Cuántas sesiones de este evento tiene reservadas la persona: se cancelan con la inscripción. */
   reservas: number;
   /** Se llama cuando la inscripción se canceló, para que se refresquen las sesiones. */
@@ -32,16 +29,10 @@ interface Props {
 }
 
 /** Inscribirse o cancelar la inscripción, según la situación de quien mira y del evento. */
-export function AccionInscripcion({
-  evento,
-  onEvento,
-  onRefrescar,
-  onAviso,
-  reservas,
-  onCancelada,
-}: Props) {
+export function AccionInscripcion({ evento, onEvento, onRefrescar, reservas, onCancelada }: Props) {
   const user = useSession((s) => s.user);
   const invalidar = useEventos((s) => s.invalidar);
+  const avisar = useAvisos();
   const [trabajando, setTrabajando] = useState(false);
   const [confirmando, setConfirmando] = useState(false);
 
@@ -77,14 +68,14 @@ export function AccionInscripcion({
       });
       invalidar();
       if (accion === "cancelar") onCancelada();
-      onAviso({
+      avisar({
         message:
           accion === "inscribirse" ? "Te inscribiste al evento" : "Cancelaste tu inscripción",
         tone: "exito",
       });
     } catch (e) {
       const error = e instanceof ApiError ? e : null;
-      onAviso({ message: error?.title ?? "Ocurrió un error inesperado", tone: "error" });
+      avisar({ message: error?.title ?? "Ocurrió un error inesperado", tone: "error" });
       if (error?.status === 409) onRefrescar();
     } finally {
       setTrabajando(false);

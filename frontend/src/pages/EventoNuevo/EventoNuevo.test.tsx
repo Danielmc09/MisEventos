@@ -125,6 +125,7 @@ describe("crear", () => {
     await crear(user);
 
     expect(await screen.findByText("Detalle del evento")).toBeInTheDocument();
+    expect(screen.getByText("Creaste el evento")).toBeInTheDocument();
     expect(cuerpo).toMatchObject({
       name: "PyCon Bogotá",
       start_at: "2026-12-20T19:00:00-05:00",
