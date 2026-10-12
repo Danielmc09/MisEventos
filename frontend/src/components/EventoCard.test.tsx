@@ -92,11 +92,17 @@ test("con 11 cupos libres de 100 es el caso normal", () => {
 test.each([
   ["cancelado", { status: "CANCELLED" as const }],
   ["finalizado", { is_finished: true }],
-  ["en borrador", { status: "DRAFT" as const }],
 ])("un evento %s no muestra ningún chip de cupos", (_estado, cambio) => {
   montar({ ...evento, capacity: 100, available_spots: 5, start_at: manana, ...cambio });
 
   expect(screen.queryByText(/Últimos lugares|cupos/)).not.toBeInTheDocument();
+});
+
+test("un borrador muestra cuántos cupos quedan, sin Últimos lugares", () => {
+  montar({ ...evento, status: "DRAFT", capacity: 100, available_spots: 5, start_at: manana });
+
+  expect(screen.getByText("Quedan 5 cupos")).toBeInTheDocument();
+  expect(screen.queryByText(/Últimos lugares/)).not.toBeInTheDocument();
 });
 
 test("un evento finalizado sin cupos no muestra el chip Sin cupos", () => {
