@@ -122,3 +122,58 @@ describe("crear una sesión", () => {
     ]);
   });
 });
+
+describe("errores de la API", () => {
+  const rutaPost = `${API}/events/${evento.id}/sessions`;
+
+  test("un 409 de cruce muestra su title y su detail", async () => {
+    server.use(
+      http.post(rutaPost, () =>
+        responder("/events/{id_evento}/sessions", "post", 409, {
+          type: "speaker-conflict",
+          title: "El ponente ya tiene otra sesión en ese horario",
+          status: 409,
+          detail: "Ana Pérez ya está en «Testing en Python», 10:00 a 11:00",
+          trace_id: "t-5",
+        }),
+      ),
+    );
+    const user = userEvent.setup();
+    const { onGuardada } = abrir();
+
+    await completar(user);
+    await guardar(user);
+
+    const alerta = await screen.findByRole("alert");
+    expect(alerta).toHaveTextContent("El ponente ya tiene otra sesión en ese horario");
+    expect(alerta).toHaveTextContent("Ana Pérez ya está en «Testing en Python», 10:00 a 11:00");
+    expect(onGuardada).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "Crear sesión" })).toBeEnabled();
+  });
+
+  test("el errors[] de un 422 aparece en su campo", async () => {
+    server.use(
+      http.post(rutaPost, () =>
+        responder("/events/{id_evento}/sessions", "post", 422, {
+          type: "validation-error",
+          title: "Los datos enviados no son válidos",
+          status: 422,
+          trace_id: "t-6",
+          errors: [{ field: "room", message: "La sala es demasiado larga" }],
+        }),
+      ),
+    );
+    const user = userEvent.setup();
+    abrir();
+
+    await completar(user);
+    await guardar(user);
+
+    await vi.waitFor(() =>
+      expect(screen.getByLabelText("Sala")).toHaveAccessibleDescription(
+        "La sala es demasiado larga",
+      ),
+    );
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+});
