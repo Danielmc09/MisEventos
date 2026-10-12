@@ -20,8 +20,11 @@ interface Resultado<T> {
   error?: string;
 }
 
-/** Pide `ruta` y devuelve el resultado solo si es el de la `ruta` actual (mientras tanto, `null`). */
-function useConsulta<T>(ruta: string): Resultado<T> | null {
+/**
+ * Pide `ruta` y devuelve el resultado solo si es el de la `ruta` actual (mientras tanto, `null`).
+ * Cuando cambia `version` vuelve a pedir, y mientras llega lo nuevo deja a la vista lo anterior.
+ */
+function useConsulta<T>(ruta: string, version: number): Resultado<T> | null {
   const [resultado, setResultado] = useState<Resultado<T> | null>(null);
   useEffect(() => {
     let vigente = true;
@@ -37,7 +40,7 @@ function useConsulta<T>(ruta: string): Resultado<T> | null {
     return () => {
       vigente = false;
     };
-  }, [ruta]);
+  }, [ruta, version]);
   return resultado?.clave === ruta ? resultado : null;
 }
 
@@ -54,8 +57,8 @@ function Cargando() {
   );
 }
 
-function Estadisticas({ eventoId }: { eventoId: string }) {
-  const stats = useConsulta<Estadisticas>(`/events/${eventoId}/stats`);
+function Estadisticas({ eventoId, version }: { eventoId: string; version: number }) {
+  const stats = useConsulta<Estadisticas>(`/events/${eventoId}/stats`, version);
   if (!stats) return <Cargando />;
   if (stats.error || !stats.datos) return <AlertaError title={stats.error ?? ""} />;
   const { active, cancelled, occupancy_pct } = stats.datos;
@@ -80,9 +83,9 @@ function Estadisticas({ eventoId }: { eventoId: string }) {
   );
 }
 
-function ListaInscritos({ eventoId }: { eventoId: string }) {
+function ListaInscritos({ eventoId, version }: { eventoId: string; version: number }) {
   const [numero, setNumero] = useState(1);
-  const lista = useConsulta<Pagina>(`/events/${eventoId}/registrations?page=${numero}`);
+  const lista = useConsulta<Pagina>(`/events/${eventoId}/registrations?page=${numero}`, version);
   if (!lista) return <Cargando />;
   if (lista.error || !lista.datos) return <AlertaError title={lista.error ?? ""} />;
   const { items, page, pages } = lista.datos;
@@ -112,15 +115,18 @@ function ListaInscritos({ eventoId }: { eventoId: string }) {
   );
 }
 
-/** Para el dueño del evento o el admin: cuánta gente se inscribió y quiénes son. */
-export function PanelInscripciones({ eventoId }: { eventoId: string }) {
+/**
+ * Para el dueño del evento o el admin: cuánta gente se inscribió y quiénes son.
+ * `version` es una señal de que las inscripciones cambiaron (p. ej. `registered_count`).
+ */
+export function PanelInscripciones({ eventoId, version }: { eventoId: string; version: number }) {
   return (
     <section aria-labelledby="titulo-inscripciones" className="mt-4 flex flex-col gap-4">
       <h2 id="titulo-inscripciones" className="text-xl font-semibold">
         Inscripciones
       </h2>
-      <Estadisticas eventoId={eventoId} />
-      <ListaInscritos eventoId={eventoId} />
+      <Estadisticas eventoId={eventoId} version={version} />
+      <ListaInscritos eventoId={eventoId} version={version} />
     </section>
   );
 }

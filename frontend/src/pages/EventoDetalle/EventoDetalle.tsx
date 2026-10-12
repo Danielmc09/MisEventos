@@ -134,7 +134,7 @@ export default function EventoDetalle() {
               </Button>
             </div>
           )}
-          {puede && <PanelInscripciones eventoId={evento.id} />}
+          {puede && <PanelInscripciones eventoId={evento.id} version={evento.registered_count} />}
           <SeccionSesiones
             cargando={sesiones.cargando}
             sesiones={sesiones.sesiones}
