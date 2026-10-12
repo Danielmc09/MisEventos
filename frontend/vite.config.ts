@@ -4,10 +4,11 @@ import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
 import ofuscador from "vite-plugin-javascript-obfuscator";
 
-// Ofuscación liviana. Las opciones pesadas quedan apagadas a propósito: agrandan el bundle, lo
-// vuelven más lento y algunas usan eval, que la CSP de nginx bloquea. El string array usa base64
-// (atob), que no necesita eval ni new Function; rc4 queda fuera.
-export const opcionesOfuscacion = {
+// Ofuscación liviana. Las opciones pesadas quedan apagadas a propósito: agrandan el bundle y lo
+// vuelven más lento, y debugProtection construye código con el constructor de Function, que la CSP
+// de nginx bloquea (sin 'unsafe-eval'). El string array usa base64 con un decodificador propio;
+// rc4 queda fuera por tamaño y velocidad, no por la CSP.
+const opcionesOfuscacion = {
   identifierNamesGenerator: "hexadecimal",
   stringArray: true,
   stringArrayEncoding: ["base64"],
@@ -35,7 +36,6 @@ export default defineConfig(({ command }) => ({
               ...opcionesOfuscacion,
               stringArrayEncoding: [...opcionesOfuscacion.stringArrayEncoding],
             },
-            apply: "build",
           }),
         ]
       : []),
