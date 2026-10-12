@@ -177,6 +177,53 @@ describe("errores de la API", () => {
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
+  test("un 422 en speaker_ids se ve asociado al selector de ponentes", async () => {
+    server.use(
+      http.post(rutaPost, () =>
+        responder("/events/{id_evento}/sessions", "post", 422, {
+          type: "validation-error",
+          title: "Los datos enviados no son válidos",
+          status: 422,
+          trace_id: "t-9",
+          errors: [{ field: "speaker_ids", message: "Un ponente elegido ya no existe" }],
+        }),
+      ),
+    );
+    const user = userEvent.setup();
+    abrir();
+
+    await completar(user);
+    await guardar(user);
+
+    await vi.waitFor(() =>
+      expect(screen.getByLabelText("Buscar ponente")).toHaveAccessibleDescription(
+        "Un ponente elegido ya no existe",
+      ),
+    );
+  });
+
+  test("un 422 en un campo sin input aparece como mensaje general", async () => {
+    server.use(
+      http.post(rutaPost, () =>
+        responder("/events/{id_evento}/sessions", "post", 422, {
+          type: "validation-error",
+          title: "Los datos enviados no son válidos",
+          status: 422,
+          trace_id: "t-10",
+          errors: [{ field: "description", message: "La descripción es demasiado larga" }],
+        }),
+      ),
+    );
+    const user = userEvent.setup();
+    abrir();
+
+    await completar(user);
+    await guardar(user);
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Los datos enviados no son válidos");
+    expect(screen.getByRole("button", { name: "Crear sesión" })).toBeEnabled();
+  });
+
   test("el error del servidor se limpia al editar un campo", async () => {
     server.use(
       http.post(rutaPost, () =>
