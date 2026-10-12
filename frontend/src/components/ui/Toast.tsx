@@ -18,7 +18,12 @@ export function Toast({ message, tone = "info", onClose }: ToastProps) {
     >
       <span>{message}</span>
       {onClose && (
-        <button type="button" onClick={onClose} aria-label="Cerrar aviso" className="ml-auto">
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Cerrar aviso"
+          className="ml-auto inline-flex min-h-11 min-w-11 items-center justify-center md:min-h-10 md:min-w-10"
+        >
           ×
         </button>
       )}

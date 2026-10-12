@@ -5,6 +5,7 @@ import type { components } from "../api/schema";
 import { EventoCard } from "./EventoCard";
 import { SesionesReservadas } from "./SesionesReservadas";
 import { AlertaError } from "./ui/AlertaError";
+import { EnlaceBoton } from "./ui/EnlaceBoton";
 import { Paginacion } from "./ui/Paginacion";
 import { Pestanas } from "./ui/Pestanas";
 import { Spinner } from "./ui/Spinner";
@@ -18,20 +19,20 @@ const PESTANAS = [
     id: "proximos",
     titulo: "Próximos",
     filtros: "status=ACTIVE&when=upcoming",
-    vacio: "No tenés inscripciones próximas",
+    vacio: "Todavía no tenés inscripciones",
   },
   {
     id: "pasados",
     titulo: "Pasados",
     filtros: "status=ACTIVE&when=past",
-    vacio: "No tenés inscripciones pasadas",
+    vacio: "Todavía no tenés inscripciones pasadas",
   },
   // Las canceladas usan el `when` por defecto de la API (próximas).
   {
     id: "cancelados",
     titulo: "Cancelados",
     filtros: "status=CANCELLED",
-    vacio: "No tenés inscripciones canceladas",
+    vacio: "Todavía no tenés inscripciones canceladas",
   },
 ] as const;
 
@@ -88,7 +89,10 @@ export function MisInscripciones() {
         )}
         {actual?.error && <AlertaError title={actual.error} />}
         {actual?.pagina && actual.pagina.items.length === 0 && (
-          <TextoSecundario>{pestana.vacio}</TextoSecundario>
+          <div className="flex flex-col items-start gap-3">
+            <TextoSecundario>{pestana.vacio}</TextoSecundario>
+            <EnlaceBoton to="/">Ver eventos</EnlaceBoton>
+          </div>
         )}
         {actual?.pagina && actual.pagina.items.length > 0 && (
           <div className="grid gap-4 sm:grid-cols-2">
