@@ -355,3 +355,81 @@ def test_inscribirse_y_cancelar_se_ven_en_el_detalle_del_evento(cliente, repos, 
 
     assert despues_de_inscribirse["available_spots"] == 4
     assert despues_de_cancelar["available_spots"] == 5
+
+
+# --- Reglas del evento que dependen de las inscripciones -----------------------------------
+
+
+def editar_evento(cliente, evento: Event, cuerpo: dict, headers: dict):
+    return cliente.patch(f"/events/{evento.id}", json=cuerpo, headers=headers)
+
+
+def test_bajar_la_capacidad_por_debajo_de_las_activas_responde_409_y_no_la_cambia(
+    cliente, repos, auth
+):
+    evento = repos.evento(capacity=5)
+    repos.inscribir(ASISTENTE, evento)
+    repos.inscribir(OTRO_ASISTENTE, evento)
+    repos.inscribir(ADMIN, evento, EstadoInscripcion.CANCELLED)
+
+    respuesta = editar_evento(cliente, evento, {"capacity": 1}, auth(ORGANIZADOR))
+
+    assert_conflicto(respuesta, "capacity-below-registrations")
+    assert "2" in respuesta.json()["detail"]
+    assert evento.capacity == 5
+    assert repos.eventos.bloqueos == [evento.id]
+
+
+def test_igualar_la_capacidad_a_las_activas_se_acepta(cliente, repos, auth):
+    evento = repos.evento(capacity=5)
+    repos.inscribir(ASISTENTE, evento)
+    repos.inscribir(OTRO_ASISTENTE, evento)
+    repos.inscribir(ADMIN, evento, EstadoInscripcion.CANCELLED)
+
+    respuesta = editar_evento(cliente, evento, {"capacity": 2}, auth(ORGANIZADOR))
+
+    assert respuesta.status_code == 200, respuesta.text
+    assert evento.capacity == 2
+
+
+def test_despublicar_con_inscripciones_activas_responde_409_has_registrations(cliente, repos, auth):
+    evento = repos.evento()
+    repos.inscribir(ASISTENTE, evento)
+
+    respuesta = cliente.post(f"/events/{evento.id}/unpublish", headers=auth(ORGANIZADOR))
+
+    assert_conflicto(respuesta, "has-registrations")
+    assert evento.status == EstadoEvento.PUBLISHED
+    assert repos.eventos.bloqueos == [evento.id]
+
+
+def test_despublicar_con_solo_inscripciones_canceladas_se_acepta(cliente, repos, auth):
+    evento = repos.evento()
+    repos.inscribir(ASISTENTE, evento, EstadoInscripcion.CANCELLED)
+
+    respuesta = cliente.post(f"/events/{evento.id}/unpublish", headers=auth(ORGANIZADOR))
+
+    assert respuesta.status_code == 200, respuesta.text
+    assert evento.status == EstadoEvento.DRAFT
+
+
+def test_eliminar_con_inscripciones_activas_responde_409_y_sugiere_cancelar(cliente, repos, auth):
+    evento = repos.evento()
+    repos.inscribir(ASISTENTE, evento)
+
+    respuesta = cliente.delete(f"/events/{evento.id}", headers=auth(ADMIN))
+
+    assert_conflicto(respuesta, "has-registrations")
+    assert respuesta.json()["detail"] == "Cancelá el evento en lugar de eliminarlo"
+    assert evento.id in repos.eventos.eventos
+    assert repos.eventos.bloqueos == [evento.id]
+
+
+def test_eliminar_con_solo_inscripciones_canceladas_se_acepta(cliente, repos, auth):
+    evento = repos.evento()
+    repos.inscribir(ASISTENTE, evento, EstadoInscripcion.CANCELLED)
+
+    respuesta = cliente.delete(f"/events/{evento.id}", headers=auth(ORGANIZADOR))
+
+    assert respuesta.status_code == 204, respuesta.text
+    assert evento.id not in repos.eventos.eventos

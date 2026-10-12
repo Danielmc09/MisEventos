@@ -203,3 +203,64 @@ def test_cancelar_con_el_evento_ya_empezado_responde_409(cliente_db, conexion, u
 
     assert_conflicto(cancelar(cliente_db, usuarios["ana"], id_evento), "event-started")
     assert inscripciones(conexion, id_evento, f"{prefijo}ana@mail.com") == [("ACTIVE", None)]
+
+
+# --- Reglas del evento que dependen de las inscripciones -----------------------------------
+
+
+def test_bajar_la_capacidad_por_debajo_de_las_activas_responde_409_e_igualarla_200(
+    cliente_db, conexion, usuarios
+):
+    id_evento = crear_evento(cliente_db, usuarios["orga"], capacidad=5)
+    assert inscribirse(cliente_db, usuarios["ana"], id_evento).status_code == 201
+    assert inscribirse(cliente_db, usuarios["beto"], id_evento).status_code == 201
+
+    debajo = cliente_db.patch(
+        f"/events/{id_evento}", json={"capacity": 1}, headers=auth(usuarios["orga"])
+    )
+    igual = cliente_db.patch(
+        f"/events/{id_evento}", json={"capacity": 2}, headers=auth(usuarios["orga"])
+    )
+
+    assert_conflicto(debajo, "capacity-below-registrations")
+    assert igual.status_code == 200, igual.text
+    assert (igual.json()["capacity"], igual.json()["registered_count"]) == (2, 2)
+    assert igual.json()["available_spots"] == 0
+    capacidad = conexion.execute(
+        text("SELECT capacity FROM events WHERE id = :id"), {"id": id_evento}
+    ).scalar_one()
+    assert capacidad == 2
+
+
+def test_despublicar_o_eliminar_con_inscripciones_activas_responde_409_has_registrations(
+    cliente_db, conexion, usuarios
+):
+    id_evento = crear_evento(cliente_db, usuarios["orga"])
+    assert inscribirse(cliente_db, usuarios["ana"], id_evento).status_code == 201
+
+    despublicar = cliente_db.post(f"/events/{id_evento}/unpublish", headers=auth(usuarios["orga"]))
+    eliminar = cliente_db.delete(f"/events/{id_evento}", headers=auth(usuarios["orga"]))
+
+    assert_conflicto(despublicar, "has-registrations")
+    assert_conflicto(eliminar, "has-registrations")
+    assert eliminar.json()["detail"] == "Cancelá el evento en lugar de eliminarlo"
+    estado = conexion.execute(
+        text("SELECT status FROM events WHERE id = :id"), {"id": id_evento}
+    ).scalar_one()
+    assert estado == "PUBLISHED"
+    assert inscripciones(conexion, id_evento) == [("ACTIVE", None)]
+
+
+def test_cancelar_un_evento_con_inscripciones_responde_200_y_las_conserva_activas(
+    cliente_db, conexion, usuarios
+):
+    id_evento = crear_evento(cliente_db, usuarios["orga"])
+    assert inscribirse(cliente_db, usuarios["ana"], id_evento).status_code == 201
+    assert inscribirse(cliente_db, usuarios["beto"], id_evento).status_code == 201
+
+    respuesta = cliente_db.post(f"/events/{id_evento}/cancel", headers=auth(usuarios["orga"]))
+
+    assert respuesta.status_code == 200, respuesta.text
+    assert respuesta.json()["status"] == "CANCELLED"
+    assert respuesta.json()["registered_count"] == 2
+    assert inscripciones(conexion, id_evento) == [("ACTIVE", None), ("ACTIVE", None)]
