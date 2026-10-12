@@ -1,7 +1,8 @@
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api import auth, eventos, health, ponentes, sesiones
+from app.api.dependencias import sin_caracter_nulo
 from app.api.errores import registrar_manejadores
 from app.api.middleware import HEADER_TRACE, errores_no_esperados, trazabilidad
 from app.core.config import Settings
@@ -16,6 +17,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         title="Mis Eventos API",
         version="0.1.0",
         description="Gestión de eventos, sesiones, ponentes e inscripciones.",
+        dependencies=[Depends(sin_caracter_nulo)],
     )
     # El engine no se conecta hasta la primera consulta: crear la app no necesita la base.
     app.state.settings = settings

@@ -1,7 +1,9 @@
 from typing import Annotated
 
 from fastapi import Depends, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.security import OAuth2PasswordBearer
+from starlette.datastructures import ImmutableMultiDict
 
 from app.core.config import Settings
 from app.core.db import SesionDB
@@ -11,10 +13,43 @@ from app.repositories.eventos import RepositorioEventos
 from app.repositories.ponentes import RepositorioPonentes
 from app.repositories.sesiones import RepositorioSesiones
 from app.repositories.usuarios import RepositorioUsuarios
+from app.schemas.comunes import CARACTER_NULO, MENSAJE_CARACTER_NULO
 from app.services import autenticacion
 
 # auto_error=False: la falta de token la responde el handler de dominio, como cualquier 401.
 esquema_bearer = OAuth2PasswordBearer(tokenUrl="/auth/login", auto_error=False)
+
+
+def _rechazar_caracter_nulo(lugar: str, datos: ImmutableMultiDict) -> None:
+    errores = [
+        {
+            "type": "value_error",
+            "loc": (lugar, nombre),
+            "msg": MENSAJE_CARACTER_NULO,
+            "input": valor,
+        }
+        for nombre, valor in datos.multi_items()
+        if isinstance(valor, str) and CARACTER_NULO in valor
+    ]
+    if errores:
+        raise RequestValidationError(errores)
+
+
+# Las dos revisiones cortan antes de la validación del endpoint: un 422 por el carácter nulo no se
+# junta con los demás errores de la entrada, que aparecen recién cuando el nulo se saca. Se acepta.
+
+
+async def sin_caracter_nulo(request: Request) -> None:
+    """Dependencia de toda la app: rechaza el carácter nulo en la query. No lee el cuerpo: los
+    JSON los cubre EntradaBase y los formularios, `formulario_sin_caracter_nulo`."""
+    _rechazar_caracter_nulo("query", request.query_params)
+
+
+async def formulario_sin_caracter_nulo(request: Request) -> None:
+    """Para los endpoints que declaran un formulario, en sus `dependencies`: rechaza el carácter
+    nulo en todos sus campos. FastAPI ya parseó el formulario para el endpoint y Starlette lo
+    guarda en el request, así que esto no lo vuelve a leer."""
+    _rechazar_caracter_nulo("body", await request.form())
 
 
 def get_settings(request: Request) -> Settings:
