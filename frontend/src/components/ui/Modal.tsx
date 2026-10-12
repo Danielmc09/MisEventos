@@ -5,10 +5,12 @@ export interface ModalProps {
   titulo: string;
   children: ReactNode;
   onCerrar: () => void;
+  /** Con un pedido en curso no se puede cerrar: Escape no hace nada. */
+  bloqueado?: boolean;
 }
 
 /** Diálogo modal para un formulario: Escape cierra y el foco arranca dentro. */
-export function Modal({ titulo, children, onCerrar }: ModalProps) {
+export function Modal({ titulo, children, onCerrar, bloqueado = false }: ModalProps) {
   const id = useId();
   const panel = useRef<HTMLDivElement>(null);
   useEffect(() => panel.current?.focus(), []);
@@ -24,7 +26,7 @@ export function Modal({ titulo, children, onCerrar }: ModalProps) {
         aria-modal="true"
         aria-labelledby={id}
         tabIndex={-1}
-        onKeyDown={(e) => e.key === "Escape" && onCerrar()}
+        onKeyDown={(e) => e.key === "Escape" && !bloqueado && onCerrar()}
         className="w-full max-w-lg rounded-lg bg-panel p-6 shadow-elevada motion-safe:animate-crecer"
       >
         <h2 id={id} className="mb-6 text-lg font-bold text-tinta">

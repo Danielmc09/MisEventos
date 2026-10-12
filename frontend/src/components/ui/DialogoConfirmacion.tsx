@@ -39,7 +39,7 @@ export function DialogoConfirmacion({
         aria-modal="true"
         aria-labelledby={`${id}-titulo`}
         aria-describedby={`${id}-mensaje`}
-        onKeyDown={(e) => e.key === "Escape" && onVolver()}
+        onKeyDown={(e) => e.key === "Escape" && !cargando && onVolver()}
         className="flex w-full max-w-md flex-col gap-6 rounded-lg bg-panel p-6 shadow-elevada motion-safe:animate-crecer"
       >
         <div className="flex flex-col gap-2">
@@ -49,7 +49,13 @@ export function DialogoConfirmacion({
           <p id={`${id}-mensaje`}>{mensaje}</p>
         </div>
         <div className="flex flex-wrap justify-end gap-3">
-          <Button ref={volver} type="button" variante="secundario" onClick={onVolver}>
+          <Button
+            ref={volver}
+            type="button"
+            variante="secundario"
+            disabled={cargando}
+            onClick={onVolver}
+          >
             Volver
           </Button>
           <Button type="button" loading={cargando} onClick={onConfirmar} variante={variante}>
