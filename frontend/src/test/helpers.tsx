@@ -58,7 +58,7 @@ export const evento: components["schemas"]["EventoDetalle"] = {
   is_registered: false,
 };
 
-export const sesion: components["schemas"]["SesionSalida"] = {
+export const sesion: components["schemas"]["SesionConCupo"] = {
   id: "a1b2c3d4-0000-4000-8000-000000000001",
   event_id: evento.id,
   title: "Apertura",
@@ -70,4 +70,7 @@ export const sesion: components["schemas"]["SesionSalida"] = {
   speakers: [],
   created_at: "2026-10-01T12:00:00Z",
   updated_at: "2026-10-01T12:00:00Z",
+  reserved_count: 0,
+  available_spots: 50,
+  is_reserved: false,
 };

@@ -95,6 +95,7 @@ const inscripcion = (nombre: string, extra: Partial<Inscripcion["event"]> = {}):
     is_finished: false,
     ...extra,
   },
+  reserved_sessions: [],
 });
 
 const pagina = (items: Inscripcion[], extra: Partial<Pagina> = {}): Pagina => ({
