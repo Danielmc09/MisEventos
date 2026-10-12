@@ -17,6 +17,8 @@ export interface MenuAccionesProps {
   /** Nombre accesible del botón que abre el menú. */
   etiqueta: string;
   items: ItemMenu[];
+  /** Un texto al comienzo del menú, que no es una opción. */
+  titulo?: string;
   /** `boton`: «⋯» + el texto de `children`. `circulo`: `children` (una inicial) dentro de un círculo. */
   variante?: "boton" | "circulo";
   /** De qué borde del botón sale el menú. */
@@ -38,6 +40,7 @@ const ITEM =
 export function MenuAcciones({
   etiqueta,
   items,
+  titulo,
   variante = "boton",
   alinear = "inicio",
   deshabilitado,
@@ -135,6 +138,14 @@ export function MenuAcciones({
             alinear === "fin" ? "right-0 origin-top-right" : "left-0 origin-top-left"
           }`}
         >
+          {titulo && (
+            <p
+              role="presentation"
+              className="truncate border-b border-borde px-4 py-2 text-sm font-semibold text-texto-suave"
+            >
+              {titulo}
+            </p>
+          )}
           {items.map((item) => {
             const clases = `${ITEM} ${item.peligro ? "text-error" : "text-texto"}`;
             return item.to ? (

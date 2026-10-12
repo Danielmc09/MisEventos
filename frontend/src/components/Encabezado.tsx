@@ -15,7 +15,7 @@ export function Encabezado() {
 
   const itemsCuenta: ItemMenu[] = [
     ...(puedeCrear ? [{ texto: "Crear evento", to: "/eventos/nuevo" }] : []),
-    { texto: nombre ?? "Mi perfil", to: "/perfil" },
+    { texto: "Mi perfil", to: "/perfil" },
     { texto: "Cerrar sesión", onSelect: cerrarSesion },
   ];
 
@@ -36,6 +36,7 @@ export function Encabezado() {
             etiqueta="Menú de la cuenta"
             variante="circulo"
             alinear="fin"
+            titulo={nombre ?? undefined}
             items={itemsCuenta}
           >
             {(nombre ?? "?").charAt(0).toLocaleUpperCase("es")}
