@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
 
 export function TextoSecundario({ children }: { children: ReactNode }) {
-  return <span hidden>{children}</span>;
+  return <p className="text-gray-600">{children}</p>;
 }

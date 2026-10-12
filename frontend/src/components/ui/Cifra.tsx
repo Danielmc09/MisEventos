@@ -1,5 +1,11 @@
 import type { ReactNode } from "react";
 
-export function Cifra({ etiqueta }: { etiqueta: string; children: ReactNode }) {
-  return <div title={etiqueta} />;
+/** Un dato destacado con su etiqueta; va dentro de un `<dl>`. */
+export function Cifra({ etiqueta, children }: { etiqueta: string; children: ReactNode }) {
+  return (
+    <div>
+      <dt className="text-sm text-gray-600">{etiqueta}</dt>
+      <dd className="text-2xl font-semibold">{children}</dd>
+    </div>
+  );
 }

@@ -6,9 +6,12 @@ import { formatearFecha } from "../lib/fechas";
 import { AlertaError } from "./ui/AlertaError";
 import { BarraProgreso } from "./ui/BarraProgreso";
 import { Insignia } from "./ui/Insignia";
+import { Cifra } from "./ui/Cifra";
 import { Paginacion } from "./ui/Paginacion";
 import { Spinner } from "./ui/Spinner";
 import { Tabla } from "./ui/Tabla";
+import { TextoSecundario } from "./ui/TextoSecundario";
+import { TituloSeccion } from "./ui/TituloSeccion";
 
 type Estadisticas = components["schemas"]["EstadisticasSalida"];
 type Pagina = components["schemas"]["Pagina_Inscrito_"];
@@ -65,18 +68,9 @@ function Estadisticas({ eventoId, version }: { eventoId: string; version: number
   return (
     <div className="flex flex-col gap-3">
       <dl className="grid grid-cols-3 gap-4">
-        <div>
-          <dt className="text-sm text-gray-600">Inscritos</dt>
-          <dd className="text-2xl font-semibold">{active}</dd>
-        </div>
-        <div>
-          <dt className="text-sm text-gray-600">Cancelados</dt>
-          <dd className="text-2xl font-semibold">{cancelled}</dd>
-        </div>
-        <div>
-          <dt className="text-sm text-gray-600">Ocupación</dt>
-          <dd className="text-2xl font-semibold">{occupancy_pct.toLocaleString("es-CO")} %</dd>
-        </div>
+        <Cifra etiqueta="Inscritos">{active}</Cifra>
+        <Cifra etiqueta="Cancelados">{cancelled}</Cifra>
+        <Cifra etiqueta="Ocupación">{occupancy_pct.toLocaleString("es-CO")} %</Cifra>
       </dl>
       <BarraProgreso etiqueta="Ocupación" valor={occupancy_pct} />
     </div>
@@ -89,7 +83,7 @@ function ListaInscritos({ eventoId, version }: { eventoId: string; version: numb
   if (!lista) return <Cargando />;
   if (lista.error || !lista.datos) return <AlertaError title={lista.error ?? ""} />;
   const { items, page, pages } = lista.datos;
-  if (items.length === 0) return <p className="text-gray-600">Todavía no hay inscritos</p>;
+  if (items.length === 0) return <TextoSecundario>Todavía no hay inscritos</TextoSecundario>;
   return (
     <>
       <Tabla
@@ -122,9 +116,7 @@ function ListaInscritos({ eventoId, version }: { eventoId: string; version: numb
 export function PanelInscripciones({ eventoId, version }: { eventoId: string; version: number }) {
   return (
     <section aria-labelledby="titulo-inscripciones" className="mt-4 flex flex-col gap-4">
-      <h2 id="titulo-inscripciones" className="text-xl font-semibold">
-        Inscripciones
-      </h2>
+      <TituloSeccion id="titulo-inscripciones">Inscripciones</TituloSeccion>
       <Estadisticas eventoId={eventoId} version={version} />
       <ListaInscritos eventoId={eventoId} version={version} />
     </section>
