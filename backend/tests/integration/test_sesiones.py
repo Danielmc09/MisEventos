@@ -272,7 +272,7 @@ def test_el_choque_con_un_borrador_que_no_se_puede_ver_no_nombra_la_sesion(
     # La ponente igual está ocupada, pero el borrador ajeno no se revela.
     assert choque.status_code == 409
     assert choque.json()["type"] == "speaker-conflict"
-    assert choque.json()["detail"] == "La ponente ya tiene otra sesión en ese horario"
+    assert choque.json()["detail"] == f"{prefijo} Ana Pérez ya tiene otra sesión en ese horario"
     assert "Lanzamiento producto X" not in choque.text
     assert "Secreto" not in choque.text
     # Es el mismo borrador que ese usuario no puede ver.

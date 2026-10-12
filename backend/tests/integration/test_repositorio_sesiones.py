@@ -1,5 +1,5 @@
-"""El choque de ponentes lo resuelve la base: devuelve solo una sesión que se cruza con el
-horario pedido, de esos ponentes, fuera de eventos cancelados y sin contar la propia sesión."""
+"""El choque de ponentes lo resuelve la base: devuelve, por cada ponente, solo la primera sesión
+que se cruza con el horario pedido, fuera de eventos cancelados y sin contar la propia sesión."""
 
 from datetime import datetime
 from uuid import UUID, uuid4
@@ -49,6 +49,7 @@ def agenda(cliente_db, conexion, prefijo) -> dict:
         "ana": UUID(ana["id"]),
         "beto": UUID(beto["id"]),
         "sesion_de_ana": UUID(de_ana.json()["id"]),
+        "sesion_de_beto": UUID(de_beto.json()["id"]),
     }
 
 
@@ -57,16 +58,42 @@ def repo(conexion) -> RepositorioSesiones:
     return RepositorioSesiones(Session(bind=conexion, join_transaction_mode="create_savepoint"))
 
 
-def test_devuelve_el_ponente_y_la_sesion_que_se_cruzan(repo, agenda, prefijo):
-    choque = repo.choque_de_ponentes(
+def test_devuelve_el_ponente_la_sesion_y_su_evento_que_se_cruzan(repo, agenda, prefijo):
+    choques = repo.choques_de_ponentes(
         [agenda["ana"], agenda["beto"]], instante("10:30"), instante("11:30"), None
     )
 
-    assert choque is not None
-    ponente, sesion = choque
+    [(ponente, sesion, evento)] = choques
     assert ponente.id == agenda["ana"]
     assert ponente.full_name == f"{prefijo} Ana Pérez"
     assert sesion.id == agenda["sesion_de_ana"]
+    assert evento.id == sesion.event_id
+
+
+def test_devuelve_un_choque_por_ponente_el_mas_temprano(repo, agenda):
+    # De 10:30 a 12:30 Ana choca con 10:00-11:00 y Beto con 12:00-13:00.
+    choques = repo.choques_de_ponentes(
+        [agenda["ana"], agenda["beto"]], instante("10:30"), instante("12:30"), None
+    )
+
+    assert sorted((p.id, s.id) for p, s, _ in choques) == sorted(
+        [(agenda["ana"], agenda["sesion_de_ana"]), (agenda["beto"], agenda["sesion_de_beto"])]
+    )
+
+
+def test_con_dos_sesiones_del_mismo_ponente_que_chocan_devuelve_la_primera(
+    cliente_db, conexion, repo, agenda, prefijo
+):
+    token = usuario_con_rol(cliente_db, conexion, f"{prefijo}otra@mail.com", "ORGANIZER")
+    otro = crear_evento(cliente_db, token, f"{prefijo} PyConES")
+    ana = {"id": str(agenda["ana"])}
+    despues = crear_sesion(cliente_db, token, otro, cuerpo_sesion("11:30", "12:30", ana))
+    assert despues.status_code == 201, despues.text
+
+    # De 10:30 a 12:00 se cruzan las dos de Ana: vuelve solo la que empieza antes.
+    choques = repo.choques_de_ponentes([agenda["ana"]], instante("10:30"), instante("12:00"), None)
+
+    assert [s.id for _, s, _ in choques] == [agenda["sesion_de_ana"]]
 
 
 @pytest.mark.parametrize(
@@ -75,17 +102,17 @@ def test_devuelve_el_ponente_y_la_sesion_que_se_cruzan(repo, agenda, prefijo):
     ids=["empieza-cuando-termina", "termina-cuando-empieza", "antes", "despues"],
 )
 def test_fuera_del_rango_o_en_el_borde_no_hay_choque(repo, agenda, inicio, fin):
-    choque = repo.choque_de_ponentes([agenda["ana"]], instante(inicio), instante(fin), None)
+    choques = repo.choques_de_ponentes([agenda["ana"]], instante(inicio), instante(fin), None)
 
-    assert choque is None
+    assert choques == []
 
 
 def test_la_propia_sesion_no_choca(repo, agenda):
-    choque = repo.choque_de_ponentes(
+    choques = repo.choques_de_ponentes(
         [agenda["ana"]], instante("10:00"), instante("11:00"), agenda["sesion_de_ana"]
     )
 
-    assert choque is None
+    assert choques == []
 
 
 @pytest.mark.parametrize(
@@ -94,16 +121,16 @@ def test_la_propia_sesion_no_choca(repo, agenda):
     ids=["ana-en-la-de-beto", "beto-en-la-de-ana"],
 )
 def test_la_agenda_de_otro_ponente_no_cuenta(repo, agenda, ponente, inicio, fin):
-    choque = repo.choque_de_ponentes([agenda[ponente]], instante(inicio), instante(fin), None)
+    choques = repo.choques_de_ponentes([agenda[ponente]], instante(inicio), instante(fin), None)
 
-    assert choque is None
+    assert choques == []
 
 
 def test_una_sesion_de_un_evento_cancelado_no_choca(repo, agenda):
-    choque = repo.choque_de_ponentes([agenda["ana"]], instante("13:00"), instante("14:00"), None)
+    choques = repo.choques_de_ponentes([agenda["ana"]], instante("13:00"), instante("14:00"), None)
 
-    assert choque is None
+    assert choques == []
 
 
 def test_sin_ponentes_no_hay_choque(repo, agenda):
-    assert repo.choque_de_ponentes([], instante("10:00"), instante("11:00"), None) is None
+    assert repo.choques_de_ponentes([], instante("10:00"), instante("11:00"), None) == []

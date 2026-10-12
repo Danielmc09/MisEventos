@@ -550,7 +550,8 @@ def test_un_ponente_no_puede_estar_en_dos_sesiones_que_se_cruzan_en_otro_evento(
     assert len(repos.eventos.sesiones) == 1
 
 
-DETALLE_SIN_SESION = "La ponente ya tiene otra sesión en ese horario"
+# Quien asigna eligió a la ponente: su nombre se puede mostrar, la otra sesión no.
+DETALLE_SIN_SESION = "Ana Pérez ya tiene otra sesión en ese horario"
 
 
 def test_el_choque_con_un_borrador_ajeno_responde_409_sin_nombrar_la_sesion(cliente, repos, auth):
@@ -610,6 +611,28 @@ def test_el_choque_con_un_evento_publicado_ajeno_nombra_la_sesion(cliente, repos
 
     assert respuesta.status_code == 409
     assert respuesta.json()["detail"] == "Ana Pérez ya está en «Keynote», 10:00 a 11:00"
+
+
+def test_si_chocan_varios_ponentes_el_detail_lista_uno_por_linea_segun_lo_que_se_ve(
+    cliente, repos, auth
+):
+    publicado = repos.evento(EstadoEvento.PUBLISHED, dueno=OTRO_ORGANIZADOR)
+    borrador = repos.evento(EstadoEvento.DRAFT, dueno=OTRO_ORGANIZADOR)
+    beto, ana = repos.ponente("Beto Ruiz"), repos.ponente("Ana Pérez")
+    # La de Beto empieza antes: el orden de las líneas es por nombre, no por horario.
+    repos.sesion(borrador, hora(9, 30), hora(10, 30), beto, title="Lanzamiento producto X")
+    repos.sesion(publicado, hora(10), hora(11), ana, title="Keynote")
+    evento = repos.evento()
+
+    respuesta = crear(cliente, evento, cuerpo(beto, ana, title="Otra charla"), auth(ORGANIZADOR))
+
+    assert respuesta.status_code == 409
+    assert respuesta.json()["type"] == "speaker-conflict"
+    assert respuesta.json()["detail"] == (
+        "Ana Pérez ya está en «Keynote», 10:00 a 11:00\n"
+        "Beto Ruiz ya tiene otra sesión en ese horario"
+    )
+    assert "Lanzamiento producto X" not in respuesta.text
 
 
 def test_el_choque_de_ponente_se_pide_a_la_base_con_el_horario_y_sin_la_agenda_entera(
