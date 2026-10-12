@@ -70,7 +70,11 @@ def cambiar(
     El orden importa: primero el permiso (sin él, 403 aunque el usuario no exista), después que
     no se toque a sí mismo, y recién ahí se bloquean, en orden de id, TODOS los admins activos.
     Con ellos bloqueados se lee el usuario y se cuenta: si dos admins se degradan mutuamente a
-    la vez, el segundo espera al primero y ve que ya queda uno solo."""
+    la vez, el segundo espera al primero y ve que ya queda uno solo (`last-admin`).
+
+    El permiso se vuelve a mirar con los admins bloqueados: si mientras esperaba otro admin lo
+    degradó o lo desactivó, el actor ya no está entre ellos y no cambia nada (403). El
+    `last-admin` va antes, porque es lo que explica por qué no se hizo el cambio."""
     _exigir_permiso(actor)
     cambios = datos.model_dump(exclude_unset=True)
     if id_usuario == actor.id and cambios.keys() & {"role", "is_active"}:
@@ -80,17 +84,20 @@ def cambiar(
         )
     admins = repo.activos_para_escribir(ROLES_ADMIN)
     usuario = repo.por_id_para_escribir(id_usuario)
+    if usuario is not None:
+        era_admin = _es_admin_activo(usuario.role, usuario.is_active)
+        sera_admin = _es_admin_activo(
+            cambios.get("role", usuario.role), cambios.get("is_active", usuario.is_active)
+        )
+        if era_admin and not sera_admin and not any(a.id != usuario.id for a in admins):
+            raise Conflict(
+                tipo="last-admin",
+                titulo="Tiene que quedar al menos un administrador activo",
+            )
+    if not any(a.id == actor.id for a in admins):
+        raise Forbidden()
     if usuario is None:
         raise NotFound()
-    era_admin = _es_admin_activo(usuario.role, usuario.is_active)
-    sera_admin = _es_admin_activo(
-        cambios.get("role", usuario.role), cambios.get("is_active", usuario.is_active)
-    )
-    if era_admin and not sera_admin and not any(a.id != usuario.id for a in admins):
-        raise Conflict(
-            tipo="last-admin",
-            titulo="Tiene que quedar al menos un administrador activo",
-        )
     for campo, valor in cambios.items():
         setattr(usuario, campo, valor)
     usuario = repo.guardar(usuario)
