@@ -1,5 +1,6 @@
 """Sesiones contra PostgreSQL: alta con ponentes, listado público, permisos y borrados."""
 
+from datetime import UTC, datetime
 from uuid import uuid4
 
 import pytest
@@ -318,3 +319,24 @@ def test_crear_o_editar_una_sesion_de_un_evento_cancelado_responde_409(
         text("SELECT title FROM sessions WHERE id = :id"), {"id": creada.json()["id"]}
     ).scalar_one()
     assert titulo == "Testing en Python"
+
+
+def test_achicar_las_fechas_del_evento_dejando_una_sesion_afuera_responde_409(
+    cliente_db, conexion, usuarios, prefijo
+):
+    token = usuarios["orga"]
+    evento = crear_evento(cliente_db, token, f"{prefijo} PyCon")
+    creada = crear_sesion(cliente_db, token, evento, cuerpo_sesion("16:00", "17:00"))
+    assert creada.status_code == 201, creada.text
+
+    respuesta = cliente_db.patch(
+        f"/events/{evento['id']}", json={"end_at": utc("16:30")}, headers=auth(token)
+    )
+
+    assert respuesta.status_code == 409
+    assert respuesta.json()["type"] == "sessions-outside-range"
+    assert respuesta.json()["detail"].startswith("1 ")
+    fin = conexion.execute(
+        text("SELECT end_at FROM events WHERE id = :id"), {"id": evento["id"]}
+    ).scalar_one()
+    assert fin == datetime(2030, 1, 10, 23, tzinfo=UTC)
