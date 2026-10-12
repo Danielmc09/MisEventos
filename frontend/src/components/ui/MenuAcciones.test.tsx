@@ -1,14 +1,20 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, useLocation } from "react-router-dom";
 import { MenuAcciones } from "./MenuAcciones";
 
-function montar(onSelect = vi.fn()) {
-  render(
+function Ruta() {
+  return <p data-testid="ruta">{useLocation().pathname}</p>;
+}
+
+function montar(onSelect = vi.fn(), ocupado = false) {
+  const vista = render(
     <MemoryRouter>
+      <Ruta />
       <button type="button">Antes</button>
       <MenuAcciones
         etiqueta="Más acciones"
+        ocupado={ocupado}
         items={[
           { texto: "Despublicar", onSelect },
           { texto: "Cancelar evento", onSelect },
@@ -20,7 +26,7 @@ function montar(onSelect = vi.fn()) {
       </MenuAcciones>
     </MemoryRouter>,
   );
-  return { onSelect, user: userEvent.setup() };
+  return { onSelect, user: userEvent.setup(), vista };
 }
 
 const disparador = () => screen.getByRole("button", { name: "Más acciones" });
@@ -100,4 +106,62 @@ test("un click fuera lo cierra", async () => {
   await user.click(screen.getByRole("button", { name: "Antes" }));
 
   expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+});
+
+test("Tab cierra el menú", async () => {
+  const { user } = montar();
+  await user.click(disparador());
+
+  await user.keyboard("{Tab}");
+
+  expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+});
+
+test("Flecha arriba en el botón abre el menú sobre la última opción", async () => {
+  const { user } = montar();
+  disparador().focus();
+
+  await user.keyboard("{ArrowUp}");
+
+  expect(screen.getByRole("menuitem", { name: "Ver perfil" })).toHaveFocus();
+});
+
+test("Espacio sobre una opción con destino navega", async () => {
+  const { user } = montar();
+  disparador().focus();
+  await user.keyboard("{ArrowUp}");
+
+  await user.keyboard(" ");
+
+  expect(screen.getByTestId("ruta")).toHaveTextContent("/perfil");
+});
+
+test("ocupado no abre el menú ni con el mouse ni con el teclado", async () => {
+  const { user } = montar(vi.fn(), true);
+  disparador().focus();
+
+  await user.click(disparador());
+  await user.keyboard("{ArrowDown}");
+
+  expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+});
+
+test("mientras trabaja, el foco sigue en el botón, que muestra el spinner y aria-busy", async () => {
+  const { user, vista } = montar();
+  await user.click(disparador());
+  await user.keyboard("{ArrowDown}{Enter}");
+
+  vista.rerender(
+    <MemoryRouter>
+      <MenuAcciones etiqueta="Más acciones" ocupado items={[{ texto: "Despublicar" }]}>
+        Más acciones
+      </MenuAcciones>
+    </MemoryRouter>,
+  );
+
+  expect(disparador()).toHaveFocus();
+  expect(disparador()).toHaveAttribute("aria-busy", "true");
+  expect(disparador()).toHaveAttribute("aria-disabled", "true");
+  expect(disparador()).not.toBeDisabled();
+  expect(within(disparador()).getByRole("status")).toBeInTheDocument();
 });
