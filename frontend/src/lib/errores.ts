@@ -7,8 +7,16 @@ export interface ErrorDeFormulario {
   general: string | null;
 }
 
-export function errorDeFormulario(e: unknown): ErrorDeFormulario {
+/**
+ * `visibles` lista los campos que el formulario sabe mostrar. Un error de otro campo no se
+ * pierde: pasa al mensaje general. Sin `visibles`, todos los campos se consideran visibles.
+ */
+export function errorDeFormulario(e: unknown, visibles?: readonly string[]): ErrorDeFormulario {
   if (!(e instanceof ApiError)) return { campos: {}, general: "Ocurrió un error inesperado" };
-  const campos = Object.fromEntries(e.errors.map((x) => [x.field, x.message]));
-  return { campos, general: e.errors.length ? null : e.title };
+  const mostrables = e.errors.filter((x) => !visibles || visibles.includes(x.field));
+  const campos = Object.fromEntries(mostrables.map((x) => [x.field, x.message]));
+  return {
+    campos,
+    general: mostrables.length && mostrables.length === e.errors.length ? null : e.title,
+  };
 }

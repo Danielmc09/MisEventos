@@ -17,6 +17,8 @@ export interface FormularioSesionProps {
   onCancelar: () => void;
 }
 
+const CAMPOS_VISIBLES = ["title", "room", "start_at", "end_at", "capacity", "speaker_ids"] as const;
+
 const VACIO = { title: "", description: "", room: "", start_at: "", end_at: "", capacity: "" };
 type Valores = typeof VACIO;
 
@@ -97,6 +99,11 @@ export function FormularioSesion({
 
   const cambiarPonentes = (nuevos: PonenteDeSesion[]) => {
     setPonentes(nuevos);
+    setErrores((previos) => {
+      const resto = { ...previos };
+      delete resto.speaker_ids;
+      return resto;
+    });
     setGeneral(null);
   };
 
@@ -135,7 +142,7 @@ export function FormularioSesion({
           : sesion,
       );
     } catch (e) {
-      const { campos, general } = errorDeFormulario(e);
+      const { campos, general } = errorDeFormulario(e, CAMPOS_VISIBLES);
       setErrores(campos);
       if (general)
         setGeneral({ title: general, detail: e instanceof ApiError ? e.detail : undefined });
@@ -151,7 +158,11 @@ export function FormularioSesion({
       <Input label="Inicio" type="datetime-local" {...campo("start_at")} />
       <Input label="Fin" type="datetime-local" {...campo("end_at")} />
       <Input label="Capacidad" type="number" {...campo("capacity")} />
-      <SelectorPonentes seleccionados={ponentes} onChange={cambiarPonentes} />
+      <SelectorPonentes
+        seleccionados={ponentes}
+        onChange={cambiarPonentes}
+        error={errores.speaker_ids}
+      />
       {general && (
         <p role="alert" className="text-red-700">
           <strong>{general.title}</strong>
