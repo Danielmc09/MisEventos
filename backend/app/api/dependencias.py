@@ -97,17 +97,36 @@ RepoReservas = Annotated[RepositorioReservas, Depends(repositorio_reservas)]
 RepoSalud = Annotated[RepositorioSalud, Depends(repositorio_salud)]
 
 
+def usuario_con_cambio_pendiente(
+    request: Request,
+    repo: RepoUsuarios,
+    settings: ConfigApp,
+    token: Annotated[str | None, Depends(esquema_bearer)],
+) -> User:
+    """El único lugar que resuelve quién hace el request. Lee el usuario de la base cada vez.
+
+    Deja pasar a quien todavía tiene la contraseña temporal: la usan solo los endpoints que ese
+    usuario sí puede llamar (ver su perfil y cambiarla). Todos los demás usan `usuario_actual`."""
+    if token is None:
+        raise Unauthorized()
+    usuario = autenticacion.usuario_del_token(repo, token, settings.jwt_secret)
+    request.state.user_id = usuario.id  # para el log de acceso
+    return usuario
+
+
+UsuarioConCambioPendiente = Annotated[User, Depends(usuario_con_cambio_pendiente)]
+
+
 def usuario_actual(
     request: Request,
     repo: RepoUsuarios,
     settings: ConfigApp,
     token: Annotated[str | None, Depends(esquema_bearer)],
 ) -> User:
-    """El único lugar que resuelve quién hace el request. Lee el usuario de la base cada vez."""
-    if token is None:
-        raise Unauthorized()
-    usuario = autenticacion.usuario_del_token(repo, token, settings.jwt_secret)
-    request.state.user_id = usuario.id  # para el log de acceso
+    """El usuario del request, si ya cambió su contraseña temporal; si no, 403
+    `password-change-required`. Al frenar acá, un endpoint nuevo queda frenado sin hacer nada."""
+    usuario = usuario_con_cambio_pendiente(request, repo, settings, token)
+    autenticacion.exigir_contrasena_definitiva(usuario)
     return usuario
 
 
