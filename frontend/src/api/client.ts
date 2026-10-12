@@ -12,6 +12,7 @@ async function toApiError(response: Response): Promise<ApiError> {
     title: body.title ?? "Ocurrió un error inesperado",
     detail: body.detail,
     errors: body.errors,
+    conflicts: body.conflicts,
     traceId: body.trace_id,
   });
 }

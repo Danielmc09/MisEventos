@@ -19,10 +19,21 @@ interface Props {
   onEvento: (evento: EventoDetalle) => void;
   onRefrescar: () => void;
   onAviso: (aviso: Aviso) => void;
+  /** Cuántas sesiones de este evento tiene reservadas la persona: se cancelan con la inscripción. */
+  reservas: number;
+  /** Se llama cuando la inscripción se canceló, para que se refresquen las sesiones. */
+  onCancelada: () => void;
 }
 
 /** Inscribirse o cancelar la inscripción, según la situación de quien mira y del evento. */
-export function AccionInscripcion({ evento, onEvento, onRefrescar, onAviso }: Props) {
+export function AccionInscripcion({
+  evento,
+  onEvento,
+  onRefrescar,
+  onAviso,
+  reservas,
+  onCancelada,
+}: Props) {
   const user = useSession((s) => s.user);
   const invalidar = useEventos((s) => s.invalidar);
   const [trabajando, setTrabajando] = useState(false);
@@ -59,6 +70,7 @@ export function AccionInscripcion({ evento, onEvento, onRefrescar, onAviso }: Pr
         available_spots: evento.available_spots - paso,
       });
       invalidar();
+      if (accion === "cancelar") onCancelada();
       onAviso({
         message:
           accion === "inscribirse" ? "Te inscribiste al evento" : "Cancelaste tu inscripción",
@@ -84,7 +96,9 @@ export function AccionInscripcion({ evento, onEvento, onRefrescar, onAviso }: Pr
         {confirmando && (
           <DialogoConfirmacion
             titulo="Cancelar tu inscripción"
-            mensaje="Vas a liberar tu cupo. Después podés volver a inscribirte si todavía queda lugar."
+            mensaje={`Vas a liberar tu cupo. Después podés volver a inscribirte si todavía queda lugar.${
+              reservas > 0 ? ` También se cancelarán tus ${reservas} reservas de sesiones.` : ""
+            }`}
             confirmar="Sí, cancelar mi inscripción"
             cargando={trabajando}
             onConfirmar={() => ejecutar("cancelar")}

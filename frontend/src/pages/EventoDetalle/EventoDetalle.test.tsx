@@ -1304,7 +1304,9 @@ describe("reservas de sesiones", () => {
       ["event-not-open", "El evento no está abierto"],
     ])("un %s muestra su title y refresca las sesiones", async (type, title) => {
       servir(inscrito);
-      const pedidos = servirLista([conLugar], () => [llena]);
+      const pedidos = servirLista([conLugar], () => [
+        { ...conLugar, reserved_count: 5, available_spots: 0 },
+      ]);
       server.use(
         http.post(rutaReservar(conLugar.id), () =>
           responder("/sessions/{id_sesion}/reservations", "post", 409, conflicto(type, title)),
