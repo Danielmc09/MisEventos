@@ -141,7 +141,25 @@ describe("estados del detalle", () => {
 });
 
 const dueno = { ...usuario, id: evento.organizer_id, role: "ORGANIZER" as const };
-const admin = { ...usuario, role: "ADMIN" as const };
+const admin = {
+  ...usuario,
+  role: "ADMIN" as const,
+  permisos: [
+    "evento:crear",
+    "evento:gestionar_todos",
+    "ponente:gestionar",
+    "ponente:gestionar_todos",
+    "usuarios:gestionar",
+    "auditoria:ver",
+  ],
+};
+// El rol no decide: lo que cuenta es la lista de permisos que manda la API.
+const adminSinPermiso = { ...usuario, role: "ADMIN" as const, permisos: [] };
+const gestorDeTodos = {
+  ...usuario,
+  role: "ORGANIZER" as const,
+  permisos: ["evento:gestionar_todos" as const],
+};
 
 function servir(e = evento) {
   server.use(http.get(ruta, () => responder("/events/{id_evento}", "get", 200, e)));
@@ -400,6 +418,7 @@ describe("sección de sesiones", () => {
   test.each([
     ["el dueño", dueno],
     ["el admin", admin],
+    ["un organizador con evento:gestionar_todos", gestorDeTodos],
   ])("%s ve Agregar, Editar y Eliminar", async (_quien, quien) => {
     useSession.getState().iniciarSesion(quien, "token", 3600);
     servir();
@@ -936,6 +955,14 @@ describe("panel de inscripciones del dueño", () => {
     expect(within(panel).getByText("Inscritos").nextElementSibling).toHaveTextContent("1");
   });
 
+  test("un organizador ajeno con evento:gestionar_todos también ve el panel", async () => {
+    useSession.getState().iniciarSesion(gestorDeTodos, "token", 3600);
+    servir();
+    abrir();
+
+    expect(await screen.findByRole("region", { name: "Inscripciones" })).toBeInTheDocument();
+  });
+
   test("el admin también ve el panel", async () => {
     useSession.getState().iniciarSesion(admin, "token", 3600);
     servir();
@@ -948,6 +975,7 @@ describe("panel de inscripciones del dueño", () => {
   test.each([
     ["un asistente", usuario],
     ["otro organizador", { ...usuario, role: "ORGANIZER" as const }],
+    ["un admin sin el permiso evento:gestionar_todos", adminSinPermiso],
   ])("%s no lo ve y no se pide a la API", async (_quien, quien) => {
     useSession.getState().iniciarSesion(quien, "token", 3600);
     servir();

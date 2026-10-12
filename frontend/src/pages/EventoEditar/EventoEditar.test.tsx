@@ -84,4 +84,25 @@ describe("edición", () => {
     expect(await screen.findByText("No tenés permiso para editar este evento")).toBeInTheDocument();
     expect(screen.queryByLabelText("Nombre")).not.toBeInTheDocument();
   });
+
+  test("un admin sin el permiso evento:gestionar_todos no ve el formulario de un evento ajeno", async () => {
+    useSession.getState().iniciarSesion({ ...usuario, role: "ADMIN", permisos: [] }, "token", 3600);
+    abrir();
+
+    expect(await screen.findByText("No tenés permiso para editar este evento")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Nombre")).not.toBeInTheDocument();
+  });
+
+  test("un organizador ajeno con evento:gestionar_todos ve el formulario", async () => {
+    useSession
+      .getState()
+      .iniciarSesion(
+        { ...usuario, role: "ORGANIZER", permisos: ["evento:gestionar_todos"] },
+        "token",
+        3600,
+      );
+    abrir();
+
+    expect(await screen.findByLabelText("Nombre")).toHaveValue("PyCon Bogotá");
+  });
 });
