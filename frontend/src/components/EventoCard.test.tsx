@@ -98,6 +98,22 @@ test("con cupos no muestra el chip Sin cupos", () => {
   expect(screen.queryByText("Sin cupos")).not.toBeInTheDocument();
 });
 
+test.each([
+  ["cancelado", { status: "CANCELLED" as const }],
+  ["finalizado", { is_finished: true }],
+  ["en borrador", { status: "DRAFT" as const }],
+])("un evento %s con pocos cupos no muestra el chip de disponibilidad", (_estado, cambio) => {
+  montar({ ...evento, capacity: 100, available_spots: 5, start_at: manana, ...cambio });
+
+  expect(screen.queryByText("Últimos lugares")).not.toBeInTheDocument();
+});
+
+test("un evento finalizado sin cupos no muestra el chip Sin cupos", () => {
+  montar({ ...evento, available_spots: 0, is_finished: true, start_at: manana });
+
+  expect(screen.queryByText("Sin cupos")).not.toBeInTheDocument();
+});
+
 test("lo que recibe como hijo queda dentro de la tarjeta", () => {
   render(
     <MemoryRouter>

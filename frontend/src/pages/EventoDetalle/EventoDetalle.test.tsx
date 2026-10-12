@@ -432,6 +432,35 @@ describe("sección de sesiones", () => {
     expect(screen.queryByRole("button", { name: /sesión/ })).not.toBeInTheDocument();
   });
 
+  describe("sin sesiones", () => {
+    test("el dueño ve Agregar sesión y lo usa para abrir el formulario", async () => {
+      useSession.getState().iniciarSesion(dueno, "token", 3600);
+      servir();
+      servirSesiones([]);
+      const user = userEvent.setup();
+      abrir();
+
+      await screen.findByText("Este evento todavía no tiene sesiones");
+      await user.click(screen.getByRole("button", { name: "Agregar sesión" }));
+
+      expect(screen.getByRole("dialog", { name: "Agregar sesión" })).toBeInTheDocument();
+    });
+
+    test("un anónimo y un asistente ajeno no ven Agregar sesión", async () => {
+      servir();
+      servirSesiones([]);
+      const { unmount } = abrir();
+      await screen.findByText("Este evento todavía no tiene sesiones");
+      expect(screen.queryByRole("button", { name: "Agregar sesión" })).not.toBeInTheDocument();
+      unmount();
+
+      useSession.getState().iniciarSesion(usuario, "token", 3600);
+      abrir();
+      await screen.findByText("Este evento todavía no tiene sesiones");
+      expect(screen.queryByRole("button", { name: "Agregar sesión" })).not.toBeInTheDocument();
+    });
+  });
+
   test.each([
     ["el dueño", dueno],
     ["el admin", admin],
@@ -1140,7 +1169,7 @@ describe("reservas de sesiones", () => {
   }
 
   /** Sirve las sesiones, y desde el segundo pedido las que devuelva `siguiente`. */
-  function servirLista(inicial: (typeof conLugar)[], siguiente?: () => (typeof conLugar)[]) {
+  function servirLista(inicial: (typeof sesion)[], siguiente?: () => (typeof sesion)[]) {
     const pedidos = { n: 0 };
     server.use(
       http.get(rutaSesiones, () => {
@@ -1372,11 +1401,44 @@ describe("reservas de sesiones", () => {
     expect(item.queryByText("Últimos lugares")).not.toBeInTheDocument();
   });
 
+  test("una sesión sin capacidad propia usa lo reservado más lo que queda: Últimos lugares", async () => {
+    useSession.getState().iniciarSesion(usuario, "token", 3600);
+    servir(inscrito);
+    servirLista([{ ...conLugar, capacity: null, reserved_count: 95, available_spots: 5 }]);
+    abrir();
+
+    const item = await fila("Taller de Pytest");
+    expect(item.getByText("Últimos lugares")).toBeInTheDocument();
+  });
+
   test("el evento con pocos cupos muestra el chip Últimos lugares", async () => {
     servir({ ...abierto, capacity: 100, available_spots: 5 });
     abrir();
 
     expect(await screen.findByText("Últimos lugares")).toBeInTheDocument();
+  });
+
+  test.each([
+    ["cancelado", { status: "CANCELLED" as const }],
+    ["finalizado", { is_finished: true }],
+    ["en borrador", { status: "DRAFT" as const }],
+  ])(
+    "un evento %s con pocos cupos no muestra el chip de disponibilidad",
+    async (_estado, cambio) => {
+      servir({ ...abierto, capacity: 100, available_spots: 5, ...cambio });
+      abrir();
+
+      await screen.findByRole("heading", { name: "PyCon Bogotá" });
+      expect(screen.queryByText("Últimos lugares")).not.toBeInTheDocument();
+    },
+  );
+
+  test("un evento finalizado sin cupos no muestra el chip Sin cupos", async () => {
+    servir({ ...abierto, capacity: 100, available_spots: 0, is_finished: true });
+    abrir();
+
+    await screen.findByRole("heading", { name: "PyCon Bogotá" });
+    expect(screen.queryByText("Sin cupos")).not.toBeInTheDocument();
   });
 
   test("con un solo cupo en el evento dice Queda 1 cupo", async () => {
