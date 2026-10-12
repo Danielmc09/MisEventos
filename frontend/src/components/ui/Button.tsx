@@ -3,15 +3,18 @@ import { Spinner } from "./Spinner";
 
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   loading?: boolean;
+  variante?: "primario" | "peligro" | "secundario";
 }
 
 export function Button({
   loading = false,
+  variante,
   disabled,
   children,
   className = "",
   ...props
 }: ButtonProps) {
+  void variante;
   return (
     <button
       {...props}
