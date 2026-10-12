@@ -10,6 +10,39 @@ import { EnlaceBoton } from "./EnlaceBoton";
 import { BarraProgreso } from "./BarraProgreso";
 import { Tabla } from "./Tabla";
 import { Paginacion } from "./Paginacion";
+import { TituloSeccion } from "./TituloSeccion";
+import { TextoSecundario } from "./TextoSecundario";
+import { Cifra } from "./Cifra";
+
+describe("TituloSeccion", () => {
+  test("es un encabezado de nivel 2 con el id dado", () => {
+    render(<TituloSeccion id="titulo-x">Inscripciones</TituloSeccion>);
+
+    const titulo = screen.getByRole("heading", { level: 2, name: "Inscripciones" });
+    expect(titulo).toHaveAttribute("id", "titulo-x");
+  });
+});
+
+describe("TextoSecundario", () => {
+  test("muestra su texto en un párrafo", () => {
+    render(<TextoSecundario>Todavía no hay inscritos</TextoSecundario>);
+
+    expect(screen.getByText("Todavía no hay inscritos").tagName).toBe("P");
+  });
+});
+
+describe("Cifra", () => {
+  test("asocia la etiqueta con su valor dentro de una lista de definiciones", () => {
+    render(
+      <dl>
+        <Cifra etiqueta="Inscritos">12</Cifra>
+      </dl>,
+    );
+
+    expect(screen.getByRole("term")).toHaveTextContent("Inscritos");
+    expect(screen.getByRole("definition")).toHaveTextContent("12");
+  });
+});
 
 describe("Button", () => {
   test("en estado de carga queda deshabilitado y muestra el spinner", () => {
