@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { BotonIcono } from "./BotonIcono";
 import { IconoLapiz } from "./iconos/IconoLapiz";
@@ -62,7 +62,9 @@ test("se puede pasar el mouse sobre el tooltip sin que desaparezca", async () =>
   await user.hover(screen.getByRole("button"));
 
   const tooltip = screen.getByRole("tooltip");
-  await user.hover(tooltip);
+  // El navegador informa a dónde va el puntero (relatedTarget); user-event no lo hace.
+  fireEvent.mouseOut(screen.getByRole("button"), { relatedTarget: tooltip });
+  fireEvent.mouseOver(tooltip, { relatedTarget: screen.getByRole("button") });
 
   expect(screen.getByRole("tooltip")).toBeInTheDocument();
   expect(tooltip).not.toHaveClass("pointer-events-none");
