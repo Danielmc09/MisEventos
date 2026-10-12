@@ -145,3 +145,7 @@ def crear(repo: Usuarios, actor: User, datos: UsuarioAlta) -> ConContrasenaTempo
     if guardado is None:
         raise _email_tomado()
     return ConContrasenaTemporal(guardado, temporal)
+
+
+def restablecer_contrasena(repo: Usuarios, actor: User, id_usuario: UUID) -> str:
+    return ""

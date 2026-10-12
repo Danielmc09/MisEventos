@@ -4,6 +4,7 @@ muestra una sola vez y obliga a cambiarla en el primer login."""
 import logging
 import secrets
 from datetime import UTC, datetime
+from uuid import uuid4
 
 import pytest
 
@@ -225,5 +226,147 @@ def test_la_temporal_del_alta_no_queda_en_ningun_log(cliente, repo, auth, gente,
     assert respuesta.status_code == 201, respuesta.text
     temporal = respuesta.json()["temporary_password"]
     # El log del request sí se capturó; si no, la búsqueda de abajo no probaría nada.
+    assert any(r.name == "miseventos.acceso" for r in caplog.records)
+    assert temporal not in texto_de_los_logs(caplog)
+
+
+# --- Restablecer -------------------------------------------------------------------------------
+
+
+def restablecer(cliente, auth, actor: User, id_usuario):
+    return cliente.post(f"/admin/users/{id_usuario}/reset-password", headers=auth(actor))
+
+
+def test_el_admin_restablece_la_contrasena_y_recibe_una_temporal_nueva(cliente, repo, auth, gente):
+    ana = gente["ana"]
+
+    respuesta = restablecer(cliente, auth, gente["admin"], ana.id)
+
+    assert respuesta.status_code == 200, respuesta.text
+    assert respuesta.headers["cache-control"] == "no-store"
+    cuerpo = respuesta.json()
+    assert set(cuerpo) == {"temporary_password"}
+    temporal = cuerpo["temporary_password"]
+    assert len(temporal) == 16
+    assert ana.must_change_password is True
+    assert ana.password_hash.startswith("$argon2id$")
+    assert verificar(ana.password_hash, temporal)
+    # La anterior deja de servir.
+    assert not verificar(ana.password_hash, CLAVE_ORIGINAL)
+    assert ("guardar", ana.id) in repo.operaciones
+
+
+def test_restablecer_bloquea_la_fila_antes_de_cambiarla(repo, gente):
+    ana = gente["ana"]
+
+    administracion.restablecer_contrasena(repo, gente["admin"], ana.id)
+
+    assert repo.operaciones == [("leer para escribir", ana.id), ("guardar", ana.id)]
+
+
+def test_dos_restablecimientos_seguidos_dan_temporales_distintas(repo, gente):
+    ana = gente["ana"]
+
+    primera = administracion.restablecer_contrasena(repo, gente["admin"], ana.id)
+    segunda = administracion.restablecer_contrasena(repo, gente["admin"], ana.id)
+
+    assert primera != segunda
+    assert not verificar(ana.password_hash, primera)
+    assert verificar(ana.password_hash, segunda)
+
+
+def test_el_admin_no_se_restablece_su_propia_contrasena(cliente, repo, auth, gente):
+    admin = gente["admin"]
+
+    respuesta = restablecer(cliente, auth, admin, admin.id)
+
+    assert respuesta.status_code == 403, respuesta.text
+    cuerpo = respuesta.json()
+    assert cuerpo["type"] == "cannot-modify-self"
+    assert cuerpo["title"] == "Para cambiar tu propia contraseña usá «Cambiar contraseña»"
+    assert "temporary_password" not in cuerpo
+    assert admin.password_hash == HASH_ORIGINAL
+    assert admin.must_change_password is False
+    assert repo.operaciones == []
+
+
+def test_a_un_usuario_desactivado_no_se_le_restablece_la_contrasena(gente):
+    inactivo = nuevo("baja@mail.com", Rol.ATTENDEE, activo=False)
+    repo = RepositorioUsuariosFalso(gente["admin"], inactivo)
+
+    with pytest.raises(Conflict) as error:
+        administracion.restablecer_contrasena(repo, gente["admin"], inactivo.id)
+
+    assert error.value.tipo == "user-inactive"
+    assert error.value.status == 409
+    assert inactivo.password_hash == HASH_ORIGINAL
+    assert inactivo.must_change_password is False
+    assert not any(op[0] == "guardar" for op in repo.operaciones)
+
+
+def test_el_409_user_inactive_llega_como_problem_json(cliente, auth, app, gente):
+    inactivo = nuevo("baja@mail.com", Rol.ATTENDEE, activo=False)
+    repo = RepositorioUsuariosFalso(gente["admin"], inactivo)
+    app.dependency_overrides[repositorio_usuarios] = lambda: repo
+
+    respuesta = restablecer(cliente, auth, gente["admin"], inactivo.id)
+
+    assert respuesta.status_code == 409, respuesta.text
+    assert respuesta.headers["content-type"] == "application/problem+json"
+    cuerpo = respuesta.json()
+    assert cuerpo["type"] == "user-inactive"
+    assert cuerpo["title"] == "El usuario está desactivado: reactivalo antes"
+    assert cuerpo["trace_id"]
+
+
+def test_restablecer_a_un_usuario_inexistente_responde_404(cliente, repo, auth, gente):
+    inexistente = uuid4()
+
+    respuesta = restablecer(cliente, auth, gente["admin"], inexistente)
+
+    assert respuesta.status_code == 404, respuesta.text
+    assert respuesta.json()["type"] == "not-found"
+    assert ("leer para escribir", inexistente) in repo.operaciones
+
+
+@pytest.mark.parametrize("quien", ["orga", "ana"])
+def test_sin_el_permiso_restablecer_responde_403_sin_tocar_a_nadie(
+    cliente, repo, auth, gente, quien
+):
+    orga = gente["orga"]
+
+    respuesta = restablecer(cliente, auth, gente[quien], orga.id)
+
+    assert respuesta.status_code == 403, respuesta.text
+    assert respuesta.json()["type"] == "forbidden"
+    assert orga.password_hash == HASH_ORIGINAL
+    assert repo.operaciones == []
+
+
+def test_sin_permiso_es_403_aunque_sea_uno_mismo_o_no_exista(repo, gente):
+    ana = gente["ana"]
+
+    for id_usuario in (ana.id, uuid4()):
+        with pytest.raises(Forbidden) as error:
+            administracion.restablecer_contrasena(repo, ana, id_usuario)
+        assert error.value.tipo == "forbidden"
+
+    assert repo.operaciones == []
+
+
+def test_sin_token_restablecer_responde_401(cliente, repo, gente):
+    respuesta = cliente.post(f"/admin/users/{gente['ana'].id}/reset-password")
+
+    assert respuesta.status_code == 401
+
+
+def test_la_temporal_restablecida_no_queda_en_ningun_log(cliente, repo, auth, gente, caplog):
+    caplog.set_level(logging.DEBUG)
+    caplog.set_level(logging.DEBUG, logger="miseventos")
+
+    respuesta = restablecer(cliente, auth, gente["admin"], gente["ana"].id)
+
+    assert respuesta.status_code == 200, respuesta.text
+    temporal = respuesta.json()["temporary_password"]
     assert any(r.name == "miseventos.acceso" for r in caplog.records)
     assert temporal not in texto_de_los_logs(caplog)
