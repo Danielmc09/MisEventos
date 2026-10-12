@@ -632,6 +632,7 @@ def test_las_estadisticas_cuentan_activas_canceladas_cupos_y_ocupacion(cliente, 
         "capacity": 3,
         "available_spots": 2,
         "occupancy_pct": 33.3,
+        "sessions": [],
     }
 
 
