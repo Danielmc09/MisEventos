@@ -109,18 +109,18 @@ export function SeccionSesiones({
                   )}
                   {puede && (
                     <div className="mt-2 flex flex-wrap gap-3">
-                      <button
+                      <Button
                         type="button"
+                        variante="secundario"
                         aria-label={`Editar sesión ${s.title}`}
-                        className="rounded-md border border-gray-300 px-3 py-1"
                         onClick={() => setFormulario(s)}
                       >
                         Editar
-                      </button>
+                      </Button>
                       <Button
                         type="button"
+                        variante="peligro"
                         aria-label={`Eliminar sesión ${s.title}`}
-                        className="bg-red-700 px-3 py-1"
                         onClick={() => setPendiente(s)}
                       >
                         Eliminar

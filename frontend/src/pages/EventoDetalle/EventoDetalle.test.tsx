@@ -2,6 +2,7 @@ import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { delay, http } from "msw";
 import { setupServer } from "msw/node";
+import type { components } from "../../api/schema";
 import { useEventos } from "../../stores/eventos";
 import { useSession } from "../../stores/session";
 import { API, evento, montar, sesion, usuario } from "../../test/helpers";
@@ -10,7 +11,10 @@ import EventoDetalle from "./EventoDetalle";
 
 const server = setupServer();
 beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
-beforeEach(() => servirSesiones([]));
+beforeEach(() => {
+  servirSesiones([]);
+  servirPanel();
+});
 afterEach(() => {
   server.resetHandlers();
   useSession.getState().cerrarSesion();
@@ -25,6 +29,44 @@ const abrir = () =>
   ]);
 const ruta = `${API}/events/${evento.id}`;
 const rutaSesiones = `${ruta}/sessions`;
+
+const estadisticas = {
+  active: 25,
+  cancelled: 3,
+  capacity: 100,
+  available_spots: 75,
+  occupancy_pct: 25,
+};
+const inscritoFila: components["schemas"]["Inscrito"] = {
+  full_name: "Luisa Pérez",
+  email: "luisa@mail.com",
+  status: "ACTIVE",
+  created_at: "2026-10-11T01:30:00Z",
+};
+const paginaDe = (items: (typeof inscritoFila)[], extra = {}) => ({
+  items,
+  total: items.length,
+  page: 1,
+  page_size: 20,
+  pages: 1,
+  ...extra,
+});
+
+/** Responde a las estadísticas y a la lista de inscritos y anota cuántas veces las pidieron. */
+function servirPanel(stats: Partial<typeof estadisticas> = {}, items = [inscritoFila], extra = {}) {
+  const pedidos = { stats: 0, inscritos: [] as URLSearchParams[] };
+  server.use(
+    http.get(`${ruta}/stats`, () => {
+      pedidos.stats += 1;
+      return responder("/events/{id_evento}/stats", "get", 200, { ...estadisticas, ...stats });
+    }),
+    http.get(`${ruta}/registrations`, ({ request }) => {
+      pedidos.inscritos.push(new URL(request.url).searchParams);
+      return responder("/events/{id_evento}/registrations", "get", 200, paginaDe(items, extra));
+    }),
+  );
+  return pedidos;
+}
 
 function servirSesiones(sesiones: (typeof sesion)[]) {
   server.use(
@@ -787,5 +829,163 @@ describe("cancelar la inscripción", () => {
         screen.queryByRole("button", { name: "Cancelar inscripción" }),
       ).not.toBeInTheDocument(),
     );
+  });
+});
+
+describe("panel de inscripciones del dueño", () => {
+  const problemaPanel = (title: string) =>
+    ({ type: "forbidden", title, status: 403, trace_id: "t-7" }) as const;
+
+  test("el dueño ve las estadísticas con una barra de ocupación accesible", async () => {
+    useSession.getState().iniciarSesion(dueno, "token", 3600);
+    servir();
+    servirPanel({ active: 12, cancelled: 3, occupancy_pct: 12.5 });
+    abrir();
+
+    const panel = await screen.findByRole("region", { name: "Inscripciones" });
+    expect(await within(panel).findByText("12")).toBeInTheDocument();
+    expect(within(panel).getByText("Inscritos")).toBeInTheDocument();
+    expect(within(panel).getByText("Cancelados")).toBeInTheDocument();
+    expect(within(panel).getByText("3")).toBeInTheDocument();
+    expect(within(panel).getByText(/12,5\s*%/)).toBeInTheDocument();
+    expect(within(panel).getByRole("progressbar", { name: "Ocupación" })).toHaveAttribute(
+      "aria-valuenow",
+      "12.5",
+    );
+  });
+
+  test("lista los inscritos con nombre, correo, estado y fecha en hora de Bogotá", async () => {
+    useSession.getState().iniciarSesion(dueno, "token", 3600);
+    servir();
+    servirPanel({}, [
+      inscritoFila,
+      { ...inscritoFila, full_name: null, email: "sin@nombre.com", status: "CANCELLED" },
+    ]);
+    abrir();
+
+    const tabla = await screen.findByRole("table", { name: "Lista de inscritos" });
+    const filas = within(tabla).getAllByRole("row");
+    expect(filas).toHaveLength(3);
+    expect(filas[1]).toHaveTextContent("Luisa Pérez");
+    expect(filas[1]).toHaveTextContent("luisa@mail.com");
+    expect(filas[1]).toHaveTextContent("Activa");
+    expect(filas[1]).toHaveTextContent(/10 de oct.*8:30/);
+    expect(filas[2]).toHaveTextContent("—");
+    expect(filas[2]).toHaveTextContent("Cancelada");
+  });
+
+  test("el admin también ve el panel", async () => {
+    useSession.getState().iniciarSesion(admin, "token", 3600);
+    servir();
+    abrir();
+
+    expect(await screen.findByRole("region", { name: "Inscripciones" })).toBeInTheDocument();
+    expect(await screen.findByRole("table", { name: "Lista de inscritos" })).toBeInTheDocument();
+  });
+
+  test.each([
+    ["un asistente", usuario],
+    ["otro organizador", { ...usuario, role: "ORGANIZER" as const }],
+  ])("%s no lo ve y no se pide a la API", async (_quien, quien) => {
+    useSession.getState().iniciarSesion(quien, "token", 3600);
+    servir();
+    const pedidos = servirPanel();
+    abrir();
+
+    await screen.findByRole("heading", { name: "PyCon Bogotá" });
+    expect(screen.queryByRole("region", { name: "Inscripciones" })).not.toBeInTheDocument();
+    expect(pedidos.stats).toBe(0);
+    expect(pedidos.inscritos).toHaveLength(0);
+  });
+
+  test("un anónimo no lo ve y no se pide a la API", async () => {
+    servir();
+    const pedidos = servirPanel();
+    abrir();
+
+    await screen.findByRole("heading", { name: "PyCon Bogotá" });
+    expect(screen.queryByRole("region", { name: "Inscripciones" })).not.toBeInTheDocument();
+    expect(pedidos.stats).toBe(0);
+    expect(pedidos.inscritos).toHaveLength(0);
+  });
+
+  test("sin inscritos muestra el estado vacío", async () => {
+    useSession.getState().iniciarSesion(dueno, "token", 3600);
+    servir();
+    servirPanel({ active: 0, cancelled: 0, occupancy_pct: 0 }, []);
+    abrir();
+
+    expect(await screen.findByText("Todavía no hay inscritos")).toBeInTheDocument();
+    expect(screen.queryByRole("table")).not.toBeInTheDocument();
+  });
+
+  test("muestra el spinner mientras cargan las estadísticas y la lista", async () => {
+    useSession.getState().iniciarSesion(dueno, "token", 3600);
+    servir();
+    server.use(
+      http.get(`${ruta}/stats`, async () => {
+        await delay(50);
+        return responder("/events/{id_evento}/stats", "get", 200, estadisticas);
+      }),
+      http.get(`${ruta}/registrations`, async () => {
+        await delay(50);
+        return responder("/events/{id_evento}/registrations", "get", 200, paginaDe([inscritoFila]));
+      }),
+    );
+    abrir();
+
+    const panel = await screen.findByRole("region", { name: "Inscripciones" });
+    expect(within(panel).getAllByRole("status", { name: "Cargando" })).toHaveLength(2);
+    expect(await within(panel).findByRole("progressbar")).toBeInTheDocument();
+    expect(await within(panel).findByRole("table")).toBeInTheDocument();
+  });
+
+  test("si fallan las estadísticas muestra su title y la lista sigue visible", async () => {
+    useSession.getState().iniciarSesion(dueno, "token", 3600);
+    servir();
+    server.use(
+      http.get(`${ruta}/stats`, () =>
+        responder("/events/{id_evento}/stats", "get", 403, problemaPanel("No tenés permiso")),
+      ),
+    );
+    abrir();
+
+    const panel = await screen.findByRole("region", { name: "Inscripciones" });
+    expect(await within(panel).findByRole("alert")).toHaveTextContent("No tenés permiso");
+    expect(await within(panel).findByRole("table")).toBeInTheDocument();
+    expect(within(panel).queryByRole("progressbar")).not.toBeInTheDocument();
+  });
+
+  test("si falla la lista muestra su title y las estadísticas siguen visibles", async () => {
+    useSession.getState().iniciarSesion(dueno, "token", 3600);
+    servir();
+    server.use(
+      http.get(`${ruta}/registrations`, () =>
+        responder(
+          "/events/{id_evento}/registrations",
+          "get",
+          403,
+          problemaPanel("No podés ver los inscritos"),
+        ),
+      ),
+    );
+    abrir();
+
+    const panel = await screen.findByRole("region", { name: "Inscripciones" });
+    expect(await within(panel).findByRole("alert")).toHaveTextContent("No podés ver los inscritos");
+    expect(await within(panel).findByRole("progressbar")).toBeInTheDocument();
+    expect(within(panel).queryByRole("table")).not.toBeInTheDocument();
+  });
+
+  test("la lista de inscritos se pagina", async () => {
+    useSession.getState().iniciarSesion(dueno, "token", 3600);
+    servir();
+    const pedidos = servirPanel({}, [inscritoFila], { pages: 2 });
+    const user = userEvent.setup();
+    abrir();
+
+    await user.click(await screen.findByRole("button", { name: "Siguiente" }));
+
+    await waitFor(() => expect(pedidos.inscritos.some((p) => p.get("page") === "2")).toBe(true));
   });
 });

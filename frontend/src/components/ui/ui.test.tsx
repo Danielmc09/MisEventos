@@ -7,6 +7,9 @@ import { Input } from "./Input";
 import { Textarea } from "./Textarea";
 import { Insignia } from "./Insignia";
 import { EnlaceBoton } from "./EnlaceBoton";
+import { BarraProgreso } from "./BarraProgreso";
+import { Tabla } from "./Tabla";
+import { Paginacion } from "./Paginacion";
 
 describe("Button", () => {
   test("en estado de carga queda deshabilitado y muestra el spinner", () => {
@@ -117,5 +120,61 @@ describe("EnlaceBoton", () => {
     );
 
     expect(screen.getByRole("link", { name: "Iniciá sesión" })).toHaveAttribute("href", "/login");
+  });
+});
+
+describe("BarraProgreso", () => {
+  test("es una barra de progreso accesible con su valor", () => {
+    render(<BarraProgreso etiqueta="Ocupación" valor={42.5} />);
+
+    const barra = screen.getByRole("progressbar", { name: "Ocupación" });
+    expect(barra).toHaveAttribute("aria-valuenow", "42.5");
+    expect(barra).toHaveAttribute("aria-valuemin", "0");
+    expect(barra).toHaveAttribute("aria-valuemax", "100");
+  });
+
+  test("acota el valor entre 0 y 100", () => {
+    render(<BarraProgreso etiqueta="Ocupación" valor={140} />);
+
+    expect(screen.getByRole("progressbar")).toHaveAttribute("aria-valuenow", "100");
+  });
+});
+
+describe("Tabla", () => {
+  test("muestra encabezados de columna y una fila por elemento", () => {
+    render(
+      <Tabla
+        descripcion="Inscritos"
+        columnas={["Nombre", "Correo"]}
+        filas={[
+          { id: "1", celdas: ["Ana", "ana@mail.com"] },
+          { id: "2", celdas: ["Luis", "luis@mail.com"] },
+        ]}
+      />,
+    );
+
+    expect(screen.getByRole("table", { name: "Inscritos" })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "Correo" })).toBeInTheDocument();
+    expect(screen.getAllByRole("row")).toHaveLength(3);
+    expect(screen.getByRole("cell", { name: "luis@mail.com" })).toBeInTheDocument();
+  });
+});
+
+describe("Paginacion", () => {
+  test("con una sola página no se muestra", () => {
+    render(<Paginacion pagina={1} paginas={1} onCambiar={() => {}} />);
+
+    expect(screen.queryByRole("navigation")).not.toBeInTheDocument();
+  });
+
+  test("navega a la anterior y a la siguiente, y deshabilita los extremos", async () => {
+    const onCambiar = vi.fn();
+    render(<Paginacion pagina={1} paginas={3} onCambiar={onCambiar} />);
+
+    expect(screen.getByText("Página 1 de 3")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Anterior" })).toBeDisabled();
+    await userEvent.click(screen.getByRole("button", { name: "Siguiente" }));
+
+    expect(onCambiar).toHaveBeenCalledWith(2);
   });
 });
