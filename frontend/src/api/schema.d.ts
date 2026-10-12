@@ -236,6 +236,102 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/speakers": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Buscar ponentes
+     * @description Organizadores y admin. Busca por nombre, sin distinguir mayúsculas. El `email` solo aparece para quien creó el ponente y para el admin.
+     */
+    get: operations["buscar_speakers_get"];
+    put?: never;
+    /**
+     * Crear un ponente
+     * @description Organizadores y admin. Queda a nombre de quien lo crea.
+     */
+    post: operations["crear_speakers_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/speakers/{id_ponente}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    /**
+     * Eliminar un ponente
+     * @description Quien lo creó o el admin. Si tiene sesiones asignadas, 409.
+     */
+    delete: operations["eliminar_speakers__id_ponente__delete"];
+    options?: never;
+    head?: never;
+    /**
+     * Editar un ponente
+     * @description Se manda solo lo que cambia. Quien lo creó o el admin.
+     */
+    patch: operations["editar_speakers__id_ponente__patch"];
+    trace?: never;
+  };
+  "/events/{id_evento}/sessions": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Ver las sesiones de un evento
+     * @description Público, para quien puede ver el evento (si no, 404). Ordenadas por hora de inicio, cada una con sus ponentes, sin el email.
+     */
+    get: operations["listar_events__id_evento__sessions_get"];
+    put?: never;
+    /**
+     * Crear una sesión
+     * @description El dueño del evento o el admin. Tiene que caer dentro del evento y no cruzarse con otra sesión de sus ponentes ni de su sala (409).
+     */
+    post: operations["crear_events__id_evento__sessions_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/sessions/{id_sesion}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    /**
+     * Eliminar una sesión
+     * @description El dueño del evento o el admin.
+     */
+    delete: operations["eliminar_sessions__id_sesion__delete"];
+    options?: never;
+    head?: never;
+    /**
+     * Editar una sesión
+     * @description Se manda solo lo que cambia; `speaker_ids`, si viene, reemplaza la lista. El dueño del evento o el admin.
+     */
+    patch: operations["editar_sessions__id_sesion__patch"];
+    trace?: never;
+  };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -401,6 +497,84 @@ export interface components {
       /** Pages */
       pages: number;
     };
+    /** Pagina[PonenteSalida] */
+    Pagina_PonenteSalida_: {
+      /** Items */
+      items: components["schemas"]["PonenteSalida"][];
+      /** Total */
+      total: number;
+      /** Page */
+      page: number;
+      /** Page Size */
+      page_size: number;
+      /** Pages */
+      pages: number;
+    };
+    /**
+     * PonenteDeSesion
+     * @description Lo público de un ponente: sin el email.
+     */
+    PonenteDeSesion: {
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string;
+      /** Full Name */
+      full_name: string;
+      /** Bio */
+      bio: string | null;
+    };
+    /**
+     * PonenteEdicion
+     * @description Solo lo que cambia. `bio` y `email` aceptan null para borrarlos.
+     */
+    PonenteEdicion: {
+      /** Full Name */
+      full_name?: string | null;
+      /** Bio */
+      bio?: string | null;
+      /** Email */
+      email?: string | null;
+    };
+    /** PonenteEntrada */
+    PonenteEntrada: {
+      /** Full Name */
+      full_name: string;
+      /** Bio */
+      bio?: string | null;
+      /** Email */
+      email?: string | null;
+    };
+    /** PonenteSalida */
+    PonenteSalida: {
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string;
+      /** Full Name */
+      full_name: string;
+      /** Bio */
+      bio: string | null;
+      /**
+       * Created By
+       * Format: uuid
+       */
+      created_by: string;
+      /**
+       * Created At
+       * Format: date-time
+       */
+      created_at: string;
+      /**
+       * Updated At
+       * Format: date-time
+       */
+      updated_at: string;
+      /** Email */
+      email?: string | null;
+    };
     /**
      * Problema
      * @description Cuerpo de error según RFC 9457 (application/problem+json).
@@ -433,6 +607,93 @@ export interface components {
      * @enum {string}
      */
     Rol: "ATTENDEE" | "ORGANIZER" | "ADMIN";
+    /**
+     * SesionEdicion
+     * @description Solo lo que cambia. Las fechas se comparan con lo guardado en el servicio; `speaker_ids`,
+     *     si viene, reemplaza la lista entera.
+     */
+    SesionEdicion: {
+      /** Title */
+      title?: string | null;
+      /** Description */
+      description?: string | null;
+      /** Room */
+      room?: string | null;
+      /** Start At */
+      start_at?: string | null;
+      /** End At */
+      end_at?: string | null;
+      /** Capacity */
+      capacity?: number | null;
+      /** Speaker Ids */
+      speaker_ids?: string[] | null;
+    };
+    /** SesionEntrada */
+    SesionEntrada: {
+      /** Title */
+      title: string;
+      /** Description */
+      description?: string | null;
+      /** Room */
+      room?: string | null;
+      /**
+       * Start At
+       * Format: date-time
+       */
+      start_at: string;
+      /**
+       * End At
+       * Format: date-time
+       */
+      end_at: string;
+      /** Capacity */
+      capacity?: number | null;
+      /** Speaker Ids */
+      speaker_ids?: string[];
+    };
+    /** SesionSalida */
+    SesionSalida: {
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string;
+      /**
+       * Event Id
+       * Format: uuid
+       */
+      event_id: string;
+      /** Title */
+      title: string;
+      /** Description */
+      description: string | null;
+      /** Room */
+      room: string | null;
+      /**
+       * Start At
+       * Format: date-time
+       */
+      start_at: string;
+      /**
+       * End At
+       * Format: date-time
+       */
+      end_at: string;
+      /** Capacity */
+      capacity: number | null;
+      /** Speakers */
+      speakers: components["schemas"]["PonenteDeSesion"][];
+      /**
+       * Created At
+       * Format: date-time
+       */
+      created_at: string;
+      /**
+       * Updated At
+       * Format: date-time
+       */
+      updated_at: string;
+    };
     /** TokenAcceso */
     TokenAcceso: {
       /** Access Token */
@@ -1130,6 +1391,517 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["EventoSalida"];
+        };
+      };
+      /** @description Necesitás iniciar sesión */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problema"];
+          "application/json": components["schemas"]["Problema"];
+        };
+      };
+      /** @description No tenés permiso para hacer esto */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problema"];
+          "application/json": components["schemas"]["Problema"];
+        };
+      };
+      /** @description No encontramos lo que buscás */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problema"];
+          "application/json": components["schemas"]["Problema"];
+        };
+      };
+      /** @description La operación choca con el estado actual */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problema"];
+          "application/json": components["schemas"]["Problema"];
+        };
+      };
+      /** @description Los datos enviados no son válidos */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problema"];
+          "application/json": components["schemas"]["Problema"];
+        };
+      };
+    };
+  };
+  buscar_speakers_get: {
+    parameters: {
+      query?: {
+        /** @description Nombre o parte del nombre */
+        q?: string | null;
+        /** @description Página, desde 1 hasta 10000 */
+        page?: number;
+        /** @description Elementos por página, hasta 100 */
+        page_size?: number;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Pagina_PonenteSalida_"];
+        };
+      };
+      /** @description Necesitás iniciar sesión */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problema"];
+          "application/json": components["schemas"]["Problema"];
+        };
+      };
+      /** @description No tenés permiso para hacer esto */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problema"];
+          "application/json": components["schemas"]["Problema"];
+        };
+      };
+      /** @description Los datos enviados no son válidos */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problema"];
+          "application/json": components["schemas"]["Problema"];
+        };
+      };
+    };
+  };
+  crear_speakers_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["PonenteEntrada"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["PonenteSalida"];
+        };
+      };
+      /** @description Necesitás iniciar sesión */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problema"];
+          "application/json": components["schemas"]["Problema"];
+        };
+      };
+      /** @description No tenés permiso para hacer esto */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problema"];
+          "application/json": components["schemas"]["Problema"];
+        };
+      };
+      /** @description Los datos enviados no son válidos */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problema"];
+          "application/json": components["schemas"]["Problema"];
+        };
+      };
+    };
+  };
+  eliminar_speakers__id_ponente__delete: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id_ponente: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Necesitás iniciar sesión */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problema"];
+          "application/json": components["schemas"]["Problema"];
+        };
+      };
+      /** @description No tenés permiso para hacer esto */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problema"];
+          "application/json": components["schemas"]["Problema"];
+        };
+      };
+      /** @description No encontramos lo que buscás */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problema"];
+          "application/json": components["schemas"]["Problema"];
+        };
+      };
+      /** @description La operación choca con el estado actual */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problema"];
+          "application/json": components["schemas"]["Problema"];
+        };
+      };
+      /** @description Los datos enviados no son válidos */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problema"];
+          "application/json": components["schemas"]["Problema"];
+        };
+      };
+    };
+  };
+  editar_speakers__id_ponente__patch: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id_ponente: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["PonenteEdicion"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["PonenteSalida"];
+        };
+      };
+      /** @description Necesitás iniciar sesión */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problema"];
+          "application/json": components["schemas"]["Problema"];
+        };
+      };
+      /** @description No tenés permiso para hacer esto */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problema"];
+          "application/json": components["schemas"]["Problema"];
+        };
+      };
+      /** @description No encontramos lo que buscás */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problema"];
+          "application/json": components["schemas"]["Problema"];
+        };
+      };
+      /** @description Los datos enviados no son válidos */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problema"];
+          "application/json": components["schemas"]["Problema"];
+        };
+      };
+    };
+  };
+  listar_events__id_evento__sessions_get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id_evento: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SesionSalida"][];
+        };
+      };
+      /** @description No encontramos lo que buscás */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problema"];
+          "application/json": components["schemas"]["Problema"];
+        };
+      };
+      /** @description Los datos enviados no son válidos */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problema"];
+          "application/json": components["schemas"]["Problema"];
+        };
+      };
+    };
+  };
+  crear_events__id_evento__sessions_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id_evento: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["SesionEntrada"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SesionSalida"];
+        };
+      };
+      /** @description Necesitás iniciar sesión */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problema"];
+          "application/json": components["schemas"]["Problema"];
+        };
+      };
+      /** @description No tenés permiso para hacer esto */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problema"];
+          "application/json": components["schemas"]["Problema"];
+        };
+      };
+      /** @description No encontramos lo que buscás */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problema"];
+          "application/json": components["schemas"]["Problema"];
+        };
+      };
+      /** @description La operación choca con el estado actual */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problema"];
+          "application/json": components["schemas"]["Problema"];
+        };
+      };
+      /** @description Los datos enviados no son válidos */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problema"];
+          "application/json": components["schemas"]["Problema"];
+        };
+      };
+    };
+  };
+  eliminar_sessions__id_sesion__delete: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id_sesion: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Necesitás iniciar sesión */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problema"];
+          "application/json": components["schemas"]["Problema"];
+        };
+      };
+      /** @description No tenés permiso para hacer esto */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problema"];
+          "application/json": components["schemas"]["Problema"];
+        };
+      };
+      /** @description No encontramos lo que buscás */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problema"];
+          "application/json": components["schemas"]["Problema"];
+        };
+      };
+      /** @description La operación choca con el estado actual */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problema"];
+          "application/json": components["schemas"]["Problema"];
+        };
+      };
+      /** @description Los datos enviados no son válidos */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problema"];
+          "application/json": components["schemas"]["Problema"];
+        };
+      };
+    };
+  };
+  editar_sessions__id_sesion__patch: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id_sesion: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["SesionEdicion"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SesionSalida"];
         };
       };
       /** @description Necesitás iniciar sesión */
