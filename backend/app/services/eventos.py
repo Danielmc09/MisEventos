@@ -129,6 +129,23 @@ def cancelar(repo: Eventos, usuario: User, id_evento: UUID) -> Event:
     return _cambiar_estado(repo, evento, desde, EstadoEvento.CANCELLED)
 
 
+def _exigir_sesiones_adentro(repo: Eventos, evento: Event, inicio: datetime, fin: datetime) -> None:
+    """Las fechas nuevas no pueden dejar sesiones afuera. El evento ya está bloqueado, así que
+    nadie agrega una sesión mientras tanto."""
+    afuera = sum(1 for s in repo.sesiones_de(evento.id) if s.start_at < inicio or s.end_at > fin)
+    if afuera:
+        detalle = (
+            "1 sesión queda fuera de las fechas nuevas"
+            if afuera == 1
+            else f"{afuera} sesiones quedan fuera de las fechas nuevas"
+        )
+        raise Conflict(
+            detalle,
+            tipo="sessions-outside-range",
+            titulo="Las fechas nuevas dejan sesiones fuera del evento",
+        )
+
+
 def editar(repo: Eventos, usuario: User, id_evento: UUID, datos: EventoEdicion) -> Event:
     evento = para_escribir(repo, usuario, id_evento)
     if evento.status == EstadoEvento.CANCELLED or finalizado(evento):
@@ -138,6 +155,13 @@ def editar(repo: Eventos, usuario: User, id_evento: UUID, datos: EventoEdicion) 
         raise DatosInvalidos("start_at", "Tiene que estar en el futuro")
     if cambios.get("end_at", evento.end_at) <= cambios.get("start_at", evento.start_at):
         raise DatosInvalidos("end_at", "Tiene que ser posterior al inicio")
+    if "start_at" in cambios or "end_at" in cambios:
+        _exigir_sesiones_adentro(
+            repo,
+            evento,
+            cambios.get("start_at", evento.start_at),
+            cambios.get("end_at", evento.end_at),
+        )
     for campo, valor in cambios.items():
         setattr(evento, campo, valor)
     return repo.guardar(evento)
