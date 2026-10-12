@@ -70,14 +70,19 @@ test("se puede pasar el mouse sobre el tooltip sin que desaparezca", async () =>
   expect(tooltip).not.toHaveClass("pointer-events-none");
 });
 
-test("el tooltip sale debajo del botón, sin tapar el contenido de arriba", async () => {
+test("el tooltip se dibuja fuera del contenedor con overflow, para que ninguna tabla lo recorte", async () => {
   const user = userEvent.setup();
-  montar();
+  render(
+    <div data-testid="tabla" className="overflow-x-auto">
+      <BotonIcono etiqueta="Editar a Beto" texto="Editar" icono={<IconoLapiz />} />
+    </div>,
+  );
   await user.hover(screen.getByRole("button"));
 
   const tooltip = screen.getByRole("tooltip");
-  expect(tooltip).toHaveClass("top-full", "left-0");
-  expect(tooltip).not.toHaveClass("bottom-full");
+  expect(screen.getByTestId("tabla")).not.toContainElement(tooltip);
+  expect(document.body).toContainElement(tooltip);
+  expect(tooltip).toHaveClass("fixed");
 });
 
 test("soloIcono no muestra el texto junto al ícono en angosto: lo dice solo el tooltip", async () => {

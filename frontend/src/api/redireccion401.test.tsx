@@ -9,9 +9,21 @@ import { api } from "./client";
 import type { components } from "./schema";
 
 const API = "http://localhost:8000";
+const usuario: components["schemas"]["PerfilConPermisos"] = {
+  id: "7c9e6679-7425-40de-944b-e07fc1f90ae7",
+  email: "ana@mail.com",
+  full_name: "Ana",
+  role: "ATTENDEE",
+  is_active: true,
+  must_change_password: false,
+  created_at: "2026-10-11T15:30:00Z",
+  permisos: [],
+};
+
 const server = setupServer(
-  http.get(`${API}/auth/me`, () =>
-    responder("/auth/me", "get", 401, {
+  http.get(`${API}/auth/me`, () => responder("/auth/me", "get", 200, usuario)),
+  http.get(`${API}/me/registrations`, () =>
+    responder("/me/registrations", "get", 401, {
       type: "unauthorized",
       title: "Sesión inválida",
       status: 401,
@@ -23,17 +35,6 @@ const server = setupServer(
 beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
 afterEach(() => useSession.getState().cerrarSesion());
 afterAll(() => server.close());
-
-const usuario: components["schemas"]["PerfilConPermisos"] = {
-  id: "7c9e6679-7425-40de-944b-e07fc1f90ae7",
-  email: "ana@mail.com",
-  full_name: "Ana",
-  role: "ATTENDEE",
-  is_active: true,
-  must_change_password: false,
-  created_at: "2026-10-11T15:30:00Z",
-  permisos: [],
-};
 
 function Ubicacion() {
   const { pathname, search } = useLocation();
@@ -53,7 +54,7 @@ test("ante un 401 vacía la sesión y la app termina en /login?next=<ruta donde 
   montar("/?x=1");
   await screen.findByRole("heading", { name: "Próximos eventos" });
 
-  await api("/auth/me").catch(() => undefined);
+  await api("/me/registrations").catch(() => undefined);
 
   await waitFor(() =>
     expect(screen.getByLabelText("ubicación")).toHaveTextContent("/login?next=%2F%3Fx%3D1"),
@@ -66,7 +67,7 @@ test("un 401 estando en /login no vuelve a redirigir", async () => {
   montar("/login?next=%2Fperfil");
   await screen.findByRole("heading", { name: "Iniciar sesión" });
 
-  await act(() => api("/auth/me").catch(() => undefined));
+  await act(() => api("/me/registrations").catch(() => undefined));
 
   expect(screen.getByLabelText("ubicación")).toHaveTextContent(/^\/login\?next=%2Fperfil$/);
 });

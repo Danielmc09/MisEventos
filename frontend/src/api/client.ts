@@ -36,7 +36,8 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
 
   if (!response.ok) {
     // El token dura 60 minutos; al vencer, el 401 cierra la sesión.
-    if (response.status === 401) {
+    // Solo si el token que se mandó sigue siendo el vigente: si ya hay otra sesión, no se toca.
+    if (response.status === 401 && useSession.getState().accessToken === token) {
       useSession.getState().cerrarSesion();
       irALogin();
     }

@@ -111,11 +111,13 @@ function entrarComo(u: typeof usuario) {
 }
 
 describe("acceso", () => {
-  test('el enlace "Administración" solo lo ve el admin', async () => {
+  test('el ítem "Administración" del menú de la cuenta solo lo ve el admin', async () => {
+    const user = userEvent.setup();
     entrarComo(admin);
     servirUsuarios();
     const { unmount } = montarAdmin();
-    expect(screen.getByRole("link", { name: "Administración" })).toHaveAttribute(
+    await user.click(screen.getByRole("button", { name: "Menú de la cuenta" }));
+    expect(screen.getByRole("menuitem", { name: "Administración" })).toHaveAttribute(
       "href",
       "/admin/usuarios",
     );
@@ -125,7 +127,9 @@ describe("acceso", () => {
     useSession.getState().cerrarSesion();
     entrarComo(usuario);
     montarAdmin();
-    expect(screen.queryByRole("link", { name: "Administración" })).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Menú de la cuenta" }));
+    expect(screen.getByRole("menuitem", { name: "Mi perfil" })).toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: "Administración" })).not.toBeInTheDocument();
   });
 
   test("otro usuario ve que no tiene permiso", () => {
@@ -305,7 +309,7 @@ describe("formulario de edición", () => {
     expect(cuerpos).toEqual([{ full_name: "Alberto" }]);
   });
 
-  test("cambiar el correo manda solo email", async () => {
+  test("cambiar el correo pide confirmación, sin confirmar no llama a la API y después manda solo email", async () => {
     entrarComo(admin);
     servirUsuarios();
     const cuerpos = servirPatch();
@@ -317,9 +321,41 @@ describe("formulario de edición", () => {
     await user.clear(campo);
     await user.type(campo, "nuevo@mail.com");
     await user.click(form.getByRole("button", { name: "Guardar" }));
+    const dialogo = screen.getByRole("alertdialog");
+    expect(dialogo).toHaveTextContent("¿Cambiar el correo de Beto?");
+    expect(dialogo).toHaveTextContent("Va a tener que iniciar sesión con el correo nuevo.");
+    await user.click(within(dialogo).getByRole("button", { name: "Volver" }));
+    expect(cuerpos).toHaveLength(0);
+
+    await user.click(form.getByRole("button", { name: "Guardar" }));
+    await user.click(confirmacion().getByRole("button", { name: "Sí, cambiar el correo" }));
 
     await screen.findByText("Guardaste los cambios de Beto");
     expect(cuerpos).toEqual([{ email: "nuevo@mail.com" }]);
+  });
+
+  test("si cambian el correo y el rol, un solo diálogo menciona los dos", async () => {
+    entrarComo(admin);
+    servirUsuarios();
+    const cuerpos = servirPatch();
+    const user = userEvent.setup();
+    montarAdmin();
+
+    const form = await abrir(user);
+    const campo = form.getByRole("textbox", { name: "Correo" });
+    await user.clear(campo);
+    await user.type(campo, "nuevo@mail.com");
+    await user.selectOptions(form.getByRole("combobox", { name: "Rol" }), "ORGANIZER");
+    await user.click(form.getByRole("button", { name: "Guardar" }));
+
+    const dialogo = screen.getByRole("alertdialog");
+    expect(dialogo).toHaveTextContent("Va a tener que iniciar sesión con el correo nuevo.");
+    expect(dialogo).toHaveTextContent("Va a pasar a ser organizador.");
+    expect(cuerpos).toHaveLength(0);
+    await user.click(within(dialogo).getByRole("button", { name: /^Sí, / }));
+
+    await screen.findByText("Guardaste los cambios de Beto");
+    expect(cuerpos).toEqual([{ email: "nuevo@mail.com", role: "ORGANIZER" }]);
   });
 
   test("un nombre vacío marca el campo con aria-invalid y no llama a la API", async () => {
@@ -335,6 +371,26 @@ describe("formulario de edición", () => {
 
     expect(form.getByRole("textbox", { name: "Nombre" })).toHaveAttribute("aria-invalid", "true");
     expect(cuerpos).toHaveLength(0);
+  });
+
+  test("un usuario sin nombre cambia de rol sin que se mande full_name", async () => {
+    entrarComo(admin);
+    const sinNombre = fila({ id: "u-2", email: "sin@mail.com", full_name: null });
+    servirUsuarios([adminFila, sinNombre]);
+    const cuerpos = servirPatch(undefined, sinNombre);
+    const user = userEvent.setup();
+    montarAdmin();
+
+    const form = await abrir(user, "sin@mail.com");
+    expect(form.getByRole("textbox", { name: "Nombre" })).toHaveValue("");
+    await user.selectOptions(form.getByRole("combobox", { name: "Rol" }), "ORGANIZER");
+    await user.click(form.getByRole("button", { name: "Guardar" }));
+
+    expect(form.getByRole("textbox", { name: "Nombre" })).not.toHaveAttribute("aria-invalid");
+    await user.click(confirmacion().getByRole("button", { name: "Cambiar rol" }));
+
+    expect(await screen.findByText("Guardaste los cambios de sin@mail.com")).toBeInTheDocument();
+    expect(cuerpos).toEqual([{ role: "ORGANIZER" }]);
   });
 
   test("en la propia fila rol y estado están deshabilitados y dicen por qué", async () => {
@@ -369,9 +425,9 @@ describe("formulario de edición", () => {
     await user.type(campo, "Administradora");
     await user.click(form.getByRole("button", { name: "Guardar" }));
 
-    expect(await screen.findByRole("link", { name: "Administradora" })).toHaveAttribute(
-      "href",
-      "/perfil",
+    await user.click(screen.getByRole("button", { name: "Menú de la cuenta" }));
+    await waitFor(() =>
+      expect(within(screen.getByRole("menu")).getByText("Administradora")).toBeVisible(),
     );
     expect(useSession.getState().user?.full_name).toBe("Administradora");
     expect(cuerpos).toEqual([{ full_name: "Administradora" }]);
@@ -389,10 +445,40 @@ describe("formulario de edición", () => {
     await user.clear(campo);
     await user.type(campo, "ocupado@mail.com");
     await user.click(form.getByRole("button", { name: "Guardar" }));
+    await user.click(confirmacion().getByRole("button", { name: "Sí, cambiar el correo" }));
 
     await waitFor(() => expect(campo).toHaveAttribute("aria-invalid", "true"));
     expect(campo).toHaveAccessibleDescription(TITULOS["email-taken"]);
     expect(screen.queryByText("Guardaste los cambios de Beto")).not.toBeInTheDocument();
+  });
+
+  test("un 422 por campo muestra el mensaje en el campo, con aria-invalid, no el title genérico", async () => {
+    entrarComo(admin);
+    servirUsuarios();
+    server.use(
+      http.patch(`${API}/admin/users/:id`, () =>
+        responder("/admin/users/{id_usuario}", "patch", 422, {
+          type: "validation-error",
+          title: "Los datos enviados no son válidos",
+          status: 422,
+          trace_id: "t-1",
+          errors: [{ field: "email", message: "Debe ser un correo electrónico válido" }],
+        }),
+      ),
+    );
+    const user = userEvent.setup();
+    montarAdmin();
+
+    const form = await abrir(user);
+    const campo = form.getByRole("textbox", { name: "Correo" });
+    await user.clear(campo);
+    await user.type(campo, "roto");
+    await user.click(form.getByRole("button", { name: "Guardar" }));
+    await user.click(confirmacion().getByRole("button", { name: "Sí, cambiar el correo" }));
+
+    await waitFor(() => expect(campo).toHaveAttribute("aria-invalid", "true"));
+    expect(campo).toHaveAccessibleDescription("Debe ser un correo electrónico válido");
+    expect(form.queryByText("Los datos enviados no son válidos")).not.toBeInTheDocument();
   });
 
   test("cannot-modify-self muestra su title en el formulario", async () => {
@@ -442,7 +528,7 @@ describe("formulario de edición", () => {
     await user.click(form.getByRole("button", { name: "Guardar" }));
     const dialogo = screen.getByRole("alertdialog");
     expect(dialogo).toHaveTextContent("¿Desactivar a Beto?");
-    expect(dialogo).toHaveTextContent("No va a poder iniciar sesión.");
+    expect(dialogo).toHaveTextContent("Se va a cerrar su sesión y no va a poder volver a entrar.");
     await user.click(within(dialogo).getByRole("button", { name: "Volver" }));
     expect(cuerpos).toHaveLength(0);
 
