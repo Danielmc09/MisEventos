@@ -1,4 +1,6 @@
-"""Sesiones de un evento: alta, listado, edición y baja, con sus permisos y validaciones."""
+"""Sesiones de un evento: alta, listado, edición y baja, con sus permisos y validaciones, y las
+reglas de horario: dentro del evento, sin cruces de ponente ni de sala, y nada de cambios en un
+evento cancelado o finalizado."""
 
 from datetime import UTC, datetime, timedelta
 from uuid import uuid4
@@ -447,3 +449,242 @@ def test_editar_bloquea_evento_sesion_y_ponentes_en_ese_orden(cliente, repos, au
 
     assert respuesta.status_code == 200
     assert repos.eventos.bloqueos == [evento.id, sesion.id, *sorted([ana.id, beto.id])]
+
+
+# --- 1. Dentro del evento ------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("inicio", "fin"),
+    [
+        (INICIO_EVENTO - timedelta(minutes=1), INICIO_EVENTO + timedelta(hours=1)),
+        (FIN_EVENTO - timedelta(hours=1), FIN_EVENTO + timedelta(minutes=1)),
+        (INICIO_EVENTO - timedelta(hours=2), INICIO_EVENTO - timedelta(hours=1)),
+    ],
+    ids=["empieza-antes", "termina-despues", "toda-antes"],
+)
+def test_una_sesion_fuera_del_evento_responde_409(cliente, repos, auth, inicio, fin):
+    evento = repos.evento()
+    datos = cuerpo(start_at=inicio.isoformat(), end_at=fin.isoformat())
+
+    respuesta = crear(cliente, evento, datos, auth(ORGANIZADOR))
+
+    assert respuesta.status_code == 409
+    assert respuesta.headers["content-type"] == "application/problem+json"
+    assert respuesta.json()["type"] == "session-outside-event"
+    assert repos.eventos.sesiones == {}
+
+
+def test_una_sesion_que_ocupa_el_evento_entero_se_acepta(cliente, repos, auth):
+    evento = repos.evento()
+    datos = cuerpo(start_at=INICIO_EVENTO.isoformat(), end_at=FIN_EVENTO.isoformat())
+
+    assert crear(cliente, evento, datos, auth(ORGANIZADOR)).status_code == 201
+
+
+def test_editar_una_sesion_para_que_salga_del_evento_responde_409(cliente, repos, auth):
+    evento = repos.evento()
+    sesion = repos.sesion(evento, hora(9), hora(10))
+    tarde = (FIN_EVENTO + timedelta(hours=1)).isoformat()
+
+    respuesta = editar(cliente, sesion, {"end_at": tarde}, auth(ORGANIZADOR))
+
+    assert respuesta.status_code == 409
+    assert respuesta.json()["type"] == "session-outside-event"
+    assert sesion.end_at == hora(10)
+
+
+# --- 2. Ponente sin cruces, en cualquier evento --------------------------------------------
+
+
+def test_un_ponente_no_puede_estar_en_dos_sesiones_que_se_cruzan_en_otro_evento(
+    cliente, repos, auth
+):
+    otro_evento = repos.evento(dueno=ADMIN)
+    ana = repos.ponente("Ana Pérez")
+    repos.sesion(otro_evento, hora(10), hora(11), ana, title="Testing en Python")
+    evento = repos.evento()
+
+    datos = cuerpo(ana, title="Otra charla", start_at=hora(10, 30).isoformat())
+    datos["end_at"] = hora(11, 30).isoformat()
+    respuesta = crear(cliente, evento, datos, auth(ORGANIZADOR))
+
+    assert respuesta.status_code == 409
+    problema = respuesta.json()
+    assert problema["type"] == "speaker-conflict"
+    # El horario de la sesión que choca, en hora de Bogotá.
+    assert problema["detail"] == "Ana Pérez ya está en «Testing en Python», 10:00 a 11:00"
+    assert len(repos.eventos.sesiones) == 1
+
+
+def test_el_cruce_de_ponente_se_revisa_para_cada_ponente(cliente, repos, auth):
+    evento = repos.evento()
+    ana, beto = repos.ponente("Ana Pérez"), repos.ponente("Beto Ruiz")
+    repos.sesion(evento, hora(10), hora(11), beto, title="Rust", room="Sala A")
+
+    respuesta = crear(cliente, evento, cuerpo(ana, beto, room="Sala B"), auth(ORGANIZADOR))
+
+    assert respuesta.status_code == 409
+    assert respuesta.json()["detail"] == "Beto Ruiz ya está en «Rust», 10:00 a 11:00"
+
+
+def test_terminar_a_las_10_y_empezar_a_las_10_no_es_cruce(cliente, repos, auth):
+    evento = repos.evento()
+    ana = repos.ponente()
+    repos.sesion(evento, hora(9), hora(10), ana, room="Sala B")
+
+    respuesta = crear(
+        cliente,
+        evento,
+        cuerpo(ana, start_at=hora(10).isoformat(), end_at=hora(11).isoformat()),
+        auth(ORGANIZADOR),
+    )
+
+    assert respuesta.status_code == 201, respuesta.text
+
+
+def test_una_sesion_de_un_evento_cancelado_no_ocupa_al_ponente(cliente, repos, auth):
+    cancelado = repos.evento(EstadoEvento.CANCELLED)
+    ana = repos.ponente()
+    repos.sesion(cancelado, hora(10), hora(11), ana)
+    evento = repos.evento()
+
+    respuesta = crear(cliente, evento, cuerpo(ana), auth(ORGANIZADOR))
+
+    assert respuesta.status_code == 201, respuesta.text
+
+
+def test_al_editar_una_sesion_no_choca_consigo_misma(cliente, repos, auth):
+    evento = repos.evento()
+    ana = repos.ponente()
+    sesion = repos.sesion(evento, hora(10), hora(11), ana, room="Sala B")
+
+    respuesta = editar(
+        cliente,
+        sesion,
+        {"start_at": hora(10, 30).isoformat(), "end_at": hora(11, 30).isoformat()},
+        auth(ORGANIZADOR),
+    )
+
+    assert respuesta.status_code == 200, respuesta.text
+    assert sesion.start_at == hora(10, 30)
+
+
+def test_editar_hacia_el_horario_de_otra_sesion_del_ponente_responde_409(cliente, repos, auth):
+    evento = repos.evento()
+    ana = repos.ponente()
+    repos.sesion(evento, hora(10), hora(11), ana, title="Testing en Python")
+    sesion = repos.sesion(evento, hora(14), hora(15), ana, title="Pytest avanzado")
+
+    respuesta = editar(cliente, sesion, {"start_at": hora(10, 45).isoformat()}, auth(ADMIN))
+
+    assert respuesta.status_code == 409
+    assert respuesta.json()["type"] == "speaker-conflict"
+    assert sesion.start_at == hora(14)
+
+
+def test_asignar_un_ponente_ocupado_al_editar_responde_409(cliente, repos, auth):
+    evento = repos.evento()
+    ana, beto = repos.ponente("Ana Pérez"), repos.ponente("Beto Ruiz")
+    repos.sesion(evento, hora(10), hora(11), beto, title="Rust", room="Sala A")
+    sesion = repos.sesion(evento, hora(10), hora(11), ana, room="Sala B")
+
+    respuesta = editar(cliente, sesion, {"speaker_ids": [str(beto.id)]}, auth(ORGANIZADOR))
+
+    assert respuesta.status_code == 409
+    assert respuesta.json()["type"] == "speaker-conflict"
+    assert repos.sesiones.vinculos[sesion.id] == [ana.id]
+
+
+# --- 3 y 4. Sala sin cruces en el mismo evento; salas distintas, en paralelo ----------------
+
+
+def test_la_misma_sala_sin_mayusculas_ni_espacios_se_cruza(cliente, repos, auth):
+    evento = repos.evento()
+    repos.sesion(evento, hora(10), hora(11), room="Sala B")
+
+    respuesta = crear(
+        cliente,
+        evento,
+        cuerpo(room=" sala b ", start_at=hora(10, 30).isoformat(), end_at=hora(11, 30).isoformat()),
+        auth(ORGANIZADOR),
+    )
+
+    assert respuesta.status_code == 409
+    assert respuesta.json()["type"] == "room-conflict"
+    assert len(repos.eventos.sesiones) == 1
+
+
+@pytest.mark.parametrize(
+    ("sala_existente", "sala_nueva"),
+    [("Sala A", "Sala B"), (None, None), ("Sala B", None)],
+    ids=["salas-distintas", "sin-sala", "una-sin-sala"],
+)
+def test_sesiones_paralelas_que_no_comparten_sala_se_aceptan(
+    cliente, repos, auth, sala_existente, sala_nueva
+):
+    evento = repos.evento()
+    repos.sesion(evento, hora(10), hora(11), room=sala_existente)
+
+    respuesta = crear(cliente, evento, cuerpo(room=sala_nueva), auth(ORGANIZADOR))
+
+    assert respuesta.status_code == 201, respuesta.text
+
+
+def test_la_misma_sala_en_otro_evento_no_choca(cliente, repos, auth):
+    repos.sesion(repos.evento(), hora(10), hora(11), room="Sala B")
+    evento = repos.evento()
+
+    assert crear(cliente, evento, cuerpo(room="Sala B"), auth(ORGANIZADOR)).status_code == 201
+
+
+def test_la_misma_sala_una_despues_de_otra_no_choca(cliente, repos, auth):
+    evento = repos.evento()
+    repos.sesion(evento, hora(9), hora(10), room="Sala B")
+
+    assert crear(cliente, evento, cuerpo(room="Sala B"), auth(ORGANIZADOR)).status_code == 201
+
+
+def test_al_editar_la_sala_no_choca_consigo_misma_pero_si_con_otra(cliente, repos, auth):
+    evento = repos.evento()
+    repos.sesion(evento, hora(12), hora(13), room="Sala B", title="Rust")
+    sesion = repos.sesion(evento, hora(10), hora(11), room="Sala B")
+
+    corrida = editar(cliente, sesion, {"end_at": hora(11, 30).isoformat()}, auth(ORGANIZADOR))
+    pisada = editar(cliente, sesion, {"end_at": hora(12, 30).isoformat()}, auth(ORGANIZADOR))
+
+    assert corrida.status_code == 200, corrida.text
+    assert pisada.status_code == 409
+    assert pisada.json()["type"] == "room-conflict"
+    assert sesion.end_at == hora(11, 30)
+
+
+# --- 6. Un evento cancelado o finalizado no acepta sesiones nuevas ni cambios --------------
+
+
+def evento_terminado(repos):
+    ayer = datetime.now(UTC) - timedelta(days=1)
+    return repos.evento(start_at=ayer - timedelta(hours=8), end_at=ayer)
+
+
+@pytest.mark.parametrize("como", ["cancelado", "finalizado"])
+def test_un_evento_cancelado_o_finalizado_no_acepta_sesiones_ni_cambios(cliente, repos, auth, como):
+    if como == "cancelado":
+        evento = repos.evento(EstadoEvento.CANCELLED)
+        inicio, fin = hora(9), hora(10)
+    else:
+        evento = evento_terminado(repos)
+        inicio, fin = evento.start_at, evento.start_at + timedelta(hours=1)
+    sesion = repos.sesion(evento, inicio, fin)
+    datos = cuerpo(start_at=inicio.isoformat(), end_at=fin.isoformat(), room=None)
+
+    respuestas = [
+        crear(cliente, evento, datos, auth(ORGANIZADOR)),
+        editar(cliente, sesion, {"title": "Otro título"}, auth(ORGANIZADOR)),
+        eliminar(cliente, sesion, auth(ADMIN)),
+    ]
+
+    assert [r.status_code for r in respuestas] == [409, 409, 409]
+    assert {r.json()["type"] for r in respuestas} == {"conflict"}
+    assert list(repos.eventos.sesiones.values()) == [sesion]
+    assert sesion.title == "Testing en Python"

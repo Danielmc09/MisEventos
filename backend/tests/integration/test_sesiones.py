@@ -207,3 +207,114 @@ def test_editar_y_eliminar_una_sesion(cliente_db, conexion, usuarios, prefijo):
     eliminada = cliente_db.delete(f"/sessions/{id_sesion}", headers=auth(token))
     assert eliminada.status_code == 204
     assert contar(conexion, "sessions", evento["id"]) == 0
+
+
+# --- Reglas de horario ---------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("inicio", "fin"),
+    [("07:59", "09:00"), ("17:00", "18:01")],
+    ids=["empieza-antes", "termina-despues"],
+)
+def test_una_sesion_fuera_del_evento_responde_409(cliente_db, usuarios, prefijo, inicio, fin):
+    evento = crear_evento(cliente_db, usuarios["orga"], f"{prefijo} PyCon")
+
+    respuesta = crear_sesion(cliente_db, usuarios["orga"], evento, cuerpo_sesion(inicio, fin))
+
+    assert respuesta.status_code == 409
+    assert respuesta.json()["type"] == "session-outside-event"
+
+
+def test_el_mismo_ponente_en_sesiones_que_se_cruzan_en_eventos_distintos_responde_409(
+    cliente_db, usuarios, prefijo
+):
+    token = usuarios["orga"]
+    pycon = crear_evento(cliente_db, token, f"{prefijo} PyCon")
+    rustconf = crear_evento(cliente_db, usuarios["admin"], f"{prefijo} RustConf")
+    ana = crear_ponente(cliente_db, token, f"{prefijo} Ana Pérez")
+    primera = crear_sesion(cliente_db, token, pycon, cuerpo_sesion("10:00", "11:00", ana))
+    assert primera.status_code == 201, primera.text
+
+    choque = crear_sesion(
+        cliente_db,
+        usuarios["admin"],
+        rustconf,
+        cuerpo_sesion("10:30", "11:30", ana, title="Rust para pythonistas"),
+    )
+
+    assert choque.status_code == 409
+    assert choque.json()["type"] == "speaker-conflict"
+    assert choque.json()["detail"] == (
+        f"{prefijo} Ana Pérez ya está en «Testing en Python», 10:00 a 11:00"
+    )
+
+
+def test_una_sesion_de_un_evento_cancelado_no_ocupa_al_ponente(cliente_db, usuarios, prefijo):
+    token = usuarios["orga"]
+    cancelado = crear_evento(cliente_db, token, f"{prefijo} PyCon")
+    otro = crear_evento(cliente_db, token, f"{prefijo} PyData")
+    ana = crear_ponente(cliente_db, token, f"{prefijo} Ana Pérez")
+    primera = crear_sesion(cliente_db, token, cancelado, cuerpo_sesion("10:00", "11:00", ana))
+    assert primera.status_code == 201, primera.text
+    cancelar = cliente_db.post(f"/events/{cancelado['id']}/cancel", headers=auth(token))
+    assert cancelar.status_code == 200, cancelar.text
+
+    respuesta = crear_sesion(cliente_db, token, otro, cuerpo_sesion("10:00", "11:00", ana))
+
+    assert respuesta.status_code == 201, respuesta.text
+
+
+def test_la_misma_sala_escrita_distinto_que_se_cruza_responde_409(cliente_db, usuarios, prefijo):
+    token = usuarios["orga"]
+    evento = crear_evento(cliente_db, token, f"{prefijo} PyCon")
+    primera = crear_sesion(cliente_db, token, evento, cuerpo_sesion(room="Sala B"))
+    assert primera.status_code == 201, primera.text
+
+    choque = crear_sesion(
+        cliente_db, token, evento, cuerpo_sesion("10:30", "11:30", room=" sala b ")
+    )
+
+    assert choque.status_code == 409
+    assert choque.json()["type"] == "room-conflict"
+
+
+@pytest.mark.parametrize(
+    "salas", [("Sala A", "Sala B"), (None, None)], ids=["salas-distintas", "sin-sala"]
+)
+def test_sesiones_que_se_cruzan_sin_compartir_sala_se_aceptan(
+    cliente_db, conexion, usuarios, prefijo, salas
+):
+    token = usuarios["orga"]
+    evento = crear_evento(cliente_db, token, f"{prefijo} PyCon")
+
+    respuestas = [
+        crear_sesion(cliente_db, token, evento, cuerpo_sesion("10:00", "11:00", room=sala))
+        for sala in salas
+    ]
+
+    assert [r.status_code for r in respuestas] == [201, 201]
+    assert contar(conexion, "sessions", evento["id"]) == 2
+
+
+def test_crear_o_editar_una_sesion_de_un_evento_cancelado_responde_409(
+    cliente_db, conexion, usuarios, prefijo
+):
+    token = usuarios["orga"]
+    evento = crear_evento(cliente_db, token, f"{prefijo} PyCon")
+    creada = crear_sesion(cliente_db, token, evento, cuerpo_sesion())
+    assert creada.status_code == 201, creada.text
+    cancelar = cliente_db.post(f"/events/{evento['id']}/cancel", headers=auth(token))
+    assert cancelar.status_code == 200, cancelar.text
+
+    nueva = crear_sesion(cliente_db, token, evento, cuerpo_sesion("14:00", "15:00"))
+    edicion = cliente_db.patch(
+        f"/sessions/{creada.json()['id']}", json={"title": "Otro título"}, headers=auth(token)
+    )
+
+    assert (nueva.status_code, edicion.status_code) == (409, 409)
+    assert contar(conexion, "sessions", evento["id"]) == 1
+    titulo = conexion.execute(
+        text("SELECT title FROM sessions WHERE id = :id"), {"id": creada.json()["id"]}
+    ).scalar_one()
+    assert titulo == "Testing en Python"
