@@ -32,6 +32,14 @@ class RepositorioReservas:
         )
         return self.session.exec(consulta).one()
 
+    def alguna_de(self, id_usuario: UUID, id_sesion: UUID) -> SessionRegistration | None:
+        """Cualquier reserva del usuario en la sesión, activa o cancelada."""
+        consulta = select(SessionRegistration).where(
+            SessionRegistration.user_id == id_usuario,
+            SessionRegistration.session_id == id_sesion,
+        )
+        return self.session.exec(consulta).first()
+
     def ocupacion(
         self, ids_sesion: list[UUID], id_usuario: UUID | None
     ) -> dict[UUID, tuple[int, bool]]:
