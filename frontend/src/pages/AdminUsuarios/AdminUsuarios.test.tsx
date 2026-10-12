@@ -452,6 +452,35 @@ describe("formulario de edición", () => {
     expect(screen.queryByText("Guardaste los cambios de Beto")).not.toBeInTheDocument();
   });
 
+  test("un 422 por campo muestra el mensaje en el campo, con aria-invalid, no el title genérico", async () => {
+    entrarComo(admin);
+    servirUsuarios();
+    server.use(
+      http.patch(`${API}/admin/users/:id`, () =>
+        responder("/admin/users/{id_usuario}", "patch", 422, {
+          type: "validation-error",
+          title: "Los datos enviados no son válidos",
+          status: 422,
+          trace_id: "t-1",
+          errors: [{ field: "email", message: "Debe ser un correo electrónico válido" }],
+        }),
+      ),
+    );
+    const user = userEvent.setup();
+    montarAdmin();
+
+    const form = await abrir(user);
+    const campo = form.getByRole("textbox", { name: "Correo" });
+    await user.clear(campo);
+    await user.type(campo, "roto");
+    await user.click(form.getByRole("button", { name: "Guardar" }));
+    await user.click(confirmacion().getByRole("button", { name: "Sí, cambiar el correo" }));
+
+    await waitFor(() => expect(campo).toHaveAttribute("aria-invalid", "true"));
+    expect(campo).toHaveAccessibleDescription("Debe ser un correo electrónico válido");
+    expect(form.queryByText("Los datos enviados no son válidos")).not.toBeInTheDocument();
+  });
+
   test("cannot-modify-self muestra su title en el formulario", async () => {
     entrarComo(admin);
     servirUsuarios();
