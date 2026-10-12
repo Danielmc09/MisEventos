@@ -1,3 +1,4 @@
+import logging
 from datetime import UTC, datetime, timedelta
 
 import pytest
@@ -506,3 +507,19 @@ def test_una_sesion_que_ya_no_entra_en_su_evento_se_saltea_sin_frenar_el_resto()
     assert base.sesiones_de("Python Day Medellín") == []
     assert base.sesiones_de("PyCon Bogotá")
     assert python_day.end_at == python_day.start_at + timedelta(minutes=30)
+
+
+def test_una_sesion_salteada_deja_un_aviso_que_nombra_la_sesion_y_el_evento(caplog):
+    base = Demo()
+    python_day = base.evento("Python Day Medellín")
+    python_day.end_at = python_day.start_at + timedelta(minutes=30)
+
+    with caplog.at_level(logging.WARNING, logger="miseventos.seed"):
+        base.sembrar()
+
+    avisos = [
+        r.getMessage()
+        for r in caplog.records
+        if r.name == "miseventos.seed" and r.levelno == logging.WARNING
+    ]
+    assert any("Testing en Python" in m and "Python Day Medellín" in m for m in avisos), avisos
