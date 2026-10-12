@@ -12,7 +12,7 @@ from pydantic import (
     field_validator,
 )
 
-from app.schemas.comunes import FechaUTC
+from app.schemas.comunes import EntradaBase, FechaUTC
 
 Titulo = Annotated[str, StringConstraints(strip_whitespace=True, min_length=3, max_length=150)]
 # Una sala en blanco es lo mismo que no tener sala.
@@ -23,7 +23,7 @@ Sala = Annotated[
 ]
 
 
-class SesionEntrada(BaseModel):
+class SesionEntrada(EntradaBase):
     # event_id (y cualquier otro campo) no se acepta: lo da la ruta.
     model_config = ConfigDict(extra="forbid")
 
@@ -45,7 +45,7 @@ class SesionEntrada(BaseModel):
         return end_at
 
 
-class SesionEdicion(BaseModel):
+class SesionEdicion(EntradaBase):
     """Solo lo que cambia. Las fechas se comparan con lo guardado en el servicio; `speaker_ids`,
     si viene, reemplaza la lista entera."""
 
