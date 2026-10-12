@@ -2,7 +2,7 @@ import type { ComponentProps, ReactNode } from "react";
 import { Link } from "react-router-dom";
 
 const BASE =
-  "inline-flex min-h-11 max-w-full min-w-0 items-center focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-acento md:min-h-10";
+  "inline-flex min-h-11 max-w-full min-w-0 items-center focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-foco md:min-h-10";
 
 const ESTILOS = {
   texto: `${BASE} text-primario underline underline-offset-4 break-words hover:decoration-2`,

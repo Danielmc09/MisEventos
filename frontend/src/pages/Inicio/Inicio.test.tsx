@@ -47,6 +47,25 @@ describe("estados del listado", () => {
     expect(await screen.findByText("No hay eventos que coincidan")).toBeInTheDocument();
   });
 
+  test("el vacío ofrece Quitar filtros, que limpia la búsqueda y el estado", async () => {
+    server.use(
+      http.get(`${API}/events`, ({ request }) => {
+        const url = new URL(request.url);
+        return responder("/events", "get", 200, pagina(url.search ? [] : [evento]));
+      }),
+    );
+    const user = userEvent.setup();
+    abrir("/?q=zzz&status=DRAFT");
+    await screen.findByText("No hay eventos que coincidan");
+
+    await user.click(screen.getByRole("button", { name: "Quitar filtros" }));
+
+    expect(await screen.findByRole("link", { name: "PyCon Bogotá" })).toBeInTheDocument();
+    expect(screen.getByLabelText("ubicación")).toHaveTextContent(/^\/$/);
+    expect(screen.getByRole("searchbox", { name: "Buscar eventos" })).toHaveValue("");
+    expect(screen.getByRole("combobox", { name: "Estado" })).toHaveValue("");
+  });
+
   test("si la API falla muestra el title del error", async () => {
     server.use(
       http.get(`${API}/events`, () =>

@@ -4,7 +4,12 @@
   /* Marca */
   --color-primario: #6f2277;
   --color-primario-hover: #5a1b61;
-  --color-acento: #00aec7;
+  /* Acentos que informan (barra de ocupación): 4.78:1 sobre blanco. */
+  --color-acento: #007e91;
+  /* Solo decoración: no llega a 3:1, nunca para informar ni para el foco. */
+  --color-acento-decorativo: #00aec7;
+  /* Anillo de foco de todo elemento interactivo (= primario). */
+  --color-foco: #6f2277;
   --color-acento-suave: #6ac6dc;
 
   /* Texto y superficies */

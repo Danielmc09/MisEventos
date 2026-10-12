@@ -74,6 +74,24 @@ test("sin cupos lo dice con un chip, además del conteo", () => {
   expect(screen.getByText("Quedan 0 cupos")).toBeInTheDocument();
 });
 
+test("con 10 cupos libres de 100 muestra el chip Últimos lugares", () => {
+  montar({ ...evento, capacity: 100, available_spots: 10 });
+
+  expect(screen.getByText("Últimos lugares")).toBeInTheDocument();
+});
+
+test("con 11 cupos libres de 100 no muestra Últimos lugares", () => {
+  montar({ ...evento, capacity: 100, available_spots: 11 });
+
+  expect(screen.queryByText("Últimos lugares")).not.toBeInTheDocument();
+});
+
+test("sin cupos no muestra Últimos lugares", () => {
+  montar({ ...evento, capacity: 100, available_spots: 0 });
+
+  expect(screen.queryByText("Últimos lugares")).not.toBeInTheDocument();
+});
+
 test("con cupos no muestra el chip Sin cupos", () => {
   montar({ ...evento, available_spots: 7 });
 

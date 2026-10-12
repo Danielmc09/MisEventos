@@ -1352,6 +1352,33 @@ describe("reservas de sesiones", () => {
     expect(item.getByText("Queda 1 lugar")).toBeInTheDocument();
   });
 
+  test("una sesión con pocos lugares muestra el chip Últimos lugares", async () => {
+    useSession.getState().iniciarSesion(usuario, "token", 3600);
+    servir(inscrito);
+    servirLista([{ ...conLugar, capacity: 20, reserved_count: 18, available_spots: 2 }]);
+    abrir();
+
+    const item = await fila("Taller de Pytest");
+    expect(item.getByText("Últimos lugares")).toBeInTheDocument();
+  });
+
+  test("una sesión con lugares de sobra no muestra el chip Últimos lugares", async () => {
+    useSession.getState().iniciarSesion(usuario, "token", 3600);
+    servir(inscrito);
+    servirLista([{ ...conLugar, capacity: 20, reserved_count: 10, available_spots: 10 }]);
+    abrir();
+
+    const item = await fila("Taller de Pytest");
+    expect(item.queryByText("Últimos lugares")).not.toBeInTheDocument();
+  });
+
+  test("el evento con pocos cupos muestra el chip Últimos lugares", async () => {
+    servir({ ...abierto, capacity: 100, available_spots: 5 });
+    abrir();
+
+    expect(await screen.findByText("Últimos lugares")).toBeInTheDocument();
+  });
+
   test("con un solo cupo en el evento dice Queda 1 cupo", async () => {
     servir({ ...abierto, available_spots: 1 });
     abrir();
