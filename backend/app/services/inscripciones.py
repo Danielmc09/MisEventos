@@ -11,10 +11,12 @@ from uuid import UUID
 from app.core.excepciones import Conflict, NotFound
 from app.models.evento import EstadoEvento, Event
 from app.models.inscripcion import EstadoInscripcion, Registration
+from app.models.sesion import Session as Sesion
 from app.models.usuario import User
 from app.schemas.eventos import Cuando
 from app.services import eventos as servicio_eventos
 from app.services.eventos import Eventos
+from app.services.sesiones import OcupacionDeSesiones, capacidad_efectiva
 
 
 class Inscripciones(Protocol):
@@ -33,6 +35,15 @@ class Inscripciones(Protocol):
 
 class ReservasDelEvento(Protocol):
     def cancelar_del_evento(self, id_usuario: UUID, id_evento: UUID, cuando: datetime) -> None: ...
+
+
+class ReservasDelUsuario(Protocol):
+    def reservadas_por_evento(
+        self, id_usuario: UUID, ids_evento: list[UUID]
+    ) -> dict[UUID, list[Sesion]]: ...
+
+
+InscripcionConReservas = tuple[Registration, Event, list[Sesion]]
 
 
 def _evento_empezado(detalle: str) -> Conflict:
@@ -102,14 +113,26 @@ def cancelar(
 
 def mias(
     inscripciones: Inscripciones,
+    reservas: ReservasDelUsuario,
     usuario: User,
     estado: EstadoInscripcion,
     cuando: Cuando,
     offset: int,
     limite: int,
-) -> tuple[list[tuple[Registration, Event]], int]:
-    """Las inscripciones del usuario del token, con su evento. Nunca las de otra persona."""
-    return inscripciones.del_usuario(usuario.id, estado, cuando, offset, limite)
+) -> tuple[list[InscripcionConReservas], int]:
+    """Las inscripciones del usuario del token, con su evento. Nunca las de otra persona.
+
+    Cada inscripción activa trae las sesiones que el usuario tiene reservadas en ese evento,
+    pedidas una sola vez para toda la página. Una cancelada no trae ninguna: las reservas
+    activas que haya en ese evento cuelgan de su inscripción activa, no de la cancelada."""
+    filas, total = inscripciones.del_usuario(usuario.id, estado, cuando, offset, limite)
+    activas = [i.event_id for i, _ in filas if i.status == EstadoInscripcion.ACTIVE]
+    reservadas = reservas.reservadas_por_evento(usuario.id, activas)
+    con_reservas = [
+        (i, e, reservadas[i.event_id] if i.status == EstadoInscripcion.ACTIVE else [])
+        for i, e in filas
+    ]
+    return con_reservas, total
 
 
 def porcentaje_de_ocupacion(activas: int, capacidad: int) -> Decimal:
@@ -133,25 +156,56 @@ def inscritos_del_evento(
 
 
 @dataclass(frozen=True)
+class OcupacionDeSesion:
+    id: UUID
+    title: str
+    reserved: int
+    capacity: int  # la efectiva
+    occupancy_pct: Decimal
+
+
+@dataclass(frozen=True)
 class Estadisticas:
     active: int
     cancelled: int
     capacity: int
     available_spots: int
     occupancy_pct: Decimal
+    sessions: list[OcupacionDeSesion]
 
 
 def estadisticas(
-    eventos: Eventos, inscripciones: Inscripciones, usuario: User, id_evento: UUID
+    eventos: Eventos,
+    inscripciones: Inscripciones,
+    reservas: OcupacionDeSesiones,
+    usuario: User,
+    id_evento: UUID,
 ) -> Estadisticas:
-    """Las cifras del evento, solo para su dueño o el admin."""
+    """Las cifras del evento y la ocupación de cada sesión, por hora de inicio, solo para su
+    dueño o el admin. Las reservas de todas las sesiones se piden una sola vez."""
     evento = servicio_eventos.para_gestionar(eventos, usuario, id_evento)
     cuantas = inscripciones.por_estado(evento.id)
     activas = cuantas[EstadoInscripcion.ACTIVE]
+    propias = eventos.sesiones_de(evento.id)
+    ocupacion = reservas.ocupacion([s.id for s in propias], None)
+    por_sesion = []
+    for sesion in propias:
+        reservadas, _ = ocupacion[sesion.id]
+        capacidad = capacidad_efectiva(sesion, evento)
+        por_sesion.append(
+            OcupacionDeSesion(
+                id=sesion.id,
+                title=sesion.title,
+                reserved=reservadas,
+                capacity=capacidad,
+                occupancy_pct=porcentaje_de_ocupacion(reservadas, capacidad),
+            )
+        )
     return Estadisticas(
         active=activas,
         cancelled=cuantas[EstadoInscripcion.CANCELLED],
         capacity=evento.capacity,
         available_spots=evento.capacity - activas,
         occupancy_pct=porcentaje_de_ocupacion(activas, evento.capacity),
+        sessions=por_sesion,
     )

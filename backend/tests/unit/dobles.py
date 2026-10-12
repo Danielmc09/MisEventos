@@ -308,9 +308,52 @@ class RepositorioReservasFalso:
     def __init__(self, eventos: RepositorioEventosFalso) -> None:
         self.eventos = eventos
         self.reservas: dict[UUID, SessionRegistration] = {}
+        # Con qué se pidió cada consulta agregada: se pide una vez para toda la lista.
+        self.consultas_de_ocupacion: list[dict] = []
+        self.consultas_de_reservadas: list[dict] = []
 
     def _activas(self) -> list[SessionRegistration]:
         return [r for r in self.reservas.values() if r.status == EstadoReserva.ACTIVE]
+
+    def alguna_de(self, id_usuario: UUID, id_sesion: UUID) -> SessionRegistration | None:
+        """Cualquier reserva del usuario en la sesión, activa o cancelada."""
+        return next(
+            (
+                r
+                for r in self.reservas.values()
+                if r.user_id == id_usuario and r.session_id == id_sesion
+            ),
+            None,
+        )
+
+    def ocupacion(
+        self, ids_sesion: list[UUID], id_usuario: UUID | None
+    ) -> dict[UUID, tuple[int, bool]]:
+        """Por sesión: (reservas activas, si una de ellas es del usuario)."""
+        self.consultas_de_ocupacion.append(
+            {"ids_sesion": list(ids_sesion), "id_usuario": id_usuario}
+        )
+        activas = self._activas()
+        return {
+            id_: (
+                sum(1 for r in activas if r.session_id == id_),
+                any(r.session_id == id_ and r.user_id == id_usuario for r in activas),
+            )
+            for id_ in ids_sesion
+        }
+
+    def reservadas_por_evento(
+        self, id_usuario: UUID, ids_evento: list[UUID]
+    ) -> dict[UUID, list[Sesion]]:
+        """Por evento: las sesiones con reserva activa del usuario, por hora de inicio."""
+        self.consultas_de_reservadas.append(
+            {"id_usuario": id_usuario, "ids_evento": list(ids_evento)}
+        )
+        reservadas = {r.session_id for r in self._activas() if r.user_id == id_usuario}
+        return {
+            id_: [s for s in self.eventos.sesiones_de(id_) if s.id in reservadas]
+            for id_ in ids_evento
+        }
 
     def activa_de(self, id_usuario: UUID, id_sesion: UUID) -> SessionRegistration | None:
         return next(

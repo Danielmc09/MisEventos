@@ -91,3 +91,13 @@ class SesionSalida(BaseModel):
     speakers: list[PonenteDeSesion]
     created_at: FechaUTC
     updated_at: FechaUTC
+
+
+class SesionConCupo(SesionSalida):
+    """Una sesión del listado del evento, con sus reservas."""
+
+    reserved_count: int = Field(description="Reservas activas")
+    available_spots: int = Field(description="Capacidad efectiva menos las reservas activas")
+    is_reserved: bool = Field(
+        description="Si el usuario autenticado tiene una reserva activa; false para anónimos"
+    )

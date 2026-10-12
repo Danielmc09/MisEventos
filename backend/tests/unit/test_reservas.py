@@ -74,9 +74,7 @@ class Repos:
             "end_at": fin or inicio + timedelta(hours=1),
             "event_id": evento.id,
         } | cambios
-        sesion = Sesion(**datos)
-        self.eventos.sesiones[sesion.id] = sesion
-        return sesion
+        return self.sesiones.crear(Sesion(**datos), [])
 
     def inscribir(
         self, usuario: User, evento: Event, estado: EstadoInscripcion = EstadoInscripcion.ACTIVE
@@ -627,3 +625,262 @@ def test_sin_cancelar_la_inscripcion_las_reservas_quedan_activas(cliente, repos,
     assert_conflicto(cancelar_inscripcion(cliente, evento, auth(ASISTENTE)), "event-started")
 
     assert reserva.status == EstadoReserva.ACTIVE
+
+
+# --- Consultas: el listado de sesiones, mis inscripciones y las estadísticas ------------------
+
+
+def iso(fecha: datetime) -> str:
+    return fecha.isoformat().replace("+00:00", "Z")
+
+
+def listado(cliente, evento: Event, headers: dict) -> dict[str, dict]:
+    """Las sesiones del evento, por título."""
+    respuesta = cliente.get(f"/events/{evento.id}/sessions", headers=headers)
+    assert respuesta.status_code == 200, respuesta.text
+    return {s["title"]: s for s in respuesta.json()}
+
+
+def cupo(sesion: dict) -> tuple:
+    return (sesion.get("reserved_count"), sesion.get("available_spots"), sesion.get("is_reserved"))
+
+
+def test_cada_sesion_del_listado_trae_sus_reservas_sus_lugares_y_si_la_reserve(
+    cliente, repos, auth
+):
+    evento = repos.evento(capacity=50)
+    propia = repos.sesion(evento, a_las(9), title="Propia", capacity=10)
+    sin_capacidad = repos.sesion(evento, a_las(11), title="Sin capacidad propia")
+    vacia = repos.sesion(evento, a_las(14), title="Vacía", capacity=5)
+    repos.inscribir(ASISTENTE, evento)
+    repos.reservar(ASISTENTE, propia)
+    llena(repos, propia, 2)
+    llena(repos, sin_capacidad, 3)
+    repos.reservar(ASISTENTE, vacia, EstadoReserva.CANCELLED)
+
+    sesiones = listado(cliente, evento, auth(ASISTENTE))
+
+    assert {titulo: cupo(s) for titulo, s in sesiones.items()} == {
+        "Propia": (3, 7, True),
+        "Sin capacidad propia": (3, 47, False),
+        "Vacía": (0, 5, False),
+    }
+
+
+def test_para_un_anonimo_ninguna_sesion_esta_reservada(cliente, repos, auth):
+    evento = repos.evento()
+    sesion = repos.sesion(evento, capacity=10)
+    repos.inscribir(ASISTENTE, evento)
+    repos.reservar(ASISTENTE, sesion)
+
+    [anonima] = listado(cliente, evento, {}).values()
+    [del_asistente] = listado(cliente, evento, auth(ASISTENTE)).values()
+
+    assert cupo(anonima) == (1, 9, False)
+    assert cupo(del_asistente) == (1, 9, True)
+    assert repos.reservas.consultas_de_ocupacion[0]["id_usuario"] is None
+
+
+def test_el_listado_pide_la_ocupacion_de_todas_las_sesiones_en_una_sola_llamada(
+    cliente, repos, auth
+):
+    evento = repos.evento()
+    sesiones = [repos.sesion(evento, a_las(9 + n), title=f"Sesión {n}") for n in range(4)]
+
+    listado(cliente, evento, auth(ASISTENTE))
+
+    assert repos.reservas.consultas_de_ocupacion == [
+        {"ids_sesion": [s.id for s in sesiones], "id_usuario": ASISTENTE.id}
+    ]
+
+
+def reservada(sesion: Sesion) -> dict:
+    return {
+        "id": str(sesion.id),
+        "title": sesion.title,
+        "start_at": iso(sesion.start_at),
+        "end_at": iso(sesion.end_at),
+        "room": sesion.room,
+    }
+
+
+def test_cada_inscripcion_trae_sus_sesiones_reservadas_por_hora_de_inicio(cliente, repos, auth):
+    evento = repos.evento()
+    otro = repos.evento(name="Python Day")
+    sin_reservas = repos.evento(name="Sin reservas")
+    tarde = repos.sesion(evento, a_las(15), title="Tarde", room="Sala A")
+    manana = repos.sesion(evento, a_las(9), title="Mañana")
+    cancelada = repos.sesion(evento, a_las(11), title="Cancelada")
+    de_otra_persona = repos.sesion(evento, a_las(13), title="De otra persona")
+    del_otro_evento = repos.sesion(otro, a_las(10), title="Del otro evento")
+    for propio in (evento, otro, sin_reservas):
+        repos.inscribir(ASISTENTE, propio)
+    repos.inscribir(OTRO_ASISTENTE, evento)
+    repos.reservar(ASISTENTE, tarde)
+    repos.reservar(ASISTENTE, manana)
+    repos.reservar(ASISTENTE, cancelada, EstadoReserva.CANCELLED)
+    repos.reservar(OTRO_ASISTENTE, de_otra_persona)
+    repos.reservar(ASISTENTE, del_otro_evento)
+
+    respuesta = cliente.get("/me/registrations", headers=auth(ASISTENTE))
+
+    assert respuesta.status_code == 200, respuesta.text
+    por_evento = {i["event_id"]: i.get("reserved_sessions") for i in respuesta.json()["items"]}
+    assert por_evento == {
+        str(evento.id): [reservada(manana), reservada(tarde)],
+        str(otro.id): [reservada(del_otro_evento)],
+        str(sin_reservas.id): [],
+    }
+
+
+def test_mis_inscripciones_pide_las_reservas_de_toda_la_pagina_en_una_sola_llamada(
+    cliente, repos, auth
+):
+    eventos = [repos.evento(name=f"Evento {n}") for n in range(3)]
+    for evento in eventos:
+        repos.inscribir(ASISTENTE, evento)
+
+    respuesta = cliente.get("/me/registrations", headers=auth(ASISTENTE))
+
+    assert respuesta.status_code == 200, respuesta.text
+    assert len(repos.reservas.consultas_de_reservadas) == 1
+    [consulta] = repos.reservas.consultas_de_reservadas
+    assert consulta["id_usuario"] == ASISTENTE.id
+    assert sorted(consulta["ids_evento"]) == sorted(e.id for e in eventos)
+
+
+def test_una_inscripcion_cancelada_no_muestra_las_reservas_de_la_inscripcion_nueva(
+    cliente, repos, auth
+):
+    evento = repos.evento()
+    sesion = repos.sesion(evento)
+    vieja = repos.inscribir(ASISTENTE, evento, EstadoInscripcion.CANCELLED)
+    nueva = repos.inscribir(ASISTENTE, evento)
+    repos.reservar(ASISTENTE, sesion)
+
+    canceladas = cliente.get(
+        "/me/registrations", params={"status": "CANCELLED"}, headers=auth(ASISTENTE)
+    )
+    activas = cliente.get("/me/registrations", headers=auth(ASISTENTE))
+
+    assert canceladas.status_code == activas.status_code == 200
+    assert [(i["id"], i.get("reserved_sessions")) for i in canceladas.json()["items"]] == [
+        (str(vieja.id), [])
+    ]
+    assert [(i["id"], i.get("reserved_sessions")) for i in activas.json()["items"]] == [
+        (str(nueva.id), [reservada(sesion)])
+    ]
+
+
+def test_las_estadisticas_traen_la_ocupacion_de_cada_sesion_por_hora_de_inicio(
+    cliente, repos, auth
+):
+    evento = repos.evento(capacity=8)
+    tarde = repos.sesion(evento, a_las(15), title="Tarde", capacity=3)
+    manana = repos.sesion(evento, a_las(9), title="Mañana")  # sin capacidad propia
+    vacia = repos.sesion(evento, a_las(12), title="Vacía", capacity=4)
+    llena(repos, tarde, 1)
+    llena(repos, manana, 1)
+    repos.inscribir(ASISTENTE, evento)
+    repos.reservar(ASISTENTE, tarde, EstadoReserva.CANCELLED)
+
+    respuesta = cliente.get(f"/events/{evento.id}/stats", headers=auth(ORGANIZADOR))
+
+    assert respuesta.status_code == 200, respuesta.text
+    assert respuesta.json().get("sessions") == [
+        {
+            "id": str(manana.id),
+            "title": "Mañana",
+            "reserved": 1,
+            "capacity": 8,
+            "occupancy_pct": 12.5,
+        },
+        {"id": str(vacia.id), "title": "Vacía", "reserved": 0, "capacity": 4, "occupancy_pct": 0.0},
+        {
+            "id": str(tarde.id),
+            "title": "Tarde",
+            "reserved": 1,
+            "capacity": 3,
+            "occupancy_pct": 33.3,
+        },
+    ]
+
+
+def test_las_estadisticas_de_un_evento_sin_sesiones_traen_la_lista_vacia(cliente, repos, auth):
+    evento = repos.evento()
+
+    respuesta = cliente.get(f"/events/{evento.id}/stats", headers=auth(ORGANIZADOR))
+
+    assert respuesta.status_code == 200, respuesta.text
+    assert respuesta.json().get("sessions") == []
+
+
+def _componente(esquema: dict, ref: str) -> dict:
+    return esquema["components"]["schemas"][ref.rsplit("/", 1)[-1]]
+
+
+def _respuesta_200(esquema: dict, ruta: str) -> dict:
+    return esquema["paths"][ruta]["get"]["responses"]["200"]["content"]["application/json"][
+        "schema"
+    ]
+
+
+def _tipos(componente: dict) -> dict[str, object]:
+    """Cada propiedad con su tipo, o los tipos de su anyOf si admite null."""
+
+    def tipo(propiedad: dict) -> object:
+        if "anyOf" in propiedad:
+            return sorted(p.get("type", "?") for p in propiedad["anyOf"])
+        return propiedad.get("type")
+
+    return {nombre: tipo(p) for nombre, p in componente["properties"].items()}
+
+
+def test_el_openapi_tipa_los_campos_nuevos_de_las_tres_consultas(cliente):
+    esquema = cliente.get("/openapi.json").json()
+
+    sesion = _componente(
+        esquema, _respuesta_200(esquema, "/events/{id_evento}/sessions")["items"]["$ref"]
+    )
+    tipos = _tipos(sesion)
+    assert (
+        tipos.get("reserved_count"),
+        tipos.get("available_spots"),
+        tipos.get("is_reserved"),
+    ) == (
+        "integer",
+        "integer",
+        "boolean",
+    )
+    assert {"reserved_count", "available_spots", "is_reserved"} <= set(sesion["required"])
+
+    pagina = _componente(esquema, _respuesta_200(esquema, "/me/registrations")["$ref"])
+    inscripcion = _componente(esquema, pagina["properties"]["items"]["items"]["$ref"])
+    reservadas = inscripcion["properties"].get("reserved_sessions", {})
+    assert reservadas.get("type") == "array"
+    assert "reserved_sessions" in inscripcion["required"]
+    una = _componente(esquema, reservadas["items"]["$ref"])
+    assert _tipos(una) == {
+        "id": "string",
+        "title": "string",
+        "start_at": "string",
+        "end_at": "string",
+        "room": ["null", "string"],
+    }
+    assert sorted(una["required"]) == sorted(una["properties"])
+
+    estadisticas = _componente(
+        esquema, _respuesta_200(esquema, "/events/{id_evento}/stats")["$ref"]
+    )
+    por_sesion = estadisticas["properties"].get("sessions", {})
+    assert por_sesion.get("type") == "array"
+    assert "sessions" in estadisticas["required"]
+    ocupacion = _componente(esquema, por_sesion["items"]["$ref"])
+    assert _tipos(ocupacion) == {
+        "id": "string",
+        "title": "string",
+        "reserved": "integer",
+        "capacity": "integer",
+        "occupancy_pct": "number",
+    }
+    assert sorted(ocupacion["required"]) == sorted(ocupacion["properties"])

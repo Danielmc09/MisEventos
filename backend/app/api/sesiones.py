@@ -5,14 +5,21 @@ from fastapi import APIRouter, status
 from app.api.dependencias import (
     RepoEventos,
     RepoPonentes,
+    RepoReservas,
     RepoSesiones,
     UsuarioActual,
     UsuarioOpcional,
 )
 from app.api.errores import respuestas_de_error
-from app.schemas.sesiones import PonenteDeSesion, SesionEdicion, SesionEntrada, SesionSalida
+from app.schemas.sesiones import (
+    PonenteDeSesion,
+    SesionConCupo,
+    SesionEdicion,
+    SesionEntrada,
+    SesionSalida,
+)
 from app.services import sesiones
-from app.services.sesiones import SesionConPonentes
+from app.services.sesiones import SesionConPonentes, SesionDelListado
 
 router = APIRouter(tags=["sesiones"])
 
@@ -26,19 +33,33 @@ def _salida(sesion_y_ponentes: SesionConPonentes) -> SesionSalida:
     )
 
 
+def _con_cupo(del_listado: SesionDelListado) -> SesionConCupo:
+    return SesionConCupo(
+        **_salida((del_listado.sesion, del_listado.ponentes)).model_dump(),
+        reserved_count=del_listado.reservadas,
+        available_spots=del_listado.lugares,
+        is_reserved=del_listado.reservada,
+    )
+
+
 @router.get(
     "/events/{id_evento}/sessions",
     summary="Ver las sesiones de un evento",
     description=(
         "Público, para quien puede ver el evento (si no, 404). Ordenadas por hora de inicio, "
-        "cada una con sus ponentes, sin el email."
+        "cada una con sus ponentes, sin el email, sus reservas activas, los lugares libres y "
+        "si el usuario autenticado la reservó."
     ),
     responses=respuestas_de_error(404, 422),
 )
 def listar(
-    id_evento: UUID, usuario: UsuarioOpcional, eventos: RepoEventos, repo: RepoSesiones
-) -> list[SesionSalida]:
-    return [_salida(s) for s in sesiones.listar(eventos, repo, usuario, id_evento)]
+    id_evento: UUID,
+    usuario: UsuarioOpcional,
+    eventos: RepoEventos,
+    repo: RepoSesiones,
+    reservas: RepoReservas,
+) -> list[SesionConCupo]:
+    return [_con_cupo(s) for s in sesiones.listar(eventos, repo, reservas, usuario, id_evento)]
 
 
 @router.post(

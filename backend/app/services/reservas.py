@@ -30,7 +30,7 @@ from app.models.sesion import Session as Sesion
 from app.models.usuario import User
 from app.services import eventos as servicio_eventos
 from app.services.eventos import Eventos
-from app.services.sesiones import BOGOTA, Sesiones
+from app.services.sesiones import BOGOTA, Sesiones, capacidad_efectiva
 
 
 class Reservas(Protocol):
@@ -136,7 +136,7 @@ def reservar(
             tipo="already-reserved",
             titulo="Ya reservaste esta sesión",
         )
-    capacidad = sesion.capacity if sesion.capacity is not None else evento.capacity
+    capacidad = capacidad_efectiva(sesion, evento)
     if reservas.activas_en(sesion.id) >= capacidad:
         raise Conflict(
             f"La sesión alcanzó su capacidad de {capacidad} personas.",

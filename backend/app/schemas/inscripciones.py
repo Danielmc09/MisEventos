@@ -40,6 +40,16 @@ class ResumenEvento(BaseModel):
         return self.end_at < datetime.now(UTC)
 
 
+class SesionReservada(BaseModel):
+    """Lo que el perfil muestra de cada sesión reservada."""
+
+    id: UUID
+    title: str
+    start_at: FechaUTC
+    end_at: FechaUTC
+    room: str | None
+
+
 class InscripcionMia(BaseModel):
     id: UUID
     event_id: UUID
@@ -47,6 +57,10 @@ class InscripcionMia(BaseModel):
     created_at: FechaUTC
     cancelled_at: FechaUTC | None
     event: ResumenEvento
+    reserved_sessions: list[SesionReservada] = Field(
+        description="Las reservas activas en ese evento, por hora de inicio. Vacía si la "
+        "inscripción está cancelada"
+    )
 
 
 class Inscrito(BaseModel):
@@ -62,9 +76,18 @@ class Inscrito(BaseModel):
 Porcentaje = Annotated[Decimal, PlainSerializer(float, return_type=float, when_used="json")]
 
 
+class OcupacionSesionSalida(BaseModel):
+    id: UUID
+    title: str
+    reserved: int
+    capacity: int = Field(description="La capacidad de la sesión o, si no tiene, la del evento")
+    occupancy_pct: Porcentaje
+
+
 class EstadisticasSalida(BaseModel):
     active: int
     cancelled: int
     capacity: int
     available_spots: int
     occupancy_pct: Porcentaje
+    sessions: list[OcupacionSesionSalida] = Field(description="Por hora de inicio")
