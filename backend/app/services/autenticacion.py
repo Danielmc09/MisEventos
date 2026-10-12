@@ -5,7 +5,7 @@ from typing import Protocol
 from uuid import UUID
 
 from app.core.contrasenas import hashear, verificar
-from app.core.excepciones import DatosInvalidos, Unauthorized
+from app.core.excepciones import DatosInvalidos, Forbidden, Unauthorized
 from app.core.permisos import Rol
 from app.core.tokens import crear_access_token, leer_access_token
 from app.models.usuario import User
@@ -65,6 +65,16 @@ def usuario_del_token(repo: Usuarios, token: str, secreto: str) -> User:
     if usuario is None or not usuario.is_active:
         raise Unauthorized()
     return usuario
+
+
+def exigir_contrasena_definitiva(usuario: User) -> None:
+    """Con la contraseña temporal que le dio el admin, el usuario solo puede cambiarla: el admin
+    la vio, así que todavía no es solo suya."""
+    if usuario.must_change_password:
+        raise Forbidden(
+            tipo="password-change-required",
+            titulo="Tenés que cambiar tu contraseña temporal para continuar",
+        )
 
 
 def cambiar_contrasena(usuario: User, actual: str, nueva: str, secreto: str, minutos: int) -> str:
