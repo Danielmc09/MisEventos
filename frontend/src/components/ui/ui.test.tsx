@@ -13,6 +13,21 @@ import { Paginacion } from "./Paginacion";
 import { TituloSeccion } from "./TituloSeccion";
 import { TextoSecundario } from "./TextoSecundario";
 import { Cifra } from "./Cifra";
+import { Lista } from "./Lista";
+
+describe("Lista", () => {
+  test("es una lista con nombre accesible y un elemento por hijo", () => {
+    render(
+      <Lista etiqueta="Sesiones reservadas">
+        <li>Apertura</li>
+        <li>Cierre</li>
+      </Lista>,
+    );
+
+    const lista = screen.getByRole("list", { name: "Sesiones reservadas" });
+    expect(within(lista).getAllByRole("listitem")).toHaveLength(2);
+  });
+});
 
 describe("TituloSeccion", () => {
   test("es un encabezado de nivel 2 con el id dado", () => {
