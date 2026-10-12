@@ -13,7 +13,6 @@ export function Encabezado() {
 
   const itemsCuenta: ItemMenu[] = [
     { texto: "Mi perfil", to: "/perfil" },
-    { texto: "Cambiar contraseña", to: "/cambiar-contrasena" },
     { texto: "Cerrar sesión", onSelect: cerrarSesion, separado: true },
   ];
 
