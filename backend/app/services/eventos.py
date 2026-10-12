@@ -15,6 +15,7 @@ from app.core.excepciones import (
 )
 from app.core.permisos import Permiso, tiene_permiso
 from app.models.evento import EstadoEvento, Event
+from app.models.sesion import Session as Sesion
 from app.models.usuario import User
 from app.schemas.eventos import EventoEdicion, EventoEntrada, FiltrosEventos
 
@@ -23,6 +24,7 @@ class Eventos(Protocol):
     def por_id(self, id_evento: UUID) -> Event | None: ...
     def crear(self, evento: Event) -> Event: ...
     def por_id_para_escribir(self, id_evento: UUID) -> Event | None: ...
+    def sesiones_de(self, id_evento: UUID) -> list[Sesion]: ...
     def guardar(self, evento: Event) -> Event: ...
     def eliminar(self, evento: Event) -> None: ...
     def buscar(
@@ -82,11 +84,11 @@ def _ya_empezo(evento: Event) -> bool:
     return evento.start_at <= datetime.now(UTC)
 
 
-def _finalizado(evento: Event) -> bool:
+def finalizado(evento: Event) -> bool:
     return evento.end_at < datetime.now(UTC)
 
 
-def _para_escribir(repo: Eventos, usuario: User, id_evento: UUID) -> Event:
+def para_escribir(repo: Eventos, usuario: User, id_evento: UUID) -> Event:
     """El evento bloqueado para modificarlo. Primero la visibilidad (lo que no ve es 404, no se
     revela que existe) y después el permiso: el dueño que puede crear eventos, o el admin."""
     evento = repo.por_id_para_escribir(id_evento)
@@ -108,28 +110,28 @@ def _cambiar_estado(
 
 
 def publicar(repo: Eventos, usuario: User, id_evento: UUID) -> Event:
-    evento = _para_escribir(repo, usuario, id_evento)
+    evento = para_escribir(repo, usuario, id_evento)
     if _ya_empezo(evento):
         raise TransicionInvalida("No se publica un evento que ya empezó")
     return _cambiar_estado(repo, evento, {EstadoEvento.DRAFT}, EstadoEvento.PUBLISHED)
 
 
 def despublicar(repo: Eventos, usuario: User, id_evento: UUID) -> Event:
-    evento = _para_escribir(repo, usuario, id_evento)
+    evento = para_escribir(repo, usuario, id_evento)
     return _cambiar_estado(repo, evento, {EstadoEvento.PUBLISHED}, EstadoEvento.DRAFT)
 
 
 def cancelar(repo: Eventos, usuario: User, id_evento: UUID) -> Event:
-    evento = _para_escribir(repo, usuario, id_evento)
-    if _finalizado(evento):
+    evento = para_escribir(repo, usuario, id_evento)
+    if finalizado(evento):
         raise TransicionInvalida("No se cancela un evento que ya terminó")
     desde = {EstadoEvento.DRAFT, EstadoEvento.PUBLISHED}
     return _cambiar_estado(repo, evento, desde, EstadoEvento.CANCELLED)
 
 
 def editar(repo: Eventos, usuario: User, id_evento: UUID, datos: EventoEdicion) -> Event:
-    evento = _para_escribir(repo, usuario, id_evento)
-    if evento.status == EstadoEvento.CANCELLED or _finalizado(evento):
+    evento = para_escribir(repo, usuario, id_evento)
+    if evento.status == EstadoEvento.CANCELLED or finalizado(evento):
         raise Conflict(titulo="Un evento cancelado o finalizado no se edita")
     cambios = datos.model_dump(exclude_unset=True)
     if "start_at" in cambios and cambios["start_at"] <= datetime.now(UTC):
@@ -142,4 +144,4 @@ def editar(repo: Eventos, usuario: User, id_evento: UUID, datos: EventoEdicion) 
 
 
 def eliminar(repo: Eventos, usuario: User, id_evento: UUID) -> None:
-    repo.eliminar(_para_escribir(repo, usuario, id_evento))
+    repo.eliminar(para_escribir(repo, usuario, id_evento))
