@@ -70,7 +70,12 @@ function FormularioNombre({
     setEnviando(true);
     try {
       const cuerpo: Edicion = { full_name: nombre.trim() };
-      await api(`/admin/users/${usuario.id}`, { method: "PATCH", body: JSON.stringify(cuerpo) });
+      const actualizado = await api<UsuarioAdmin>(`/admin/users/${usuario.id}`, {
+        method: "PATCH",
+        body: JSON.stringify(cuerpo),
+      });
+      if (usuario.id === useSession.getState().user?.id)
+        useSession.getState().actualizarNombre(actualizado.full_name);
       avisar({ message: "Guardaste el nombre", tone: "exito" });
       onGuardado();
     } catch (err) {
