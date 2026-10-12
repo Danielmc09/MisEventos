@@ -5,6 +5,7 @@ from sqlmodel import Session, col, func, select
 
 from app.models.evento import Event
 from app.models.inscripcion import EstadoInscripcion, Registration
+from app.models.usuario import User
 from app.schemas.eventos import Cuando
 
 
@@ -39,6 +40,37 @@ class RepositorioInscripciones:
             .limit(limite)
         )
         return [(i, e) for i, e in self.session.exec(consulta).all()], total
+
+    def del_evento(
+        self, id_evento: UUID, offset: int, limite: int
+    ) -> tuple[list[tuple[Registration, User]], int]:
+        """Una página de las inscripciones del evento, de la más vieja a la más nueva, cada una
+        con su usuario, y el total."""
+        condicion = Registration.event_id == id_evento
+        total = self.session.exec(
+            select(func.count()).select_from(Registration).where(condicion)
+        ).one()
+        consulta = (
+            select(Registration, User)
+            .join(User, col(User.id) == Registration.user_id)
+            .where(condicion)
+            .order_by(col(Registration.created_at), col(Registration.id))
+            .offset(offset)
+            .limit(limite)
+        )
+        return [(i, u) for i, u in self.session.exec(consulta).all()], total
+
+    def por_estado(self, id_evento: UUID) -> dict[EstadoInscripcion, int]:
+        """Cuántas inscripciones del evento hay en cada estado, en una sola consulta."""
+        cuantas = dict.fromkeys(EstadoInscripcion, 0)
+        consulta = (
+            select(Registration.status, func.count())
+            .where(Registration.event_id == id_evento)
+            .group_by(col(Registration.status))
+        )
+        for estado, cantidad in self.session.exec(consulta).all():
+            cuantas[estado] = cantidad
+        return cuantas
 
     def activa_de(self, id_usuario: UUID, id_evento: UUID) -> Registration | None:
         consulta = select(Registration).where(

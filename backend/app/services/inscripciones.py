@@ -2,8 +2,9 @@
 
 Lanza excepciones de dominio; no sabe nada de HTTP."""
 
+from dataclasses import dataclass
 from datetime import UTC, datetime
-from decimal import Decimal
+from decimal import ROUND_HALF_UP, Decimal
 from typing import Protocol
 from uuid import UUID
 
@@ -17,6 +18,10 @@ from app.services.eventos import Eventos
 
 
 class Inscripciones(Protocol):
+    def del_evento(
+        self, id_evento: UUID, offset: int, limite: int
+    ) -> tuple[list[tuple[Registration, User]], int]: ...
+    def por_estado(self, id_evento: UUID) -> dict[EstadoInscripcion, int]: ...
     def del_usuario(
         self, id_usuario: UUID, estado: EstadoInscripcion, cuando: Cuando, offset: int, limite: int
     ) -> tuple[list[tuple[Registration, Event]], int]: ...
@@ -91,4 +96,45 @@ def mias(
 
 
 def porcentaje_de_ocupacion(activas: int, capacidad: int) -> Decimal:
-    return Decimal(0)
+    """activas / capacidad × 100, en Decimal y redondeado a un decimal (la mitad, hacia arriba)."""
+    porcentaje = Decimal(activas) * 100 / Decimal(capacidad)
+    return porcentaje.quantize(Decimal("0.1"), rounding=ROUND_HALF_UP)
+
+
+def inscritos_del_evento(
+    eventos: Eventos,
+    inscripciones: Inscripciones,
+    usuario: User,
+    id_evento: UUID,
+    offset: int,
+    limite: int,
+) -> tuple[list[tuple[Registration, User]], int]:
+    """Una página de los inscritos, activos y cancelados, con su email: solo para el dueño del
+    evento o el admin."""
+    evento = servicio_eventos.para_gestionar(eventos, usuario, id_evento)
+    return inscripciones.del_evento(evento.id, offset, limite)
+
+
+@dataclass(frozen=True)
+class Estadisticas:
+    active: int
+    cancelled: int
+    capacity: int
+    available_spots: int
+    occupancy_pct: Decimal
+
+
+def estadisticas(
+    eventos: Eventos, inscripciones: Inscripciones, usuario: User, id_evento: UUID
+) -> Estadisticas:
+    """Las cifras del evento, solo para su dueño o el admin."""
+    evento = servicio_eventos.para_gestionar(eventos, usuario, id_evento)
+    cuantas = inscripciones.por_estado(evento.id)
+    activas = cuantas[EstadoInscripcion.ACTIVE]
+    return Estadisticas(
+        active=activas,
+        cancelled=cuantas[EstadoInscripcion.CANCELLED],
+        capacity=evento.capacity,
+        available_spots=evento.capacity - activas,
+        occupancy_pct=porcentaje_de_ocupacion(activas, evento.capacity),
+    )

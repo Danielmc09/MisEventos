@@ -1,7 +1,9 @@
 from datetime import UTC, datetime
+from decimal import Decimal
+from typing import Annotated
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, computed_field
+from pydantic import BaseModel, ConfigDict, Field, PlainSerializer, computed_field
 
 from app.models.evento import EstadoEvento
 from app.models.inscripcion import EstadoInscripcion
@@ -45,3 +47,24 @@ class InscripcionMia(BaseModel):
     created_at: FechaUTC
     cancelled_at: FechaUTC | None
     event: ResumenEvento
+
+
+class Inscrito(BaseModel):
+    """Lo que el dueño del evento ve de cada inscrito."""
+
+    full_name: str | None
+    email: str
+    status: EstadoInscripcion
+    created_at: FechaUTC
+
+
+# Se calcula con Decimal para no arrastrar errores de redondeo, y viaja como número en el JSON.
+Porcentaje = Annotated[Decimal, PlainSerializer(float, return_type=float, when_used="json")]
+
+
+class EstadisticasSalida(BaseModel):
+    active: int
+    cancelled: int
+    capacity: int
+    available_spots: int
+    occupancy_pct: Porcentaje

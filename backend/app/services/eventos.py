@@ -114,16 +114,25 @@ def finalizado(evento: Event) -> bool:
     return evento.end_at < datetime.now(UTC)
 
 
-def para_escribir(repo: Eventos, usuario: User, id_evento: UUID) -> Event:
-    """El evento bloqueado para modificarlo. Primero la visibilidad (lo que no ve es 404, no se
-    revela que existe) y después el permiso: el dueño que puede crear eventos, o el admin."""
-    evento = repo.por_id_para_escribir(id_evento)
+def _exigir_gestion(usuario: User, evento: Event | None) -> Event:
+    """Primero la visibilidad (lo que no ve es 404, no se revela que existe) y después el
+    permiso: el dueño que puede crear eventos, o el admin."""
     if evento is None or not puede_ver(usuario, evento):
         raise NotFound()
     es_dueno = tiene_permiso(usuario, Permiso.EVENTO_CREAR) and evento.organizer_id == usuario.id
     if not (es_dueno or tiene_permiso(usuario, Permiso.EVENTO_GESTIONAR_TODOS)):
         raise Forbidden()
     return evento
+
+
+def para_escribir(repo: Eventos, usuario: User, id_evento: UUID) -> Event:
+    """El evento bloqueado para modificarlo, si quien pregunta lo gestiona."""
+    return _exigir_gestion(usuario, repo.por_id_para_escribir(id_evento))
+
+
+def para_gestionar(repo: Eventos, usuario: User, id_evento: UUID) -> Event:
+    """El evento para leer lo que solo ve quien lo gestiona, sin bloquearlo."""
+    return _exigir_gestion(usuario, repo.por_id(id_evento))
 
 
 def _cambiar_estado(
