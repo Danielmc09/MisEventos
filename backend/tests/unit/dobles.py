@@ -111,6 +111,17 @@ class RepositorioPonentesFalso:
     def tiene_sesiones(self, id_: UUID) -> bool:
         return id_ in self.con_sesiones
 
+    def por_email_y_creador(self, email: str, creador: UUID) -> Speaker | None:
+        buscado = email.strip().lower()
+        return next(
+            (
+                p
+                for p in self.ponentes.values()
+                if (p.email or "").lower() == buscado and p.created_by == creador
+            ),
+            None,
+        )
+
     def crear(self, ponente: Speaker) -> Speaker:
         ponente.created_at = ponente.updated_at = datetime.now(UTC)
         self.ponentes[ponente.id] = ponente

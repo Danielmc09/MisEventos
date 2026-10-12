@@ -5,6 +5,7 @@ El arranque del contenedor lo llama con --solo-si-seed-demo, después de las mig
 """
 
 import argparse
+import logging
 from collections.abc import Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass
@@ -17,15 +18,26 @@ from sqlmodel import Session
 from app.core.config import Settings
 from app.core.contrasenas import hashear
 from app.core.db import crear_fabrica_de_sesiones, sesion_transaccional
+from app.core.excepciones import Conflict
 from app.core.permisos import Rol
 from app.models.evento import EstadoEvento, Event
+from app.models.ponente import Speaker
 from app.models.usuario import User
 from app.repositories.eventos import RepositorioEventos
+from app.repositories.ponentes import RepositorioPonentes
+from app.repositories.sesiones import RepositorioSesiones
 from app.repositories.usuarios import RepositorioUsuarios
+from app.schemas.sesiones import SesionEntrada
+from app.services import sesiones as servicio_sesiones
 from app.services.autenticacion import Usuarios
+from app.services.eventos import Eventos
+from app.services.ponentes import Ponentes
+from app.services.sesiones import Sesiones
 
 ORGANIZADOR_DEMO = "organizador@miseventos.local"
 ASISTENTE_DEMO = "asistente@miseventos.local"
+
+logger = logging.getLogger("miseventos.seed")
 
 
 @dataclass(frozen=True)
@@ -94,7 +106,7 @@ class EventoDemo:
 
 
 # Uno de cada caso que la demo necesita mostrar. Dos dicen "Python" con distintas mayúsculas, para
-# probar la búsqueda. Las inscripciones del casi lleno y las sesiones paralelas se agregan aparte.
+# probar la búsqueda. Las inscripciones del casi lleno se agregan aparte; las sesiones, abajo.
 EVENTOS_DEMO = [
     EventoDemo(
         "PyCon Bogotá",
@@ -153,13 +165,18 @@ EVENTOS_DEMO = [
 ]
 
 
+def _organizador(usuarios: Usuarios) -> User:
+    organizador = usuarios.por_email(ORGANIZADOR_DEMO)
+    if organizador is None:
+        raise RuntimeError(f"Falta el usuario {ORGANIZADOR_DEMO}, dueño de los eventos demo")
+    return organizador
+
+
 def sembrar_eventos(usuarios: Usuarios, eventos: EventosDemo) -> None:
     """Crea los eventos demo que falten, a nombre del organizador demo. Uno que ya existe (mismo
     nombre y organizador) no se toca. Las fechas son relativas a hoy: la demo nunca queda vieja.
     Se crean por el repositorio, sin las reglas del servicio: uno de ellos ya terminó."""
-    organizador = usuarios.por_email(ORGANIZADOR_DEMO)
-    if organizador is None:
-        raise RuntimeError(f"Falta el usuario {ORGANIZADOR_DEMO}, dueño de los eventos demo")
+    organizador = _organizador(usuarios)
     # 14:00 UTC son las 9:00 en Bogotá.
     hoy = datetime.now(UTC).replace(hour=14, minute=0, second=0, microsecond=0)
     for demo in EVENTOS_DEMO:
@@ -180,14 +197,159 @@ def sembrar_eventos(usuarios: Usuarios, eventos: EventosDemo) -> None:
         )
 
 
+class PonentesDemo(Ponentes, Protocol):
+    def por_email_y_creador(self, email: str, creador: UUID) -> Speaker | None: ...
+
+
+class EventosConSesiones(Eventos, EventosDemo, Protocol): ...
+
+
+@dataclass(frozen=True)
+class PonenteDemo:
+    nombre: str
+    email: str
+    bio: str
+
+
+@dataclass(frozen=True)
+class SesionDemo:
+    evento: str
+    titulo: str
+    descripcion: str
+    sala: str
+    desde_el_inicio: timedelta
+    duracion: timedelta
+    capacidad: int | None
+    ponentes: tuple[str, ...]  # emails de PONENTES_DEMO
+
+
+ANA = "ana.perez@ponentes.example"
+CARLOS = "carlos.gomez@ponentes.example"
+LAURA = "laura.restrepo@ponentes.example"
+DIEGO = "diego.martinez@ponentes.example"
+
+PONENTES_DEMO = [
+    PonenteDemo("Ana Pérez", ANA, "Desarrolladora backend; mantiene plugins de pytest."),
+    PonenteDemo("Carlos Gómez", CARLOS, "Científico de datos en el sector salud."),
+    PonenteDemo("Laura Restrepo", LAURA, "Ingeniera de seguridad de aplicaciones web."),
+    PonenteDemo("Diego Martínez", DIEGO, "Docente de programación y autor de cursos de APIs."),
+]
+
+# Python Day Medellín: dos sesiones paralelas en salas distintas y una con dos ponentes.
+# Ana Pérez también habla en PyCon Bogotá, otro día: un ponente en dos eventos, sin cruces.
+SESIONES_DEMO = [
+    SesionDemo(
+        "Python Day Medellín",
+        "Testing en Python",
+        "Cómo escribir tests que fallan por la razón correcta.",
+        "Sala A",
+        timedelta(hours=1),
+        timedelta(hours=1),
+        120,
+        (ANA,),
+    ),
+    SesionDemo(
+        "Python Day Medellín",
+        "Pandas para análisis de datos",
+        "De un CSV desordenado a un reporte, paso a paso.",
+        "Sala B",
+        timedelta(hours=1),
+        timedelta(hours=1),
+        100,
+        (CARLOS,),
+    ),
+    SesionDemo(
+        "Python Day Medellín",
+        "Seguridad en APIs con FastAPI",
+        "Autenticación, permisos e inyección: los errores más comunes y cómo evitarlos.",
+        "Sala A",
+        timedelta(hours=3),
+        timedelta(minutes=90),
+        None,
+        (LAURA, DIEGO),
+    ),
+    SesionDemo(
+        "PyCon Bogotá",
+        "Testing en Python: de cero a integración continua",
+        "Una suite que corre en cada cambio, desde el primer test.",
+        "Auditorio principal",
+        timedelta(hours=2),
+        timedelta(hours=1),
+        None,
+        (ANA,),
+    ),
+]
+
+
+def sembrar_ponentes(usuarios: Usuarios, ponentes: PonentesDemo) -> None:
+    """Crea los ponentes demo que falten, a nombre del organizador demo. Uno que ya existe (mismo
+    email y creador) no se toca, aunque le hayan cambiado la bio o el nombre."""
+    organizador = _organizador(usuarios)
+    for demo in PONENTES_DEMO:
+        if ponentes.por_email_y_creador(demo.email, organizador.id) is not None:
+            continue
+        ponentes.crear(
+            Speaker(
+                full_name=demo.nombre,
+                email=demo.email,
+                bio=demo.bio,
+                created_by=organizador.id,
+            )
+        )
+
+
+def sembrar_sesiones(
+    usuarios: Usuarios,
+    eventos: EventosConSesiones,
+    sesiones: Sesiones,
+    ponentes: PonentesDemo,
+) -> None:
+    """Crea las sesiones demo que falten (mismo título en el mismo evento demo = ya existe, y no
+    se toca). Se crean por el servicio, como el organizador demo: valen las mismas reglas de
+    horario y los mismos bloqueos que en la API. Las horas son relativas al inicio del evento.
+    Una sesión que ya no entra (alguien cambió el evento o la agenda) se saltea: la demo no
+    frena el arranque."""
+    organizador = _organizador(usuarios)
+    for demo in SESIONES_DEMO:
+        evento = eventos.por_nombre_y_organizador(demo.evento, organizador.id)
+        if evento is None:
+            continue
+        if any(s.title == demo.titulo for s in eventos.sesiones_de(evento.id)):
+            continue
+        ids_ponente = []
+        for email in demo.ponentes:
+            ponente = ponentes.por_email_y_creador(email, organizador.id)
+            if ponente is not None:
+                ids_ponente.append(ponente.id)
+        inicio = evento.start_at + demo.desde_el_inicio
+        datos = SesionEntrada(
+            title=demo.titulo,
+            description=demo.descripcion,
+            room=demo.sala,
+            start_at=inicio,
+            end_at=inicio + demo.duracion,
+            capacity=demo.capacidad,
+            speaker_ids=ids_ponente,
+        )
+        try:
+            servicio_sesiones.crear(eventos, sesiones, ponentes, organizador, evento.id, datos)
+        except Conflict as error:
+            logger.warning("seed: no se creó la sesión «%s»: %s", demo.titulo, error)
+
+
 def sembrar(session: Session, credenciales: CredencialesDemo) -> None:
     """Crea lo que falte de los datos de demostración, en la transacción recibida.
 
-    Cada parte es idempotente. Primero los usuarios: el organizador demo es dueño de los eventos.
+    Cada parte es idempotente. El orden importa: el organizador demo es dueño de los eventos y
+    de los ponentes, y las sesiones cuelgan de los dos.
     """
     usuarios = RepositorioUsuarios(session)
+    eventos = RepositorioEventos(session)
+    ponentes = RepositorioPonentes(session)
     sembrar_usuarios(usuarios, credenciales)
-    sembrar_eventos(usuarios, RepositorioEventos(session))
+    sembrar_eventos(usuarios, eventos)
+    sembrar_ponentes(usuarios, ponentes)
+    sembrar_sesiones(usuarios, eventos, RepositorioSesiones(session), ponentes)
 
 
 def main(argv: Sequence[str] | None = None) -> None:
