@@ -3,7 +3,7 @@
 from datetime import UTC, datetime
 from uuid import UUID
 
-from app.models.evento import Event
+from app.models.evento import EstadoEvento, Event
 from app.models.ponente import Speaker
 from app.models.sesion import Session as Sesion
 from app.models.usuario import User
@@ -145,6 +145,8 @@ class RepositorioSesionesFalso:
         self.eventos = eventos
         self.ponentes = ponentes
         self.vinculos: dict[UUID, list[UUID]] = {}
+        # Con qué se preguntó por los choques; el filtro real lo hace la base.
+        self.consultas_de_choque: list[dict] = []
 
     def ponentes_de(self, ids_sesion: list[UUID]) -> dict[UUID, list[Speaker]]:
         return {
@@ -155,15 +157,25 @@ class RepositorioSesionesFalso:
             for id_ in ids_sesion
         }
 
-    def sesiones_de_ponentes(self, ids_ponente: list[UUID]) -> list[tuple[Speaker, Sesion, Event]]:
-        encontradas = []
-        for id_sesion, ids in self.vinculos.items():
-            sesion = self.eventos.sesiones[id_sesion]
+    def choque_de_ponentes(
+        self, ids_ponente: list[UUID], inicio: datetime, fin: datetime, excluir: UUID | None
+    ) -> tuple[Speaker, Sesion] | None:
+        self.consultas_de_choque.append(
+            {"ids_ponente": list(ids_ponente), "inicio": inicio, "fin": fin, "excluir": excluir}
+        )
+        sesiones = sorted(self.eventos.sesiones.values(), key=lambda s: s.start_at)
+        for sesion in sesiones:
             evento = self.eventos.eventos[sesion.event_id]
-            for id_ponente in ids:
+            if (
+                sesion.id == excluir
+                or evento.status == EstadoEvento.CANCELLED
+                or not (sesion.start_at < fin and sesion.end_at > inicio)
+            ):
+                continue
+            for id_ponente in self.vinculos.get(sesion.id, []):
                 if id_ponente in ids_ponente:
-                    encontradas.append((self.ponentes.ponentes[id_ponente], sesion, evento))
-        return encontradas
+                    return self.ponentes.ponentes[id_ponente], sesion
+        return None
 
     def por_id(self, id_: UUID) -> Sesion | None:
         return self.eventos.sesiones.get(id_)

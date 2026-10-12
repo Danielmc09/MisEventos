@@ -521,6 +521,41 @@ def test_un_ponente_no_puede_estar_en_dos_sesiones_que_se_cruzan_en_otro_evento(
     assert len(repos.eventos.sesiones) == 1
 
 
+def test_el_choque_de_ponente_se_pide_a_la_base_con_el_horario_y_sin_la_agenda_entera(
+    cliente, repos, auth
+):
+    evento = repos.evento()
+    ana, beto = repos.ponente("Ana Pérez"), repos.ponente("Beto Ruiz")
+    datos = cuerpo(ana, beto, start_at=hora(10, 30).isoformat(), end_at=hora(11, 30).isoformat())
+
+    respuesta = crear(cliente, evento, datos, auth(ORGANIZADOR))
+
+    assert respuesta.status_code == 201, respuesta.text
+    assert repos.sesiones.consultas_de_choque == [
+        {
+            "ids_ponente": sorted([ana.id, beto.id]),
+            "inicio": hora(10, 30),
+            "fin": hora(11, 30),
+            "excluir": None,
+        }
+    ]
+
+
+def test_al_editar_el_choque_se_pide_con_el_horario_nuevo_y_excluyendo_la_propia_sesion(
+    cliente, repos, auth
+):
+    evento = repos.evento()
+    ana = repos.ponente()
+    sesion = repos.sesion(evento, hora(10), hora(11), ana)
+
+    respuesta = editar(cliente, sesion, {"end_at": hora(12).isoformat()}, auth(ORGANIZADOR))
+
+    assert respuesta.status_code == 200, respuesta.text
+    assert repos.sesiones.consultas_de_choque == [
+        {"ids_ponente": [ana.id], "inicio": hora(10), "fin": hora(12), "excluir": sesion.id}
+    ]
+
+
 def test_el_cruce_de_ponente_se_revisa_para_cada_ponente(cliente, repos, auth):
     evento = repos.evento()
     ana, beto = repos.ponente("Ana Pérez"), repos.ponente("Beto Ruiz")
