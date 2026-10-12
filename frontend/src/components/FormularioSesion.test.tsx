@@ -177,3 +177,60 @@ describe("errores de la API", () => {
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 });
+
+describe("editar una sesión", () => {
+  const existente = {
+    ...sesion,
+    room: "Sala A",
+    capacity: 50,
+    speakers: [{ id: "p-1", full_name: "Ana Pérez", bio: null }],
+  };
+  const rutaPatch = `${API}/sessions/${sesion.id}`;
+
+  function espiarPatch() {
+    const llamadas: unknown[] = [];
+    server.use(
+      http.patch(rutaPatch, async ({ request }) => {
+        llamadas.push(await request.json());
+        return responder("/sessions/{id_sesion}", "patch", 200, existente);
+      }),
+    );
+    return llamadas;
+  }
+
+  test("arranca con los valores de la sesión en hora de Bogotá", () => {
+    abrir({ sesion: existente });
+
+    expect(screen.getByLabelText("Título")).toHaveValue("Apertura");
+    expect(screen.getByLabelText("Sala")).toHaveValue("Sala A");
+    expect(screen.getByLabelText("Inicio")).toHaveValue("2026-10-10T20:30");
+    expect(screen.getByLabelText("Fin")).toHaveValue("2026-10-10T21:30");
+    expect(screen.getByLabelText("Capacidad")).toHaveValue(50);
+    expect(screen.getByRole("button", { name: "Guardar cambios" })).toBeInTheDocument();
+  });
+
+  test("el PATCH lleva solo lo que cambió", async () => {
+    const llamadas = espiarPatch();
+    const user = userEvent.setup();
+    const { onGuardada } = abrir({ sesion: existente });
+
+    await user.clear(screen.getByLabelText("Fin"));
+    await user.type(screen.getByLabelText("Fin"), "2026-10-10T22:00");
+    await user.clear(screen.getByLabelText("Sala"));
+    await guardar(user, "Guardar cambios");
+
+    await vi.waitFor(() => expect(onGuardada).toHaveBeenCalledWith(existente));
+    expect(llamadas).toEqual([{ end_at: "2026-10-10T22:00:00-05:00", room: null }]);
+  });
+
+  test("sin cambios no llama a la API", async () => {
+    const llamadas = espiarPatch();
+    const user = userEvent.setup();
+    const { onGuardada } = abrir({ sesion: existente });
+
+    await guardar(user, "Guardar cambios");
+
+    await vi.waitFor(() => expect(onGuardada).toHaveBeenCalledWith(existente));
+    expect(llamadas).toHaveLength(0);
+  });
+});
