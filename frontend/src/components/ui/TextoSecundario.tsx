@@ -1,5 +1,11 @@
 import type { ReactNode } from "react";
 
-export function TextoSecundario({ children }: { children: ReactNode }) {
-  return <p className="text-gray-600">{children}</p>;
+export function TextoSecundario({
+  pequeno = false,
+  children,
+}: {
+  pequeno?: boolean;
+  children: ReactNode;
+}) {
+  return <p className={`break-words text-texto-suave ${pequeno ? "text-sm" : ""}`}>{children}</p>;
 }

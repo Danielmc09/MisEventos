@@ -1,4 +1,5 @@
 import { useId, type TextareaHTMLAttributes } from "react";
+import { bordeCampo, CAMPO, ETIQUETA_CAMPO, MENSAJE_ERROR } from "./estilosCampo";
 
 export interface TextareaProps extends TextareaHTMLAttributes<HTMLTextAreaElement> {
   label: string;
@@ -10,8 +11,8 @@ export function Textarea({ label, error, id, className = "", ...props }: Textare
   const campoId = id ?? generado;
   const errorId = `${campoId}-error`;
   return (
-    <div className="flex flex-col gap-1">
-      <label htmlFor={campoId} className="text-sm font-medium text-gray-700">
+    <div className="flex flex-col gap-2">
+      <label htmlFor={campoId} className={ETIQUETA_CAMPO}>
         {label}
       </label>
       <textarea
@@ -19,10 +20,10 @@ export function Textarea({ label, error, id, className = "", ...props }: Textare
         id={campoId}
         aria-invalid={error ? true : undefined}
         aria-describedby={error ? errorId : undefined}
-        className={`rounded-md border px-3 py-2 ${error ? "border-red-600" : "border-gray-300"} ${className}`}
+        className={`${CAMPO} ${bordeCampo(!!error)} ${className}`}
       />
       {error && (
-        <p id={errorId} className="text-sm text-red-700">
+        <p id={errorId} className={MENSAJE_ERROR}>
           {error}
         </p>
       )}

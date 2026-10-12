@@ -4,7 +4,10 @@ import { api } from "../../api/client";
 import type { components } from "../../api/schema";
 import { AlertaError } from "../../components/ui/AlertaError";
 import { Button } from "../../components/ui/Button";
+import { Formulario, GrupoCampos } from "../../components/ui/Formulario";
 import { Input } from "../../components/ui/Input";
+import { Pagina, TituloPagina } from "../../components/ui/Pagina";
+import { Tarjeta } from "../../components/ui/Tarjeta";
 import { useAvisos } from "../../components/ui/Avisos";
 import { errorDeFormulario, type ErrorDeFormulario } from "../../lib/errores";
 import { useSession } from "../../stores/session";
@@ -47,38 +50,42 @@ export default function CambiarContrasena() {
   }
 
   return (
-    <main className="mx-auto max-w-md p-6">
-      <h1 className="text-2xl font-bold">Cambiar contraseña</h1>
-      <form onSubmit={enviar} className="mt-4 flex flex-col gap-4">
-        <Input
-          label="Contraseña actual"
-          name="current_password"
-          type="password"
-          autoComplete="current-password"
-          required
-          error={error?.campos.current_password}
-        />
-        <Input
-          label="Contraseña nueva"
-          name="new_password"
-          type="password"
-          autoComplete="new-password"
-          required
-          error={error?.campos.new_password}
-        />
-        <Input
-          label="Confirmá la contraseña nueva"
-          name="confirmacion"
-          type="password"
-          autoComplete="new-password"
-          required
-          error={error?.campos.confirmacion}
-        />
-        {error?.general && <AlertaError title={error.general} />}
-        <Button type="submit" loading={enviando}>
-          Cambiar contraseña
-        </Button>
-      </form>
-    </main>
+    <Pagina ancho="angosto">
+      <TituloPagina>Cambiar contraseña</TituloPagina>
+      <Tarjeta as="div">
+        <Formulario onSubmit={enviar}>
+          <GrupoCampos>
+            <Input
+              label="Contraseña actual"
+              name="current_password"
+              type="password"
+              autoComplete="current-password"
+              required
+              error={error?.campos.current_password}
+            />
+            <Input
+              label="Contraseña nueva"
+              name="new_password"
+              type="password"
+              autoComplete="new-password"
+              required
+              error={error?.campos.new_password}
+            />
+            <Input
+              label="Confirmá la contraseña nueva"
+              name="confirmacion"
+              type="password"
+              autoComplete="new-password"
+              required
+              error={error?.campos.confirmacion}
+            />
+          </GrupoCampos>
+          {error?.general && <AlertaError title={error.general} />}
+          <Button type="submit" loading={enviando}>
+            Cambiar contraseña
+          </Button>
+        </Formulario>
+      </Tarjeta>
+    </Pagina>
   );
 }

@@ -23,7 +23,7 @@ export function Pestanas({ etiqueta, pestanas, activa, onCambiar, children }: Pe
 
   return (
     <div className="flex flex-col gap-4">
-      <div role="tablist" aria-label={etiqueta} className="flex gap-1 border-b border-gray-200">
+      <div role="tablist" aria-label={etiqueta} className="flex gap-1 border-b border-tinta/15">
         {pestanas.map((p, i) => {
           const seleccionada = p.id === activa;
           return (
@@ -40,10 +40,10 @@ export function Pestanas({ etiqueta, pestanas, activa, onCambiar, children }: Pe
               tabIndex={seleccionada ? 0 : -1}
               onClick={() => onCambiar(p.id)}
               onKeyDown={(e) => moverConFlechas(e, i)}
-              className={`-mb-px border-b-2 px-4 py-2 font-medium focus-visible:outline-2 focus-visible:outline-indigo-600 ${
+              className={`-mb-px border-b-2 px-4 py-2 font-medium focus-visible:outline-3 focus-visible:outline-foco min-h-11 md:min-h-10 ${
                 seleccionada
-                  ? "border-indigo-600 text-indigo-700"
-                  : "border-transparent text-gray-600 hover:text-gray-900"
+                  ? "border-primario text-primario"
+                  : "border-transparent text-texto-suave hover:text-texto"
               }`}
             >
               {p.titulo}

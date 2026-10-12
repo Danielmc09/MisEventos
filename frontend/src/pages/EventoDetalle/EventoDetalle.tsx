@@ -1,17 +1,28 @@
 import { useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import type { EventoDetalle as Detalle } from "../../lib/useEvento";
+import type { ItemMenu } from "../../components/ui/MenuAcciones";
+import { useNavigate, useParams } from "react-router-dom";
 import { api } from "../../api/client";
 import { ApiError } from "../../api/errors";
+import { ChipCupos } from "../../components/ChipCupos";
 import { InsigniaEstado } from "../../components/InsigniaEstado";
-import { Button } from "../../components/ui/Button";
+import { AlertaError } from "../../components/ui/AlertaError";
+import { MenuAcciones } from "../../components/ui/MenuAcciones";
 import { DialogoConfirmacion } from "../../components/ui/DialogoConfirmacion";
+import { EnlaceBoton } from "../../components/ui/EnlaceBoton";
+import { Pagina, TituloPagina } from "../../components/ui/Pagina";
 import { Spinner } from "../../components/ui/Spinner";
+import { Tarjeta } from "../../components/ui/Tarjeta";
+import { TextoSecundario } from "../../components/ui/TextoSecundario";
 import { formatearFecha } from "../../lib/fechas";
 import { SeccionSesiones } from "../../components/SeccionSesiones";
 import { useAvisos } from "../../components/ui/Avisos";
 import { PanelInscripciones } from "../../components/PanelInscripciones";
-import { AccionInscripcion } from "../../components/AccionInscripcion";
-import { quedan } from "../../lib/plural";
+import { useInscripcion } from "../../components/useInscripcion";
+import { Button } from "../../components/ui/Button";
+import { Chip } from "../../components/ui/Chip";
+import { Pestanas } from "../../components/ui/Pestanas";
+import { conservarNext } from "../../lib/next";
 import { useEvento } from "../../lib/useEvento";
 import { useSesiones } from "../../lib/useSesiones";
 import { useEventos, type Evento } from "../../stores/eventos";
@@ -53,8 +64,6 @@ export default function EventoDetalle() {
   const gestionaTodos = useTienePermiso("evento:gestionar_todos");
   const puede = !!evento && !!user && (gestionaTodos || user.id === evento.organizer_id);
 
-  const reservas = sesiones.sesiones?.filter((s) => s.is_reserved).length ?? 0;
-
   async function ejecutar(accion: Accion) {
     setTrabajando(true);
     try {
@@ -78,84 +87,26 @@ export default function EventoDetalle() {
   }
 
   return (
-    <main className="mx-auto flex max-w-3xl flex-col gap-3 p-6">
+    <Pagina>
       {cargando && (
         <div className="flex justify-center p-10">
           <Spinner />
         </div>
       )}
       {error && (
-        <p role="alert" className="text-red-700">
-          {error.status === 404 ? "No encontramos este evento" : error.title}
-        </p>
+        <AlertaError title={error.status === 404 ? "No encontramos este evento" : error.title} />
       )}
       {evento && (
-        <>
-          <InsigniaEstado evento={evento} />
-          <h1 className="text-2xl font-bold">{evento.name}</h1>
-          <p>
-            <time dateTime={evento.start_at}>{formatearFecha(evento.start_at)}</time>
-            {" – "}
-            <time dateTime={evento.end_at}>{formatearFecha(evento.end_at)}</time>
-          </p>
-          {evento.location && <p className="text-gray-600">{evento.location}</p>}
-          {evento.description && <p className="whitespace-pre-line">{evento.description}</p>}
-          <p className="font-medium">{quedan(evento.available_spots, "cupo", "cupos")}</p>
-          <div className="flex flex-wrap items-center gap-3">
-            <AccionInscripcion
-              evento={evento}
-              onEvento={setEvento}
-              onRefrescar={refrescar}
-              reservas={reservas}
-              onCancelada={sesiones.refrescar}
-            />
-          </div>
-          {puede && (
-            <div className="mt-2 flex flex-wrap gap-3">
-              {evento.status !== "CANCELLED" && !evento.is_finished && (
-                <Link
-                  to={`/eventos/${evento.id}/editar`}
-                  className="rounded-md border border-gray-300 px-4 py-2"
-                >
-                  Editar
-                </Link>
-              )}
-              {evento.status === "DRAFT" && !evento.is_finished && (
-                <Button loading={trabajando} onClick={() => ejecutar("publish")}>
-                  Publicar
-                </Button>
-              )}
-              {evento.status === "PUBLISHED" && (
-                <Button loading={trabajando} onClick={() => ejecutar("unpublish")}>
-                  Despublicar
-                </Button>
-              )}
-              {evento.status !== "CANCELLED" && !evento.is_finished && (
-                <Button variante="peligro" onClick={() => setPendiente("cancel")}>
-                  Cancelar
-                </Button>
-              )}
-              <Button variante="peligro" onClick={() => setPendiente("delete")}>
-                Eliminar
-              </Button>
-            </div>
-          )}
-          {puede && <PanelInscripciones eventoId={evento.id} version={evento.registered_count} />}
-          <SeccionSesiones
-            cargando={sesiones.cargando}
-            sesiones={sesiones.sesiones}
-            error={sesiones.error}
-            evento={evento}
-            // Un evento cancelado o finalizado ya no admite cambios en sus sesiones.
-            puede={puede && evento.status !== "CANCELLED" && !evento.is_finished}
-            onGuardada={(guardada) => sesiones.guardar(guardada, evento.capacity)}
-            onEliminada={sesiones.quitar}
-            inscrito={!!user && evento.is_registered}
-            eventoPublicado={evento.status === "PUBLISHED"}
-            onReserva={sesiones.marcarReserva}
-            onRefrescar={sesiones.refrescar}
-          />
-        </>
+        <ContenidoEvento
+          evento={evento}
+          sesiones={sesiones}
+          puede={puede}
+          trabajando={trabajando}
+          onEvento={setEvento}
+          onRefrescar={refrescar}
+          onAccion={ejecutar}
+          onPedir={setPendiente}
+        />
       )}
       {pendiente && (
         <DialogoConfirmacion
@@ -165,6 +116,194 @@ export default function EventoDetalle() {
           onVolver={() => setPendiente(null)}
         />
       )}
-    </main>
+    </Pagina>
+  );
+}
+
+interface ContenidoProps {
+  evento: Detalle;
+  sesiones: ReturnType<typeof useSesiones>;
+  puede: boolean;
+  trabajando: boolean;
+  onEvento: (evento: Detalle) => void;
+  onRefrescar: () => void;
+  onAccion: (accion: "publish" | "unpublish") => void;
+  onPedir: (accion: "cancel" | "delete") => void;
+}
+
+function ContenidoEvento({
+  evento,
+  sesiones,
+  puede,
+  trabajando,
+  onEvento,
+  onRefrescar,
+  onAccion,
+  onPedir,
+}: ContenidoProps) {
+  const user = useSession((s) => s.user);
+  const [pestana, setPestana] = useState("sesiones");
+  const reservas = sesiones.sesiones?.filter((s) => s.is_reserved).length ?? 0;
+  const inscripcion = useInscripcion({
+    evento,
+    onEvento,
+    onRefrescar,
+    reservas,
+    onCancelada: sesiones.refrescar,
+  });
+  const { situacion } = inscripcion;
+  const vigente = evento.status !== "CANCELLED" && !evento.is_finished;
+
+  const itemsDueno: ItemMenu[] = [
+    ...(situacion === "libre"
+      ? [{ texto: "Inscribirme a mi evento", onSelect: inscripcion.inscribirse }]
+      : []),
+    ...(situacion === "inscrito"
+      ? [{ texto: "Cancelar mi inscripción", onSelect: inscripcion.pedirCancelar }]
+      : []),
+    ...(evento.status === "DRAFT" && !evento.is_finished
+      ? [{ texto: "Publicar", onSelect: () => onAccion("publish") }]
+      : []),
+    ...(evento.status === "PUBLISHED"
+      ? [{ texto: "Despublicar", onSelect: () => onAccion("unpublish") }]
+      : []),
+    ...(vigente
+      ? [
+          {
+            texto: "Cancelar evento",
+            onSelect: () => onPedir("cancel"),
+            peligro: true,
+            separado: true,
+          },
+        ]
+      : []),
+    { texto: "Eliminar", onSelect: () => onPedir("delete"), peligro: true, separado: !vigente },
+  ];
+
+  const seccionSesiones = (
+    <SeccionSesiones
+      cargando={sesiones.cargando}
+      sesiones={sesiones.sesiones}
+      error={sesiones.error}
+      evento={evento}
+      // Un evento cancelado o finalizado ya no admite cambios en sus sesiones.
+      puede={puede && vigente}
+      onGuardada={(guardada) => sesiones.guardar(guardada, evento.capacity)}
+      onEliminada={sesiones.quitar}
+      inscrito={!!user && evento.is_registered}
+      eventoPublicado={evento.status === "PUBLISHED"}
+      onReserva={sesiones.marcarReserva}
+      onRefrescar={sesiones.refrescar}
+    />
+  );
+
+  return (
+    <>
+      <Tarjeta as="div">
+        <div className="flex flex-col gap-2">
+          <div
+            role="group"
+            aria-label="Estado del evento"
+            className="flex flex-wrap items-center gap-2"
+          >
+            <InsigniaEstado evento={evento} />
+            {vigente && (
+              <ChipCupos
+                capacidad={evento.capacity}
+                libres={evento.available_spots}
+                soloConteo={evento.status === "DRAFT"}
+              />
+            )}
+            {situacion === "inscrito" && <Chip tono="exito">Estás inscrito</Chip>}
+          </div>
+          <TituloPagina>{evento.name}</TituloPagina>
+          <p>
+            <time dateTime={evento.start_at}>{formatearFecha(evento.start_at)}</time>
+            {" – "}
+            <time dateTime={evento.end_at}>{formatearFecha(evento.end_at)}</time>
+          </p>
+          {evento.location && <TextoSecundario>{evento.location}</TextoSecundario>}
+          {evento.description && (
+            <p className="break-words whitespace-pre-line">{evento.description}</p>
+          )}
+        </div>
+        {(puede || situacion !== "cerrado") && (
+          <div role="group" aria-label="Acciones del evento" className="flex items-center gap-3">
+            {puede ? (
+              <>
+                {vigente && (
+                  <EnlaceBoton to={`/eventos/${evento.id}/editar`} ancho="estirado">
+                    Editar
+                  </EnlaceBoton>
+                )}
+                <MenuAcciones
+                  etiqueta="Más acciones del evento"
+                  variante="icono"
+                  alinear="fin"
+                  ocupado={trabajando || inscripcion.trabajando}
+                  items={itemsDueno}
+                >
+                  Más acciones
+                </MenuAcciones>
+              </>
+            ) : (
+              <>
+                {situacion === "anonimo" && (
+                  <EnlaceBoton
+                    to={`/login${conservarNext(`/eventos/${evento.id}`)}`}
+                    ancho="estirado-angosto"
+                  >
+                    Iniciá sesión para inscribirte
+                  </EnlaceBoton>
+                )}
+                {situacion === "inscrito" && (
+                  <Button
+                    variante="secundario"
+                    ancho="estirado-angosto"
+                    onClick={inscripcion.pedirCancelar}
+                  >
+                    Cancelar inscripción
+                  </Button>
+                )}
+                {situacion === "sin-cupos" && (
+                  <Button disabled ancho="estirado-angosto">
+                    Sin cupos
+                  </Button>
+                )}
+                {situacion === "libre" && (
+                  <Button
+                    ancho="estirado-angosto"
+                    loading={inscripcion.trabajando}
+                    onClick={inscripcion.inscribirse}
+                  >
+                    Inscribirme
+                  </Button>
+                )}
+              </>
+            )}
+          </div>
+        )}
+      </Tarjeta>
+      {puede ? (
+        <Pestanas
+          etiqueta="Secciones del evento"
+          pestanas={[
+            { id: "sesiones", titulo: "Sesiones" },
+            { id: "inscripciones", titulo: "Inscripciones" },
+          ]}
+          activa={pestana}
+          onCambiar={setPestana}
+        >
+          {pestana === "sesiones" ? (
+            seccionSesiones
+          ) : (
+            <PanelInscripciones eventoId={evento.id} version={evento.registered_count} />
+          )}
+        </Pestanas>
+      ) : (
+        seccionSesiones
+      )}
+      {inscripcion.dialogo}
+    </>
   );
 }

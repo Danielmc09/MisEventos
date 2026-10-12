@@ -7,6 +7,7 @@ import { useEventos, type Evento } from "../stores/eventos";
 import { AlertaError } from "./ui/AlertaError";
 import { useAvisos } from "./ui/Avisos";
 import { Button } from "./ui/Button";
+import { Formulario, GrupoCampos } from "./ui/Formulario";
 import { Input } from "./ui/Input";
 import { Textarea } from "./ui/Textarea";
 
@@ -119,17 +120,23 @@ export function FormularioEvento({ evento }: { evento?: Evento }) {
   }
 
   return (
-    <form onSubmit={enviar} noValidate className="mt-4 flex flex-col gap-4">
-      <Input label="Nombre" {...campo("name")} />
-      <Textarea label="Descripción" rows={4} {...campo("description")} />
-      <Input label="Lugar" {...campo("location")} />
-      <Input label="Inicio" type="datetime-local" {...campo("start_at")} />
-      <Input label="Fin" type="datetime-local" {...campo("end_at")} />
-      <Input label="Capacidad" type="number" {...campo("capacity")} />
+    <Formulario onSubmit={enviar} noValidate>
+      <GrupoCampos>
+        <Input label="Nombre" {...campo("name")} />
+        <Textarea label="Descripción" rows={4} {...campo("description")} />
+        <Input label="Lugar" {...campo("location")} />
+      </GrupoCampos>
+      <GrupoCampos>
+        <Input label="Inicio" type="datetime-local" {...campo("start_at")} />
+        <Input label="Fin" type="datetime-local" {...campo("end_at")} />
+      </GrupoCampos>
+      <GrupoCampos>
+        <Input label="Capacidad" type="number" inputMode="numeric" {...campo("capacity")} />
+      </GrupoCampos>
       {general && <AlertaError title={general.title} detail={general.detail} />}
       <Button type="submit" loading={enviando} className="self-start">
         {evento ? "Guardar cambios" : "Crear evento"}
       </Button>
-    </form>
+    </Formulario>
   );
 }

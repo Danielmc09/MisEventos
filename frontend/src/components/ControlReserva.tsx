@@ -1,11 +1,11 @@
 import type { Sesion } from "../lib/useSesiones";
-import { quedan } from "../lib/plural";
+import { ChipCupos } from "./ChipCupos";
 import { Button } from "./ui/Button";
-import { Insignia } from "./ui/Insignia";
+import { Chip } from "./ui/Chip";
 import { TextoSecundario } from "./ui/TextoSecundario";
 
 interface Props {
-  sesion: Pick<Sesion, "start_at" | "is_reserved" | "available_spots">;
+  sesion: Pick<Sesion, "start_at" | "is_reserved" | "available_spots" | "reserved_count">;
   /** Hay una sesión iniciada y la persona está inscrita al evento. */
   inscrito: boolean;
   eventoPublicado: boolean;
@@ -25,30 +25,51 @@ export function ControlReserva({
 }: Props) {
   if (!eventoPublicado || new Date(sesion.start_at) <= new Date()) return null;
 
+  // La capacidad efectiva (la propia o la heredada del evento) es lo reservado más lo que queda.
+  const chip = (
+    <ChipCupos
+      capacidad={sesion.reserved_count + sesion.available_spots}
+      libres={sesion.available_spots}
+      unidad="lugar"
+    />
+  );
+
   if (!inscrito) {
-    return <TextoSecundario>Inscribite al evento para reservar sesiones</TextoSecundario>;
+    return (
+      <div className="flex flex-wrap items-center gap-3">
+        <TextoSecundario>Inscribite al evento para reservar sesiones</TextoSecundario>
+        {chip}
+      </div>
+    );
   }
 
   if (sesion.is_reserved) {
     return (
       <div className="flex flex-wrap items-center gap-3">
-        <Insignia tono="exito">Reservado</Insignia>
+        <Chip tono="exito">Reservado</Chip>
         <Button variante="secundario" loading={trabajando} onClick={onCancelar}>
           Cancelar reserva
         </Button>
-        <TextoSecundario>{quedan(sesion.available_spots, "lugar", "lugares")}</TextoSecundario>
+        {chip}
       </div>
     );
   }
 
-  if (sesion.available_spots <= 0) return <Button disabled>Sin lugares</Button>;
+  if (sesion.available_spots <= 0) {
+    return (
+      <div className="flex flex-wrap items-center gap-3">
+        <Button disabled>Sin lugares</Button>
+        {chip}
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-wrap items-center gap-3">
       <Button loading={trabajando} onClick={onReservar}>
         Reservar lugar
       </Button>
-      <TextoSecundario>{quedan(sesion.available_spots, "lugar", "lugares")}</TextoSecundario>
+      {chip}
     </div>
   );
 }

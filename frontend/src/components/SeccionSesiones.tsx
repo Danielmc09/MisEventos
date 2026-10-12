@@ -8,10 +8,16 @@ import { ControlReserva } from "./ControlReserva";
 import { FormularioSesion } from "./FormularioSesion";
 import { AlertaError } from "./ui/AlertaError";
 import { useAvisos } from "./ui/Avisos";
+import { BotonIcono } from "./ui/BotonIcono";
 import { Button } from "./ui/Button";
+import { IconoLapiz } from "./ui/iconos/IconoLapiz";
+import { IconoPapelera } from "./ui/iconos/IconoPapelera";
 import { DialogoConfirmacion } from "./ui/DialogoConfirmacion";
 import { Modal } from "./ui/Modal";
 import { Spinner } from "./ui/Spinner";
+import { Tarjeta } from "./ui/Tarjeta";
+import { TextoSecundario } from "./ui/TextoSecundario";
+import { TituloSeccion } from "./ui/TituloSeccion";
 
 interface Props {
   cargando: boolean;
@@ -119,12 +125,10 @@ export function SeccionSesiones({
   }
 
   return (
-    <section aria-labelledby="titulo-sesiones" className="mt-6 flex flex-col gap-3">
+    <section aria-labelledby="titulo-sesiones" className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 id="titulo-sesiones" className="text-xl font-semibold">
-          Sesiones
-        </h2>
-        {puede && (
+        <TituloSeccion id="titulo-sesiones">Sesiones</TituloSeccion>
+        {puede && sesiones?.length !== 0 && (
           <Button type="button" onClick={() => setFormulario("nueva")}>
             Agregar sesión
           </Button>
@@ -137,24 +141,41 @@ export function SeccionSesiones({
       )}
       {error && <AlertaError title={error.title} />}
       {sesiones?.length === 0 && (
-        <p className="text-gray-600">Este evento todavía no tiene sesiones</p>
+        <div className="flex flex-col items-start gap-4">
+          <TextoSecundario>Este evento todavía no tiene sesiones</TextoSecundario>
+          {puede && (
+            <Button type="button" onClick={() => setFormulario("nueva")}>
+              Agregar sesión
+            </Button>
+          )}
+        </div>
       )}
       {sesiones &&
         agruparPorDia(sesiones).map(([dia, delDia]) => (
           <div key={dia} className="flex flex-col gap-2">
-            <h3 className="font-medium text-gray-700">{etiquetaDia(delDia[0].start_at)}</h3>
-            <ul className="flex flex-col gap-2">
-              {delDia.map((s) => (
-                <li key={s.id} className="rounded-md border border-gray-200 p-4">
-                  <h4 className="font-semibold">{s.title}</h4>
-                  <p>
-                    {horaBogota(s.start_at)} a {horaBogota(s.end_at)}
-                  </p>
-                  {s.room && <p className="text-gray-600">{s.room}</p>}
-                  {s.capacity !== null && <p className="text-gray-600">Capacidad: {s.capacity}</p>}
-                  {s.speakers.length > 0 && (
-                    <p className="text-gray-600">{s.speakers.map((p) => p.full_name).join(", ")}</p>
-                  )}
+            <TituloSeccion nivel={3} estilo="grupo">
+              {etiquetaDia(delDia[0].start_at)}
+            </TituloSeccion>
+            <ul className="flex flex-col gap-4">
+              {delDia.map((s, i) => (
+                <Tarjeta as="li" key={s.id} indice={i}>
+                  <div className="flex flex-col gap-1">
+                    <TituloSeccion nivel={4} estilo="elemento">
+                      {s.title}
+                    </TituloSeccion>
+                    <p>
+                      {horaBogota(s.start_at)} a {horaBogota(s.end_at)}
+                    </p>
+                    {s.room && <TextoSecundario>{s.room}</TextoSecundario>}
+                    {s.capacity !== null && (
+                      <TextoSecundario>Capacidad: {s.capacity}</TextoSecundario>
+                    )}
+                    {s.speakers.length > 0 && (
+                      <TextoSecundario>
+                        {s.speakers.map((p) => p.full_name).join(", ")}
+                      </TextoSecundario>
+                    )}
+                  </div>
                   <ControlReserva
                     sesion={s}
                     inscrito={inscrito}
@@ -167,26 +188,23 @@ export function SeccionSesiones({
                     <AlertaError title={errorReserva.title} detail={errorReserva.detalle} />
                   )}
                   {puede && (
-                    <div className="mt-2 flex flex-wrap gap-3">
-                      <Button
-                        type="button"
-                        variante="secundario"
-                        aria-label={`Editar sesión ${s.title}`}
+                    <div className="flex items-center gap-2">
+                      <BotonIcono
+                        etiqueta={`Editar la sesión «${s.title}»`}
+                        texto="Editar"
+                        icono={<IconoLapiz />}
                         onClick={() => setFormulario(s)}
-                      >
-                        Editar
-                      </Button>
-                      <Button
-                        type="button"
+                      />
+                      <BotonIcono
+                        etiqueta={`Eliminar la sesión «${s.title}»`}
+                        texto="Eliminar"
+                        icono={<IconoPapelera />}
                         variante="peligro"
-                        aria-label={`Eliminar sesión ${s.title}`}
                         onClick={() => setPendiente(s)}
-                      >
-                        Eliminar
-                      </Button>
+                      />
                     </div>
                   )}
-                </li>
+                </Tarjeta>
               ))}
             </ul>
           </div>

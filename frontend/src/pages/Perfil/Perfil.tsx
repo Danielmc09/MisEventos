@@ -1,9 +1,10 @@
-import { Link } from "react-router-dom";
+import { MisInscripciones } from "../../components/MisInscripciones";
+import { EnlaceBoton } from "../../components/ui/EnlaceBoton";
+import { ListaDatos } from "../../components/ui/ListaDatos";
+import { Pagina, TituloPagina } from "../../components/ui/Pagina";
+import { Tarjeta } from "../../components/ui/Tarjeta";
 import type { Usuario } from "../../stores/session";
 import { useSession } from "../../stores/session";
-import { MisInscripciones } from "../../components/MisInscripciones";
-import { Button } from "../../components/ui/Button";
-import { useCerrarSesion } from "../../lib/useCerrarSesion";
 
 const ROLES: Record<Usuario["role"], string> = {
   ATTENDEE: "Asistente",
@@ -13,28 +14,25 @@ const ROLES: Record<Usuario["role"], string> = {
 
 export default function Perfil() {
   const user = useSession((s) => s.user);
-  const cerrarSesion = useCerrarSesion();
   if (!user) return null;
   return (
-    <main className="mx-auto max-w-3xl p-6">
-      <h1 className="text-2xl font-bold">Perfil</h1>
-      <dl className="mt-4 grid grid-cols-[auto_1fr] gap-x-4 gap-y-2">
-        <dt className="font-medium">Correo electrónico</dt>
-        <dd className="break-all">{user.email}</dd>
-        <dt className="font-medium">Nombre</dt>
-        <dd>{user.full_name ?? "—"}</dd>
-        <dt className="font-medium">Rol</dt>
-        <dd>{ROLES[user.role]}</dd>
-      </dl>
-      <p className="mt-4">
-        <Link to="/cambiar-contrasena" className="text-indigo-700 underline">
-          Cambiar contraseña
-        </Link>
-      </p>
-      <Button type="button" className="mt-4" onClick={cerrarSesion}>
-        Cerrar sesión
-      </Button>
+    <Pagina>
+      <TituloPagina>Perfil</TituloPagina>
+      <Tarjeta as="section" aria-label="Datos de tu cuenta">
+        <ListaDatos
+          datos={[
+            { etiqueta: "Correo electrónico", valor: user.email },
+            { etiqueta: "Nombre", valor: user.full_name ?? "—" },
+            { etiqueta: "Rol", valor: ROLES[user.role] },
+          ]}
+        />
+        <div className="flex flex-wrap items-center gap-4">
+          <EnlaceBoton to="/cambiar-contrasena" variante="secundario">
+            Cambiar contraseña
+          </EnlaceBoton>
+        </div>
+      </Tarjeta>
       <MisInscripciones />
-    </main>
+    </Pagina>
   );
 }

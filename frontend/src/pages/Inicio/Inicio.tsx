@@ -2,10 +2,25 @@ import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { ApiError } from "../../api/errors";
 import { EventoCard } from "../../components/EventoCard";
+import { AlertaError } from "../../components/ui/AlertaError";
+import { EstadoVacio } from "../../components/ui/EstadoVacio";
 import { Input } from "../../components/ui/Input";
+import { Pagina, TituloPagina } from "../../components/ui/Pagina";
 import { Paginacion } from "../../components/ui/Paginacion";
+import { Select } from "../../components/ui/Select";
 import { Spinner } from "../../components/ui/Spinner";
+import { TextoSecundario } from "../../components/ui/TextoSecundario";
 import { useEventos, type PaginaEventos } from "../../stores/eventos";
+import { useTienePermiso } from "../../stores/session";
+
+/** Filtros de estado del inicio: la clave viaja en la URL (`?estado=`), `status` es lo que pide la API. */
+const ESTADOS = {
+  publicados: { etiqueta: "Publicados", status: "PUBLISHED", soloBorradores: false },
+  cancelados: { etiqueta: "Cancelados", status: "CANCELLED", soloBorradores: false },
+  borradores: { etiqueta: "Borradores", status: "DRAFT", soloBorradores: true },
+  todos: { etiqueta: "Todos", status: "", soloBorradores: true },
+} as const;
+type Estado = keyof typeof ESTADOS;
 
 interface Resultado {
   consulta: string;
@@ -16,6 +31,7 @@ interface Resultado {
 export default function Inicio() {
   const [params, setParams] = useSearchParams();
   const listar = useEventos((s) => s.listar);
+  const veBorradores = useTienePermiso("evento:crear");
   const [resultado, setResultado] = useState<Resultado | null>(null);
 
   const qUrl = params.get("q") ?? "";
@@ -45,6 +61,20 @@ export default function Inicio() {
     temporizador.current = setTimeout(() => filtrar("q", valor), 300);
   };
 
+  const quitarFiltros = () => {
+    clearTimeout(temporizador.current);
+    setTexto("");
+    setParams({});
+  };
+
+  // Un valor desconocido o no permitido se trata como "publicados": así lista y select coinciden.
+  const pedido = params.get("estado") ?? "";
+  const estado: Estado =
+    Object.hasOwn(ESTADOS, pedido) && (veBorradores || !ESTADOS[pedido as Estado].soloBorradores)
+      ? (pedido as Estado)
+      : "publicados";
+  const hayFiltros = !!(params.get("q") || estado !== "publicados");
+
   const irAPagina = (pagina: number) =>
     setParams((previos) => {
       const nuevos = new URLSearchParams(previos);
@@ -54,7 +84,11 @@ export default function Inicio() {
     });
 
   const consulta = new URLSearchParams(
-    ["q", "status", "page"].flatMap((k) => (params.get(k) ? [[k, params.get(k)!]] : [])),
+    [
+      ["q", params.get("q")],
+      ["status", ESTADOS[estado].status],
+      ["page", params.get("page")],
+    ].flatMap(([k, v]) => (v ? [[k!, v]] : [])),
   ).toString();
 
   useEffect(() => {
@@ -76,9 +110,12 @@ export default function Inicio() {
   const actual = resultado?.consulta === consulta ? resultado : null;
 
   return (
-    <main className="mx-auto max-w-6xl p-6">
-      <h1 className="text-2xl font-bold">Mis Eventos</h1>
-      <div className="mt-4 flex flex-wrap items-end gap-4">
+    <Pagina ancho="ancho">
+      <div className="flex flex-col gap-1">
+        <TituloPagina>Próximos eventos</TituloPagina>
+        <TextoSecundario>Encontrá un evento e inscribite en un minuto</TextoSecundario>
+      </div>
+      <div className="flex flex-wrap items-end gap-4">
         <div className="w-full max-w-md">
           <Input
             type="search"
@@ -89,41 +126,39 @@ export default function Inicio() {
             onChange={(e) => buscar(e.target.value)}
           />
         </div>
-        <div className="flex flex-col gap-1">
-          <label htmlFor="estado" className="text-sm font-medium text-gray-700">
-            Estado
-          </label>
-          <select
-            id="estado"
-            value={params.get("status") ?? ""}
-            onChange={(e) => filtrar("status", e.target.value)}
-            className="rounded-md border border-gray-300 px-3 py-2"
-          >
-            <option value="">Todos</option>
-            <option value="PUBLISHED">Publicado</option>
-            <option value="DRAFT">Borrador</option>
-            <option value="CANCELLED">Cancelado</option>
-          </select>
-        </div>
+        <Select
+          id="estado"
+          label="Estado"
+          value={estado}
+          onChange={(e) => filtrar("estado", e.target.value === "publicados" ? "" : e.target.value)}
+        >
+          {(Object.keys(ESTADOS) as Estado[])
+            .filter((clave) => veBorradores || !ESTADOS[clave].soloBorradores)
+            .map((clave) => (
+              <option key={clave} value={clave}>
+                {ESTADOS[clave].etiqueta}
+              </option>
+            ))}
+        </Select>
       </div>
-      <div className="mt-6">
+      <div className="flex flex-col gap-6">
         {!actual && (
           <div className="flex justify-center p-10">
             <Spinner />
           </div>
         )}
-        {actual?.error && (
-          <p role="alert" className="text-red-700">
-            {actual.error}
-          </p>
-        )}
+        {actual?.error && <AlertaError title={actual.error} />}
         {actual?.pagina && actual.pagina.items.length === 0 && (
-          <p className="text-gray-600">No hay eventos que coincidan</p>
+          <EstadoVacio
+            mensaje="No hay eventos que coincidan"
+            accion={hayFiltros ? "Quitar filtros" : undefined}
+            onAccion={hayFiltros ? quitarFiltros : undefined}
+          />
         )}
         {actual?.pagina && actual.pagina.items.length > 0 && (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {actual.pagina.items.map((e) => (
-              <EventoCard key={e.id} evento={e} />
+            {actual.pagina.items.map((e, i) => (
+              <EventoCard key={e.id} evento={e} indice={i} />
             ))}
           </div>
         )}
@@ -135,6 +170,6 @@ export default function Inicio() {
           />
         )}
       </div>
-    </main>
+    </Pagina>
   );
 }

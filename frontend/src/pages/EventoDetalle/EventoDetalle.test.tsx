@@ -28,6 +28,11 @@ const abrir = () =>
     ["/", <p>Página de inicio</p>],
   ]);
 const ruta = `${API}/events/${evento.id}`;
+const abrirMenu = async (user: ReturnType<typeof userEvent.setup>) =>
+  user.click(await screen.findByRole("button", { name: "Más acciones del evento" }));
+const abrirInscripciones = (user: ReturnType<typeof userEvent.setup> = userEvent.setup()) =>
+  screen.findByRole("tab", { name: "Inscripciones" }).then((t) => user.click(t));
+const opcion = (nombre: string) => screen.getByRole("menuitem", { name: nombre });
 const rutaSesiones = `${ruta}/sessions`;
 
 const estadisticas = {
@@ -193,31 +198,131 @@ describe("acciones según quién mira y el estado", () => {
 
   test("el dueño de un evento publicado ve solo las transiciones válidas", async () => {
     useSession.getState().iniciarSesion(dueno, "token", 3600);
-    servir();
+    servir(abierto);
+    const user = userEvent.setup();
     abrir();
 
     expect(await screen.findByRole("link", { name: "Editar" })).toHaveAttribute(
       "href",
       `/eventos/${evento.id}/editar`,
     );
-    expect(screen.getByRole("button", { name: "Despublicar" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Cancelar" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Eliminar" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Publicar" })).not.toBeInTheDocument();
+    // Un solo botón principal visible: el resto vive en el menú.
+    expect(screen.queryByRole("button", { name: "Despublicar" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Eliminar" })).not.toBeInTheDocument();
+    await abrirMenu(user);
+    expect(screen.getAllByRole("menuitem").map((i) => i.textContent)).toEqual([
+      "Inscribirme a mi evento",
+      "Despublicar",
+      "Cancelar evento",
+      "Eliminar",
+    ]);
+    // Lo destructivo queda al final, separado de lo cotidiano.
+    const separador = screen.getByRole("separator");
+    expect(separador.nextElementSibling).toHaveTextContent("Cancelar evento");
+  });
+
+  test("la fila del dueño tiene solo Editar y Más acciones del evento", async () => {
+    useSession.getState().iniciarSesion(dueno, "token", 3600);
+    servir(abierto);
+    abrir();
+
+    const fila = await screen.findByRole("group", { name: "Acciones del evento" });
+    const enlaces = within(fila).queryAllByRole("link");
+    const botones = within(fila).queryAllByRole("button");
+    expect(enlaces.map((e) => e.textContent)).toEqual(["Editar"]);
+    expect(botones.map((b) => b.getAttribute("aria-label"))).toEqual(["Más acciones del evento"]);
+    expect(screen.queryByRole("button", { name: "Inscribirme" })).not.toBeInTheDocument();
+  });
+
+  test("el dueño ya inscrito ve Cancelar mi inscripción en el menú, con el mismo diálogo y el aviso de reservas", async () => {
+    useSession.getState().iniciarSesion(dueno, "token", 3600);
+    servir({ ...abierto, is_registered: true, registered_count: 1, available_spots: 99 });
+    servirSesiones([{ ...sesion, is_reserved: true }]);
+    const user = userEvent.setup();
+    abrir();
+
+    await abrirMenu(user);
+    expect(screen.queryByRole("menuitem", { name: "Inscribirme a mi evento" })).toBeNull();
+    await user.click(opcion("Cancelar mi inscripción"));
+
+    const dialogo = screen.getByRole("alertdialog");
+    expect(dialogo).toHaveTextContent("Cancelar tu inscripción");
+    expect(dialogo).toHaveTextContent("También se cancelará tu reserva de sesión.");
+  });
+
+  test("un asistente ve solo Inscribirme, sin botones de dueño", async () => {
+    useSession.getState().iniciarSesion(usuario, "token", 3600);
+    servir(abierto);
+    abrir();
+
+    const fila = await screen.findByRole("group", { name: "Acciones del evento" });
+    expect(
+      within(fila)
+        .getAllByRole("button")
+        .map((b) => b.textContent),
+    ).toEqual(["Inscribirme"]);
+    expect(within(fila).queryByRole("link")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Más acciones del evento" })).toBeNull();
+  });
+
+  test("el chip de cupos va junto al estado y no en la fila de acciones", async () => {
+    useSession.getState().iniciarSesion(usuario, "token", 3600);
+    servir(abierto);
+    abrir();
+
+    const estado = await screen.findByRole("group", { name: "Estado del evento" });
+    expect(within(estado).getByText("Publicado")).toBeInTheDocument();
+    expect(within(estado).getByText("Quedan 100 cupos")).toBeInTheDocument();
+    const fila = screen.getByRole("group", { name: "Acciones del evento" });
+    expect(within(fila).queryByText(/Quedan/)).not.toBeInTheDocument();
+  });
+
+  test("el dueño y el admin ven las pestañas Sesiones e Inscripciones, con Sesiones por defecto", async () => {
+    for (const quien of [dueno, admin]) {
+      useSession.getState().iniciarSesion(quien, "token", 3600);
+      servir(abierto);
+      const user = userEvent.setup();
+      const { unmount } = abrir();
+
+      const pestanas = await screen.findAllByRole("tab");
+      expect(pestanas.map((t) => t.textContent)).toEqual(["Sesiones", "Inscripciones"]);
+      expect(screen.getByRole("tab", { name: "Sesiones" })).toHaveAttribute(
+        "aria-selected",
+        "true",
+      );
+      expect(screen.getByRole("region", { name: "Sesiones" })).toBeInTheDocument();
+      expect(screen.queryByRole("region", { name: "Inscripciones" })).not.toBeInTheDocument();
+
+      await abrirInscripciones(user);
+      expect(await screen.findByRole("region", { name: "Inscripciones" })).toBeInTheDocument();
+      unmount();
+    }
+  });
+
+  test("un asistente y un anónimo ven solo las sesiones, sin pestañas", async () => {
+    useSession.getState().iniciarSesion(usuario, "token", 3600);
+    servir(abierto);
+    abrir();
+
+    expect(await screen.findByRole("region", { name: "Sesiones" })).toBeInTheDocument();
+    expect(screen.queryByRole("tablist")).not.toBeInTheDocument();
   });
 
   test("el admin ve Publicar en un borrador, y en uno cancelado solo Eliminar", async () => {
     useSession.getState().iniciarSesion(admin, "token", 3600);
     servir({ ...evento, status: "DRAFT" });
+    const user = userEvent.setup();
     const { unmount } = abrir();
-    expect(await screen.findByRole("button", { name: "Publicar" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Despublicar" })).not.toBeInTheDocument();
+    await abrirMenu(user);
+    expect(opcion("Publicar")).toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: "Despublicar" })).not.toBeInTheDocument();
     unmount();
 
     servir({ ...evento, status: "CANCELLED" });
     abrir();
-    expect(await screen.findByRole("button", { name: "Eliminar" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Cancelar" })).not.toBeInTheDocument();
+    await abrirMenu(user);
+    expect(opcion("Eliminar")).toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: "Cancelar evento" })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Editar" })).not.toBeInTheDocument();
   });
 });
@@ -254,7 +359,8 @@ describe("ejecutar acciones", () => {
     const user = userEvent.setup();
     abrir();
 
-    await user.click(await screen.findByRole("button", { name: "Publicar" }));
+    await abrirMenu(user);
+    await user.click(opcion("Publicar"));
 
     expect(await screen.findByText("Publicaste el evento")).toBeInTheDocument();
     expect(screen.getByText("Publicado")).toBeInTheDocument();
@@ -277,13 +383,15 @@ describe("ejecutar acciones", () => {
     const user = userEvent.setup();
     abrir();
 
-    await user.click(await screen.findByRole("button", { name: "Cancelar" }));
+    await abrirMenu(user);
+    await user.click(opcion("Cancelar evento"));
     expect(screen.getByRole("alertdialog")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Volver" }));
     expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
     expect(llamadas).toBe(0);
 
-    await user.click(screen.getByRole("button", { name: "Cancelar" }));
+    await abrirMenu(user);
+    await user.click(opcion("Cancelar evento"));
     await user.click(screen.getByRole("button", { name: "Sí, cancelar el evento" }));
     expect(await screen.findByText("Cancelaste el evento")).toBeInTheDocument();
     expect(llamadas).toBe(1);
@@ -305,7 +413,8 @@ describe("ejecutar acciones", () => {
     const user = userEvent.setup();
     abrir();
 
-    await user.click(await screen.findByRole("button", { name: "Publicar" }));
+    await abrirMenu(user);
+    await user.click(opcion("Publicar"));
 
     expect(await screen.findByRole("alert")).toHaveTextContent("No se puede publicar este evento");
   });
@@ -317,7 +426,9 @@ describe("ejecutar acciones", () => {
     const user = userEvent.setup();
     abrir();
 
-    await user.click(await screen.findByRole("button", { name: "Eliminar" }));
+    await abrirMenu(user);
+    await user.click(opcion("Eliminar"));
+    expect(screen.getByRole("alertdialog")).toHaveTextContent("Eliminar el evento");
     await user.click(screen.getByRole("button", { name: "Sí, eliminar el evento" }));
 
     expect(await screen.findByText("Página de inicio")).toBeInTheDocument();
@@ -336,7 +447,8 @@ describe("ejecutar acciones", () => {
     const user = userEvent.setup();
     abrir();
 
-    await user.click(await screen.findByRole("button", { name: "Despublicar" }));
+    await abrirMenu(user);
+    await user.click(opcion("Despublicar"));
 
     expect(await screen.findByText("Despublicaste el evento")).toBeInTheDocument();
   });
@@ -432,6 +544,35 @@ describe("sección de sesiones", () => {
     expect(screen.queryByRole("button", { name: /sesión/ })).not.toBeInTheDocument();
   });
 
+  describe("sin sesiones", () => {
+    test("el dueño ve Agregar sesión y lo usa para abrir el formulario", async () => {
+      useSession.getState().iniciarSesion(dueno, "token", 3600);
+      servir();
+      servirSesiones([]);
+      const user = userEvent.setup();
+      abrir();
+
+      await screen.findByText("Este evento todavía no tiene sesiones");
+      await user.click(screen.getByRole("button", { name: "Agregar sesión" }));
+
+      expect(screen.getByRole("dialog", { name: "Agregar sesión" })).toBeInTheDocument();
+    });
+
+    test("un anónimo y un asistente ajeno no ven Agregar sesión", async () => {
+      servir();
+      servirSesiones([]);
+      const { unmount } = abrir();
+      await screen.findByText("Este evento todavía no tiene sesiones");
+      expect(screen.queryByRole("button", { name: "Agregar sesión" })).not.toBeInTheDocument();
+      unmount();
+
+      useSession.getState().iniciarSesion(usuario, "token", 3600);
+      abrir();
+      await screen.findByText("Este evento todavía no tiene sesiones");
+      expect(screen.queryByRole("button", { name: "Agregar sesión" })).not.toBeInTheDocument();
+    });
+  });
+
   test.each([
     ["el dueño", dueno],
     ["el admin", admin],
@@ -443,8 +584,10 @@ describe("sección de sesiones", () => {
     abrir();
 
     expect(await screen.findByRole("button", { name: "Agregar sesión" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Editar sesión Apertura" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Eliminar sesión Apertura" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Editar la sesión «Apertura»" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Eliminar la sesión «Apertura»" }),
+    ).toBeInTheDocument();
   });
 
   describe("eliminar una sesión", () => {
@@ -464,13 +607,15 @@ describe("sección de sesiones", () => {
       const user = userEvent.setup();
       abrir();
 
-      await user.click(await screen.findByRole("button", { name: "Eliminar sesión Apertura" }));
+      await user.click(
+        await screen.findByRole("button", { name: "Eliminar la sesión «Apertura»" }),
+      );
       expect(screen.getByRole("alertdialog")).toBeInTheDocument();
       await user.click(screen.getByRole("button", { name: "Volver" }));
       expect(llamadas).toBe(0);
 
       servirSesiones([]);
-      await user.click(screen.getByRole("button", { name: "Eliminar sesión Apertura" }));
+      await user.click(screen.getByRole("button", { name: "Eliminar la sesión «Apertura»" }));
       await user.click(screen.getByRole("button", { name: "Sí, eliminar la sesión" }));
 
       expect(await screen.findByText("Eliminaste la sesión")).toBeInTheDocument();
@@ -495,7 +640,9 @@ describe("sección de sesiones", () => {
       const user = userEvent.setup();
       abrir();
 
-      await user.click(await screen.findByRole("button", { name: "Eliminar sesión Apertura" }));
+      await user.click(
+        await screen.findByRole("button", { name: "Eliminar la sesión «Apertura»" }),
+      );
       await user.click(screen.getByRole("button", { name: "Sí, eliminar la sesión" }));
 
       expect(await screen.findByRole("alert")).toHaveTextContent(
@@ -550,7 +697,7 @@ describe("agregar y editar sesiones", () => {
     const user = userEvent.setup();
     abrir();
 
-    await user.click(await screen.findByRole("button", { name: "Editar sesión Apertura" }));
+    await user.click(await screen.findByRole("button", { name: "Editar la sesión «Apertura»" }));
     const dialogo = screen.getByRole("dialog", { name: "Editar sesión" });
     expect(within(dialogo).getByLabelText("Título")).toHaveValue("Apertura");
     await user.clear(within(dialogo).getByLabelText("Título"));
@@ -682,12 +829,14 @@ describe("botón de inscripción según la situación", () => {
     sinBotones();
   });
 
-  test("el dueño también puede inscribirse a su evento", async () => {
+  test("el dueño también puede inscribirse a su evento, desde el menú", async () => {
     useSession.getState().iniciarSesion(dueno, "token", 3600);
     servir(abierto);
+    const user = userEvent.setup();
     abrir();
 
-    expect(await screen.findByRole("button", { name: "Inscribirme" })).toBeEnabled();
+    await abrirMenu(user);
+    expect(opcion("Inscribirme a mi evento")).toBeEnabled();
   });
 });
 
@@ -758,7 +907,9 @@ describe("inscribirse", () => {
 
     expect(await screen.findByRole("alert")).toHaveTextContent("El evento no tiene cupos");
     expect(await screen.findByRole("button", { name: "Sin cupos" })).toBeDisabled();
-    expect(screen.getByText("Quedan 0 cupos")).toBeInTheDocument();
+    // El botón deshabilitado y el chip de cupos dicen lo mismo.
+    expect(screen.getAllByText("Sin cupos")).toHaveLength(2);
+    expect(screen.queryByText(/Quedan/)).not.toBeInTheDocument();
   });
 
   test("cualquier 409 refresca el evento", async () => {
@@ -886,6 +1037,7 @@ describe("panel de inscripciones del dueño", () => {
     servir();
     servirPanel({ active: 12, cancelled: 3, occupancy_pct: 12.5 });
     abrir();
+    await abrirInscripciones();
 
     const panel = await screen.findByRole("region", { name: "Inscripciones" });
     expect(await within(panel).findByText("12")).toBeInTheDocument();
@@ -907,6 +1059,7 @@ describe("panel de inscripciones del dueño", () => {
       { ...inscritoFila, full_name: null, email: "sin@nombre.com", status: "CANCELLED" },
     ]);
     abrir();
+    await abrirInscripciones();
 
     const tabla = await screen.findByRole("table", { name: "Lista de inscritos" });
     const filas = within(tabla).getAllByRole("row");
@@ -928,6 +1081,7 @@ describe("panel de inscripciones del dueño", () => {
       { ...inscritoFila, status: "CANCELLED", created_at: "2026-10-09T15:00:00Z" },
     ]);
     abrir();
+    await abrirInscripciones();
 
     const tabla = await screen.findByRole("table", { name: "Lista de inscritos" });
     expect(within(tabla).getAllByRole("row")).toHaveLength(3);
@@ -964,9 +1118,11 @@ describe("panel de inscripciones del dueño", () => {
     const user = userEvent.setup();
     abrir();
 
+    await abrirInscripciones(user);
     const panel = await screen.findByRole("region", { name: "Inscripciones" });
     expect(await within(panel).findByText("Todavía no hay inscritos")).toBeInTheDocument();
-    await user.click(await screen.findByRole("button", { name: "Inscribirme" }));
+    await abrirMenu(user);
+    await user.click(opcion("Inscribirme a mi evento"));
 
     expect(await within(panel).findByRole("table")).toHaveTextContent("luisa@mail.com");
     expect(within(panel).getByText("Inscrito").nextElementSibling).toHaveTextContent("1");
@@ -977,6 +1133,7 @@ describe("panel de inscripciones del dueño", () => {
     servir();
     abrir();
 
+    await abrirInscripciones();
     expect(await screen.findByRole("region", { name: "Inscripciones" })).toBeInTheDocument();
   });
 
@@ -985,6 +1142,7 @@ describe("panel de inscripciones del dueño", () => {
     servir();
     abrir();
 
+    await abrirInscripciones();
     expect(await screen.findByRole("region", { name: "Inscripciones" })).toBeInTheDocument();
     expect(await screen.findByRole("table", { name: "Lista de inscritos" })).toBeInTheDocument();
   });
@@ -1000,6 +1158,11 @@ describe("panel de inscripciones del dueño", () => {
     abrir();
 
     await screen.findByRole("heading", { name: "PyCon Bogotá" });
+    expect(screen.queryByRole("tablist")).not.toBeInTheDocument();
+    expect(screen.queryByRole("tab", { name: "Inscripciones" })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Más acciones del evento" }),
+    ).not.toBeInTheDocument();
     expect(screen.queryByRole("region", { name: "Inscripciones" })).not.toBeInTheDocument();
     expect(pedidos.stats).toBe(0);
     expect(pedidos.inscritos).toHaveLength(0);
@@ -1021,6 +1184,7 @@ describe("panel de inscripciones del dueño", () => {
     servir();
     servirPanel({ active: 0, cancelled: 0, occupancy_pct: 0 }, []);
     abrir();
+    await abrirInscripciones();
 
     expect(await screen.findByText("Todavía no hay inscritos")).toBeInTheDocument();
     expect(screen.queryByRole("table")).not.toBeInTheDocument();
@@ -1040,6 +1204,7 @@ describe("panel de inscripciones del dueño", () => {
       }),
     );
     abrir();
+    await abrirInscripciones();
 
     const panel = await screen.findByRole("region", { name: "Inscripciones" });
     expect(within(panel).getAllByRole("status", { name: "Cargando" })).toHaveLength(2);
@@ -1056,6 +1221,7 @@ describe("panel de inscripciones del dueño", () => {
       ),
     );
     abrir();
+    await abrirInscripciones();
 
     const panel = await screen.findByRole("region", { name: "Inscripciones" });
     expect(await within(panel).findByRole("alert")).toHaveTextContent("No tenés permiso");
@@ -1077,6 +1243,7 @@ describe("panel de inscripciones del dueño", () => {
       ),
     );
     abrir();
+    await abrirInscripciones();
 
     const panel = await screen.findByRole("region", { name: "Inscripciones" });
     expect(await within(panel).findByRole("alert")).toHaveTextContent("No podés ver los inscritos");
@@ -1091,6 +1258,7 @@ describe("panel de inscripciones del dueño", () => {
     const user = userEvent.setup();
     abrir();
 
+    await abrirInscripciones(user);
     await user.click(await screen.findByRole("button", { name: "Siguiente" }));
 
     await waitFor(() => expect(pedidos.inscritos.some((p) => p.get("page") === "2")).toBe(true));
@@ -1140,7 +1308,7 @@ describe("reservas de sesiones", () => {
   }
 
   /** Sirve las sesiones, y desde el segundo pedido las que devuelva `siguiente`. */
-  function servirLista(inicial: (typeof conLugar)[], siguiente?: () => (typeof conLugar)[]) {
+  function servirLista(inicial: (typeof sesion)[], siguiente?: () => (typeof sesion)[]) {
     const pedidos = { n: 0 };
     server.use(
       http.get(rutaSesiones, () => {
@@ -1342,21 +1510,83 @@ describe("reservas de sesiones", () => {
     });
   });
 
-  test("con un solo lugar en una sesión dice Queda 1 lugar", async () => {
+  test("con un solo lugar en una sesión el chip dice queda 1", async () => {
     useSession.getState().iniciarSesion(usuario, "token", 3600);
     servir(inscrito);
     servirLista([{ ...conLugar, reserved_count: 4, available_spots: 1 }]);
     abrir();
 
     const item = await fila("Taller de Pytest");
-    expect(item.getByText("Queda 1 lugar")).toBeInTheDocument();
+    expect(item.getByText("Últimos lugares · queda 1")).toBeInTheDocument();
+    expect(item.queryByText("Queda 1 lugar")).not.toBeInTheDocument();
+  });
+
+  test("una sesión con pocos lugares muestra el chip Últimos lugares", async () => {
+    useSession.getState().iniciarSesion(usuario, "token", 3600);
+    servir(inscrito);
+    servirLista([{ ...conLugar, capacity: 20, reserved_count: 18, available_spots: 2 }]);
+    abrir();
+
+    const item = await fila("Taller de Pytest");
+    expect(item.getByText("Últimos lugares · quedan 2")).toBeInTheDocument();
+  });
+
+  test("una sesión con lugares de sobra no muestra el chip Últimos lugares", async () => {
+    useSession.getState().iniciarSesion(usuario, "token", 3600);
+    servir(inscrito);
+    servirLista([{ ...conLugar, capacity: 20, reserved_count: 10, available_spots: 10 }]);
+    abrir();
+
+    const item = await fila("Taller de Pytest");
+    expect(item.queryByText(/Últimos lugares/)).not.toBeInTheDocument();
+  });
+
+  test("una sesión sin capacidad propia usa lo reservado más lo que queda: Últimos lugares", async () => {
+    useSession.getState().iniciarSesion(usuario, "token", 3600);
+    servir(inscrito);
+    servirLista([{ ...conLugar, capacity: null, reserved_count: 95, available_spots: 5 }]);
+    abrir();
+
+    const item = await fila("Taller de Pytest");
+    expect(item.getByText("Últimos lugares · quedan 5")).toBeInTheDocument();
+  });
+
+  test("el evento con pocos cupos muestra el chip Últimos lugares", async () => {
+    servir({ ...abierto, capacity: 100, available_spots: 5 });
+    abrir();
+
+    expect(await screen.findByText("Últimos lugares · quedan 5")).toBeInTheDocument();
+    expect(screen.queryByText(/Quedan 5 cupos/)).not.toBeInTheDocument();
+  });
+
+  test.each([
+    ["cancelado", { status: "CANCELLED" as const }],
+    ["finalizado", { is_finished: true }],
+    ["en borrador", { status: "DRAFT" as const }],
+  ])(
+    "un evento %s con pocos cupos no muestra el chip de disponibilidad",
+    async (_estado, cambio) => {
+      servir({ ...abierto, capacity: 100, available_spots: 5, ...cambio });
+      abrir();
+
+      await screen.findByRole("heading", { name: "PyCon Bogotá" });
+      expect(screen.queryByText(/Últimos lugares/)).not.toBeInTheDocument();
+    },
+  );
+
+  test("un evento finalizado sin cupos no muestra el chip Sin cupos", async () => {
+    servir({ ...abierto, capacity: 100, available_spots: 0, is_finished: true });
+    abrir();
+
+    await screen.findByRole("heading", { name: "PyCon Bogotá" });
+    expect(screen.queryByText("Sin cupos")).not.toBeInTheDocument();
   });
 
   test("con un solo cupo en el evento dice Queda 1 cupo", async () => {
     servir({ ...abierto, available_spots: 1 });
     abrir();
 
-    expect(await screen.findByText("Queda 1 cupo")).toBeInTheDocument();
+    expect(await screen.findByText("Últimos lugares · queda 1")).toBeInTheDocument();
   });
 
   describe("cancelar la inscripción con reservas", () => {

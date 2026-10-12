@@ -6,12 +6,13 @@ import { formatearFecha } from "../lib/fechas";
 import { palabra } from "../lib/plural";
 import { AlertaError } from "./ui/AlertaError";
 import { BarraProgreso } from "./ui/BarraProgreso";
-import { Insignia } from "./ui/Insignia";
+import { Chip } from "./ui/Chip";
 import { Cifra } from "./ui/Cifra";
 import { Lista } from "./ui/Lista";
 import { Paginacion } from "./ui/Paginacion";
 import { Spinner } from "./ui/Spinner";
 import { Tabla } from "./ui/Tabla";
+import { Tarjeta } from "./ui/Tarjeta";
 import { TextoSecundario } from "./ui/TextoSecundario";
 import { TituloSeccion } from "./ui/TituloSeccion";
 
@@ -68,7 +69,7 @@ function Estadisticas({ eventoId, version }: { eventoId: string; version: number
   if (stats.error || !stats.datos) return <AlertaError title={stats.error ?? ""} />;
   const { active, cancelled, occupancy_pct, sessions } = stats.datos;
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex flex-col gap-4">
       <dl className="grid grid-cols-3 gap-4">
         <Cifra etiqueta={palabra(active, "Inscrito", "Inscritos")}>{active}</Cifra>
         <Cifra etiqueta={palabra(cancelled, "Cancelado", "Cancelados")}>{cancelled}</Cifra>
@@ -80,7 +81,7 @@ function Estadisticas({ eventoId, version }: { eventoId: string; version: number
           <TextoSecundario>Ocupación por sesión</TextoSecundario>
           <Lista etiqueta="Sesiones">
             {sessions.map((s) => (
-              <li key={s.id} className="flex flex-col gap-1">
+              <li key={s.id} className="flex flex-col gap-2">
                 <span>
                   {s.title}: {s.reserved} / {s.capacity}
                 </span>
@@ -112,9 +113,9 @@ function ListaInscritos({ eventoId, version }: { eventoId: string; version: numb
           celdas: [
             i.full_name ?? "—",
             i.email,
-            <Insignia key="estado" tono={ESTADOS[i.status].tono}>
+            <Chip key="estado" tono={ESTADOS[i.status].tono}>
               {ESTADOS[i.status].texto}
-            </Insignia>,
+            </Chip>,
             <time key="fecha" dateTime={i.created_at}>
               {formatearFecha(i.created_at)}
             </time>,
@@ -132,10 +133,10 @@ function ListaInscritos({ eventoId, version }: { eventoId: string; version: numb
  */
 export function PanelInscripciones({ eventoId, version }: { eventoId: string; version: number }) {
   return (
-    <section aria-labelledby="titulo-inscripciones" className="mt-4 flex flex-col gap-4">
+    <Tarjeta as="section" aria-labelledby="titulo-inscripciones">
       <TituloSeccion id="titulo-inscripciones">Inscripciones</TituloSeccion>
       <Estadisticas eventoId={eventoId} version={version} />
       <ListaInscritos eventoId={eventoId} version={version} />
-    </section>
+    </Tarjeta>
   );
 }

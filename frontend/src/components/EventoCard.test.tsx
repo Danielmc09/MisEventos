@@ -1,6 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import type { components } from "../api/schema";
+import { claseGradiente } from "../lib/gradiente";
 import { evento } from "../test/helpers";
 import { EventoCard } from "./EventoCard";
 
@@ -17,7 +18,7 @@ const montar = (e = evento) =>
 test("muestra la fecha en hora de Bogotá, no en UTC", () => {
   montar({ ...evento, start_at: "2026-10-11T01:30:00Z" });
 
-  const fecha = screen.getByText(/oct/i);
+  const fecha = screen.getByText(/10 de oct de 2026/i);
   expect(fecha).toHaveTextContent(/10 de oct de 2026/i);
   expect(fecha).toHaveTextContent(/8:30/);
   expect(fecha).toHaveAttribute("datetime", "2026-10-11T01:30:00Z");
@@ -56,15 +57,94 @@ test("un evento publicado que ya empezó muestra En curso", () => {
 });
 
 test("muestra cuántos cupos quedan", () => {
-  montar({ ...evento, available_spots: 7 });
+  montar({ ...evento, available_spots: 40 });
 
-  expect(screen.getByText("Quedan 7 cupos")).toBeInTheDocument();
+  expect(screen.getByText("Quedan 40 cupos")).toBeInTheDocument();
 });
 
-test("con un solo cupo habla en singular", () => {
+test("con un solo cupo dice que son los últimos lugares", () => {
   montar({ ...evento, available_spots: 1 });
 
-  expect(screen.getByText("Queda 1 cupo")).toBeInTheDocument();
+  expect(screen.getByText("Últimos lugares · queda 1")).toBeInTheDocument();
+});
+
+test("sin cupos hay un solo chip de cupos: Sin cupos", () => {
+  montar({ ...evento, available_spots: 0 });
+
+  expect(screen.getByText("Sin cupos")).toBeInTheDocument();
+  expect(screen.queryByText(/Quedan/)).not.toBeInTheDocument();
+});
+
+test("con 10 cupos libres de 100 muestra un solo chip: Últimos lugares", () => {
+  montar({ ...evento, capacity: 100, available_spots: 10 });
+
+  expect(screen.getByText("Últimos lugares · quedan 10")).toBeInTheDocument();
+  expect(screen.queryByText(/cupos/)).not.toBeInTheDocument();
+});
+
+test("con 11 cupos libres de 100 es el caso normal", () => {
+  montar({ ...evento, capacity: 100, available_spots: 11 });
+
+  expect(screen.getByText("Quedan 11 cupos")).toBeInTheDocument();
+  expect(screen.queryByText(/Últimos lugares/)).not.toBeInTheDocument();
+});
+
+test.each([
+  ["cancelado", { status: "CANCELLED" as const }],
+  ["finalizado", { is_finished: true }],
+])("un evento %s no muestra ningún chip de cupos", (_estado, cambio) => {
+  montar({ ...evento, capacity: 100, available_spots: 5, start_at: manana, ...cambio });
+
+  expect(screen.queryByText(/Últimos lugares|cupos/)).not.toBeInTheDocument();
+});
+
+test("un borrador muestra cuántos cupos quedan, sin Últimos lugares", () => {
+  montar({ ...evento, status: "DRAFT", capacity: 100, available_spots: 5, start_at: manana });
+
+  expect(screen.getByText("Quedan 5 cupos")).toBeInTheDocument();
+  expect(screen.queryByText(/Últimos lugares/)).not.toBeInTheDocument();
+});
+
+test("un evento finalizado sin cupos no muestra el chip Sin cupos", () => {
+  montar({ ...evento, available_spots: 0, is_finished: true, start_at: manana });
+
+  expect(screen.queryByText("Sin cupos")).not.toBeInTheDocument();
+});
+
+test("la tarjeta tiene un solo enlace, y es el del título", () => {
+  montar();
+
+  expect(screen.getAllByRole("link")).toHaveLength(1);
+  expect(screen.getByRole("heading", { name: "PyCon Bogotá" })).toContainElement(
+    screen.getByRole("link", { name: "PyCon Bogotá" }),
+  );
+  expect(screen.getByRole("link")).toHaveClass("after:inset-0");
+});
+
+test("el bloque de fecha muestra el día y el mes de Bogotá", () => {
+  montar({ ...evento, start_at: "2026-10-11T01:30:00Z" });
+
+  expect(screen.getByText("10")).toBeInTheDocument();
+  expect(screen.getByText("Oct")).toBeInTheDocument();
+});
+
+test("la franja usa el gradiente que corresponde al nombre", () => {
+  montar();
+
+  expect(screen.getByRole("article").innerHTML).toContain(claseGradiente("PyCon Bogotá"));
+  expect(claseGradiente("PyCon Bogotá")).not.toBe("");
+});
+
+test("lo que recibe como hijo queda dentro de la tarjeta", () => {
+  render(
+    <MemoryRouter>
+      <EventoCard evento={evento}>
+        <p>Detalle extra</p>
+      </EventoCard>
+    </MemoryRouter>,
+  );
+
+  expect(screen.getByRole("article")).toContainElement(screen.getByText("Detalle extra"));
 });
 
 describe("con el resumen del evento (sin cupos)", () => {

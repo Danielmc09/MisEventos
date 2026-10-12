@@ -1,10 +1,14 @@
 import { useState, type FormEvent } from "react";
-import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { api } from "../../api/client";
 import type { components } from "../../api/schema";
 import { AlertaError } from "../../components/ui/AlertaError";
 import { Button } from "../../components/ui/Button";
+import { Enlace } from "../../components/ui/Enlace";
+import { Formulario, GrupoCampos } from "../../components/ui/Formulario";
 import { Input } from "../../components/ui/Input";
+import { Pagina, TituloPagina } from "../../components/ui/Pagina";
+import { Tarjeta } from "../../components/ui/Tarjeta";
 import { errorDeFormulario, type ErrorDeFormulario } from "../../lib/errores";
 import { conservarNext, rutaSegura } from "../../lib/next";
 import { useSession } from "../../stores/session";
@@ -46,35 +50,35 @@ export default function Login() {
   }
 
   return (
-    <main className="mx-auto max-w-md p-6">
-      <h1 className="text-2xl font-bold">Iniciar sesión</h1>
-      <form onSubmit={enviar} className="mt-4 flex flex-col gap-4">
-        <Input
-          label="Correo electrónico"
-          name="username"
-          type="email"
-          autoComplete="email"
-          required
-          error={error?.campos.username}
-        />
-        <Input
-          label="Contraseña"
-          name="password"
-          type="password"
-          autoComplete="current-password"
-          required
-          error={error?.campos.password}
-        />
-        {error?.general && <AlertaError title={error.general} />}
-        <Button type="submit" loading={enviando}>
-          Iniciar sesión
-        </Button>
-      </form>
-      <p className="mt-4 text-sm">
-        <Link to={`/registro${conservarNext(next)}`} className="text-indigo-700 underline">
-          ¿No tenés cuenta? Registrate
-        </Link>
-      </p>
-    </main>
+    <Pagina ancho="angosto">
+      <TituloPagina>Iniciar sesión</TituloPagina>
+      <Tarjeta as="div">
+        <Formulario onSubmit={enviar}>
+          <GrupoCampos>
+            <Input
+              label="Correo electrónico"
+              name="username"
+              type="email"
+              autoComplete="email"
+              required
+              error={error?.campos.username}
+            />
+            <Input
+              label="Contraseña"
+              name="password"
+              type="password"
+              autoComplete="current-password"
+              required
+              error={error?.campos.password}
+            />
+          </GrupoCampos>
+          {error?.general && <AlertaError title={error.general} />}
+          <Button type="submit" loading={enviando}>
+            Iniciar sesión
+          </Button>
+        </Formulario>
+        <Enlace to={`/registro${conservarNext(next)}`}>¿No tenés cuenta? Registrate</Enlace>
+      </Tarjeta>
+    </Pagina>
   );
 }

@@ -1,45 +1,59 @@
-import { Link } from "react-router-dom";
 import { useCerrarSesion } from "../lib/useCerrarSesion";
 import { useSesionVigente, useSession, useTienePermiso } from "../stores/session";
-
-const enlace = "text-indigo-700 hover:underline";
+import { Enlace } from "./ui/Enlace";
+import { MenuAcciones, type ItemMenu } from "./ui/MenuAcciones";
 
 export function Encabezado() {
   const user = useSession((s) => s.user);
   const puedeCrear = useTienePermiso("evento:crear");
   const vigente = useSesionVigente();
   const cerrarSesion = useCerrarSesion();
+  const nombre = user && (user.full_name || user.email);
+  const sesion = !!user && vigente;
+
+  const itemsCuenta: ItemMenu[] = [
+    { texto: "Mi perfil", to: "/perfil" },
+    { texto: "Cerrar sesión", onSelect: cerrarSesion, separado: true },
+  ];
+
   return (
-    <header className="border-b border-gray-200">
+    <header className="bg-panel shadow-tarjeta">
+      {/* Siempre en una línea y de 4 rem: los avisos arrancan justo debajo. */}
       <nav
         aria-label="Principal"
-        className="mx-auto flex max-w-3xl flex-wrap items-center gap-x-4 gap-y-1 px-4 py-2"
+        className="mx-auto flex h-16 max-w-6xl flex-nowrap items-center gap-x-4 px-4 md:px-6"
       >
-        <Link to="/" className="mr-auto font-bold">
-          Mis Eventos
-        </Link>
-        {user && vigente ? (
+        <div className="mr-auto min-w-0 shrink-0">
+          <Enlace to="/" variante="marca">
+            Mis Eventos
+          </Enlace>
+        </div>
+        {sesion ? (
           <>
             {puedeCrear && (
-              <Link to="/eventos/nuevo" className={enlace}>
+              <Enlace to="/eventos/nuevo" variante="navegacion">
                 Crear evento
-              </Link>
+              </Enlace>
             )}
-            <Link to="/perfil" className={`${enlace} max-w-full truncate`}>
-              {user.full_name || user.email}
-            </Link>
-            <button type="button" onClick={cerrarSesion} className={enlace}>
-              Cerrar sesión
-            </button>
+            <MenuAcciones
+              etiqueta="Menú de la cuenta"
+              variante="circulo"
+              alinear="fin"
+              titulo={nombre ?? undefined}
+              subtitulo={user.full_name ? user.email : undefined}
+              items={itemsCuenta}
+            >
+              {(nombre ?? "?").charAt(0).toLocaleUpperCase("es")}
+            </MenuAcciones>
           </>
         ) : (
           <>
-            <Link to="/login" className={enlace}>
-              Iniciar sesión
-            </Link>
-            <Link to="/registro" className={enlace}>
+            <Enlace to="/login" variante="navegacion">
+              Ingresar
+            </Enlace>
+            <Enlace to="/registro" variante="navegacionOpcional">
               Registrarse
-            </Link>
+            </Enlace>
           </>
         )}
       </nav>
