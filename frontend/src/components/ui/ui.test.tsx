@@ -99,6 +99,17 @@ describe("Input", () => {
     expect(campo).not.toHaveAttribute("aria-describedby");
   });
 
+  test("conserva el aria-describedby que le pasan", () => {
+    render(
+      <>
+        <Input label="Correo" aria-describedby="ayuda" />
+        <p id="ayuda">Usá el correo de trabajo</p>
+      </>,
+    );
+
+    expect(screen.getByLabelText("Correo")).toHaveAccessibleDescription("Usá el correo de trabajo");
+  });
+
   test("conserva el id que le pasan", () => {
     render(<Input label="Correo" id="correo" error="Falta" />);
 

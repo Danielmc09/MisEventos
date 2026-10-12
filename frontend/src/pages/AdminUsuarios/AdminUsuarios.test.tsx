@@ -68,19 +68,27 @@ function servirUsuarios(items: UsuarioAdmin[] = [adminFila, beto]) {
   return pedidos;
 }
 
-function servirPatch(respuesta: "ok" | "last-admin" = "ok") {
+type ErrorPatch = "email-taken" | "last-admin" | "cannot-modify-self";
+const TITULOS: Record<ErrorPatch, string> = {
+  "email-taken": "Ese correo ya está registrado",
+  "last-admin": "Tiene que quedar al menos un administrador activo",
+  "cannot-modify-self": "No podés cambiar tu propio rol ni tu estado",
+};
+
+function servirPatch(error?: ErrorPatch, base: UsuarioAdmin = beto) {
   const cuerpos: Record<string, unknown>[] = [];
   server.use(
     http.patch(`${API}/admin/users/:id`, async ({ request }) => {
-      cuerpos.push((await request.json()) as Record<string, unknown>);
-      if (respuesta === "last-admin")
+      const cuerpo = (await request.json()) as Record<string, unknown>;
+      cuerpos.push(cuerpo);
+      if (error)
         return responder("/admin/users/{id_usuario}", "patch", 409, {
-          type: "last-admin",
-          title: "Tiene que quedar al menos un administrador activo",
+          type: error,
+          title: TITULOS[error],
           status: 409,
           trace_id: "t-1",
         });
-      return responder("/admin/users/{id_usuario}", "patch", 200, beto);
+      return responder("/admin/users/{id_usuario}", "patch", 200, { ...base, ...cuerpo });
     }),
   );
   return cuerpos;
@@ -141,50 +149,19 @@ describe("tabla", () => {
     expect(filaBeto).toHaveTextContent("Beto");
     expect(filaBeto).toHaveTextContent("Activo");
     expect(filaBeto).toHaveTextContent("2");
-    expect(within(filaBeto).getByRole("combobox", { name: "Rol de Beto" })).toHaveValue("ATTENDEE");
+    expect(filaBeto).toHaveTextContent("Asistente");
+    expect(within(filaBeto).getByRole("button", { name: "Editar a Beto" })).toBeInTheDocument();
+    expect(within(filaBeto).queryByRole("combobox")).not.toBeInTheDocument();
   });
 
-  test("en su propia fila el admin no ve las acciones de rol ni de desactivar", async () => {
+  test("cada fila ofrece un único botón Editar, también la propia", async () => {
     entrarComo(admin);
     servirUsuarios();
     montarAdmin();
     const propia = (await screen.findByText("admin@mail.com")).closest("tr") as HTMLElement;
-    expect(within(propia).queryByRole("combobox")).not.toBeInTheDocument();
-    expect(within(propia).queryByRole("button", { name: /Desactivar/ })).not.toBeInTheDocument();
-    expect(within(propia).getByRole("button", { name: /Editar nombre/ })).toBeInTheDocument();
-  });
-
-  test("el rol de cada fila se nombra con aria-label, sin texto visible", async () => {
-    entrarComo(admin);
-    servirUsuarios();
-    montarAdmin();
-    const filaBeto = (await screen.findByText("beto@mail.com")).closest("tr") as HTMLElement;
-    expect(within(filaBeto).getByRole("combobox", { name: "Rol de Beto" })).toHaveAttribute(
-      "aria-label",
-      "Rol de Beto",
-    );
-    expect(within(filaBeto).queryByText("Rol de Beto")).not.toBeInTheDocument();
-  });
-
-  test("los botones de cada fila van uno al lado del otro, sin saltar de línea", async () => {
-    entrarComo(admin);
-    servirUsuarios();
-    montarAdmin();
-    const editar = await screen.findByRole("button", { name: "Editar nombre de Beto" });
-    const desactivar = screen.getByRole("button", { name: "Desactivar a Beto" });
-    expect(editar.parentElement).toBe(desactivar.parentElement);
-    expect(editar.parentElement).toHaveClass("flex");
-    expect(editar.parentElement).not.toHaveClass("flex-wrap");
-  });
-
-  test("Desactivar usa la variante de peligro y Reactivar no", async () => {
-    entrarComo(admin);
-    servirUsuarios([adminFila, beto, fila({ id: "u-2", full_name: "Cata", is_active: false })]);
-    montarAdmin();
-    expect(await screen.findByRole("button", { name: "Desactivar a Beto" })).toHaveClass(
-      "bg-error",
-    );
-    expect(screen.getByRole("button", { name: "Reactivar a Cata" })).not.toHaveClass("bg-error");
+    expect(within(propia).getByRole("button", { name: "Editar a Admin" })).toBeInTheDocument();
+    expect(within(propia).getAllByRole("button")).toHaveLength(1);
+    expect(screen.queryByRole("button", { name: /Desactivar|Reactivar/ })).not.toBeInTheDocument();
   });
 
   test("el buscador espera 300 ms y manda q; los filtros mandan role e is_active", async () => {
@@ -290,83 +267,59 @@ describe("pestañas", () => {
   });
 });
 
-describe("acciones", () => {
-  test("cambiar el rol pide confirmación y sin confirmar no llama a la API", async () => {
+describe("formulario de edición", () => {
+  const abrir = async (user: ReturnType<typeof userEvent.setup>, nombre = "Beto") => {
+    await user.click(await screen.findByRole("button", { name: `Editar a ${nombre}` }));
+    return within(screen.getByRole("dialog", { name: `Editar a ${nombre}` }));
+  };
+  const confirmacion = () => within(screen.getByRole("alertdialog"));
+
+  test("abre con los datos de la fila", async () => {
+    entrarComo(admin);
+    servirUsuarios();
+    const user = userEvent.setup();
+    montarAdmin();
+
+    const form = await abrir(user);
+
+    expect(form.getByRole("textbox", { name: "Nombre" })).toHaveValue("Beto");
+    expect(form.getByRole("textbox", { name: "Correo" })).toHaveValue("beto@mail.com");
+    expect(form.getByRole("combobox", { name: "Rol" })).toHaveValue("ATTENDEE");
+    expect(form.getByRole("combobox", { name: "Estado" })).toHaveValue("true");
+  });
+
+  test("manda solo lo que cambió y avisa", async () => {
     entrarComo(admin);
     servirUsuarios();
     const cuerpos = servirPatch();
     const user = userEvent.setup();
     montarAdmin();
 
-    await user.selectOptions(
-      await screen.findByRole("combobox", { name: "Rol de Beto" }),
-      "ORGANIZER",
-    );
-    await user.click(
-      within(screen.getByRole("alertdialog")).getByRole("button", { name: "Volver" }),
-    );
-    expect(cuerpos).toHaveLength(0);
-
-    await user.selectOptions(screen.getByRole("combobox", { name: "Rol de Beto" }), "ORGANIZER");
-    await user.click(
-      within(screen.getByRole("alertdialog")).getByRole("button", { name: "Cambiar rol" }),
-    );
-    expect(await screen.findByText("Cambiaste el rol de Beto")).toBeInTheDocument();
-    expect(cuerpos).toEqual([{ role: "ORGANIZER" }]);
-  });
-
-  test("desactivar avisa que se cierra su sesión, pide confirmación y manda is_active", async () => {
-    entrarComo(admin);
-    servirUsuarios();
-    const cuerpos = servirPatch();
-    const user = userEvent.setup();
-    montarAdmin();
-
-    await user.click(await screen.findByRole("button", { name: "Desactivar a Beto" }));
-    const dialogo = screen.getByRole("alertdialog");
-    expect(dialogo).toHaveTextContent("¿Desactivar a Beto?");
-    expect(dialogo).toHaveTextContent("No va a poder iniciar sesión.");
-    await user.click(within(dialogo).getByRole("button", { name: "Volver" }));
-    expect(cuerpos).toHaveLength(0);
-
-    await user.click(screen.getByRole("button", { name: "Desactivar a Beto" }));
-    await user.click(
-      within(screen.getByRole("alertdialog")).getByRole("button", { name: "Sí, desactivar" }),
-    );
-    expect(await screen.findByText("Desactivaste a Beto")).toBeInTheDocument();
-    expect(cuerpos).toEqual([{ is_active: false }]);
-  });
-
-  test("un 409 last-admin muestra su title", async () => {
-    entrarComo(admin);
-    servirUsuarios();
-    servirPatch("last-admin");
-    const user = userEvent.setup();
-    montarAdmin();
-
-    await user.click(await screen.findByRole("button", { name: "Desactivar a Beto" }));
-    await user.click(
-      within(screen.getByRole("alertdialog")).getByRole("button", { name: "Sí, desactivar" }),
-    );
-    expect(
-      await screen.findByText("Tiene que quedar al menos un administrador activo"),
-    ).toBeInTheDocument();
-  });
-
-  test("editar el nombre manda solo full_name", async () => {
-    entrarComo(admin);
-    servirUsuarios();
-    const cuerpos = servirPatch();
-    const user = userEvent.setup();
-    montarAdmin();
-
-    await user.click(await screen.findByRole("button", { name: "Editar nombre de Beto" }));
-    const campo = screen.getByRole("textbox", { name: "Nombre" });
+    const form = await abrir(user);
+    const campo = form.getByRole("textbox", { name: "Nombre" });
     await user.clear(campo);
     await user.type(campo, "Alberto");
-    await user.click(screen.getByRole("button", { name: "Guardar" }));
-    expect(await screen.findByText("Guardaste el nombre")).toBeInTheDocument();
+    await user.click(form.getByRole("button", { name: "Guardar" }));
+
+    expect(await screen.findByText("Guardaste los cambios de Alberto")).toBeInTheDocument();
     expect(cuerpos).toEqual([{ full_name: "Alberto" }]);
+  });
+
+  test("cambiar el correo manda solo email", async () => {
+    entrarComo(admin);
+    servirUsuarios();
+    const cuerpos = servirPatch();
+    const user = userEvent.setup();
+    montarAdmin();
+
+    const form = await abrir(user);
+    const campo = form.getByRole("textbox", { name: "Correo" });
+    await user.clear(campo);
+    await user.type(campo, "nuevo@mail.com");
+    await user.click(form.getByRole("button", { name: "Guardar" }));
+
+    await screen.findByText("Guardaste los cambios de Beto");
+    expect(cuerpos).toEqual([{ email: "nuevo@mail.com" }]);
   });
 
   test("un nombre vacío marca el campo con aria-invalid y no llama a la API", async () => {
@@ -376,51 +329,163 @@ describe("acciones", () => {
     const user = userEvent.setup();
     montarAdmin();
 
-    await user.click(await screen.findByRole("button", { name: "Editar nombre de Beto" }));
-    await user.clear(screen.getByRole("textbox", { name: "Nombre" }));
-    await user.click(screen.getByRole("button", { name: "Guardar" }));
-    expect(screen.getByRole("textbox", { name: "Nombre" })).toHaveAttribute("aria-invalid", "true");
+    const form = await abrir(user);
+    await user.clear(form.getByRole("textbox", { name: "Nombre" }));
+    await user.click(form.getByRole("button", { name: "Guardar" }));
+
+    expect(form.getByRole("textbox", { name: "Nombre" })).toHaveAttribute("aria-invalid", "true");
     expect(cuerpos).toHaveLength(0);
   });
 
-  test("reactivar pide confirmación, manda is_active true y avisa", async () => {
+  test("en la propia fila rol y estado están deshabilitados y dicen por qué", async () => {
     entrarComo(admin);
-    servirUsuarios([adminFila, fila({ is_active: false })]);
-    const cuerpos = servirPatch();
+    servirUsuarios();
     const user = userEvent.setup();
     montarAdmin();
 
-    await user.click(await screen.findByRole("button", { name: "Reactivar a Beto" }));
-    await user.click(
-      within(screen.getByRole("alertdialog")).getByRole("button", { name: "Reactivar" }),
-    );
-    expect(await screen.findByText("Reactivaste a Beto")).toBeInTheDocument();
-    expect(cuerpos).toEqual([{ is_active: true }]);
+    const form = await abrir(user, "Admin");
+
+    const aviso = "No podés cambiar tu propio rol ni tu estado";
+    expect(form.getByText(aviso)).toBeVisible();
+    for (const nombre of ["Rol", "Estado"]) {
+      const campo = form.getByRole("combobox", { name: nombre });
+      expect(campo).toBeDisabled();
+      expect(campo).toHaveAccessibleDescription(aviso);
+    }
+    expect(form.getByRole("textbox", { name: "Nombre" })).toBeEnabled();
+    expect(form.getByRole("textbox", { name: "Correo" })).toBeEnabled();
   });
 
   test("al editar su propio nombre, el encabezado muestra el nombre nuevo", async () => {
     entrarComo(admin);
     servirUsuarios();
-    server.use(
-      http.patch(`${API}/admin/users/:id`, async ({ request }) => {
-        const { full_name } = (await request.json()) as { full_name: string };
-        return responder("/admin/users/{id_usuario}", "patch", 200, { ...adminFila, full_name });
-      }),
-    );
+    const cuerpos = servirPatch(undefined, adminFila);
     const user = userEvent.setup();
     montarAdmin();
 
-    await user.click(await screen.findByRole("button", { name: "Editar nombre de Admin" }));
-    const campo = screen.getByRole("textbox", { name: "Nombre" });
+    const form = await abrir(user, "Admin");
+    const campo = form.getByRole("textbox", { name: "Nombre" });
     await user.clear(campo);
     await user.type(campo, "Administradora");
-    await user.click(screen.getByRole("button", { name: "Guardar" }));
+    await user.click(form.getByRole("button", { name: "Guardar" }));
 
     expect(await screen.findByRole("link", { name: "Administradora" })).toHaveAttribute(
       "href",
       "/perfil",
     );
     expect(useSession.getState().user?.full_name).toBe("Administradora");
+    expect(cuerpos).toEqual([{ full_name: "Administradora" }]);
+  });
+
+  test("email-taken marca el campo correo con aria-invalid y su title", async () => {
+    entrarComo(admin);
+    servirUsuarios();
+    servirPatch("email-taken");
+    const user = userEvent.setup();
+    montarAdmin();
+
+    const form = await abrir(user);
+    const campo = form.getByRole("textbox", { name: "Correo" });
+    await user.clear(campo);
+    await user.type(campo, "ocupado@mail.com");
+    await user.click(form.getByRole("button", { name: "Guardar" }));
+
+    await waitFor(() => expect(campo).toHaveAttribute("aria-invalid", "true"));
+    expect(campo).toHaveAccessibleDescription(TITULOS["email-taken"]);
+    expect(screen.queryByText("Guardaste los cambios de Beto")).not.toBeInTheDocument();
+  });
+
+  test("cannot-modify-self muestra su title en el formulario", async () => {
+    entrarComo(admin);
+    servirUsuarios();
+    servirPatch("cannot-modify-self");
+    const user = userEvent.setup();
+    montarAdmin();
+
+    const form = await abrir(user, "Admin");
+    await user.type(form.getByRole("textbox", { name: "Nombre" }), "x");
+    await user.click(form.getByRole("button", { name: "Guardar" }));
+
+    expect(await form.findByRole("alert")).toHaveTextContent(TITULOS["cannot-modify-self"]);
+  });
+
+  test("cambiar el rol pide confirmación y sin confirmar no llama a la API", async () => {
+    entrarComo(admin);
+    servirUsuarios();
+    const cuerpos = servirPatch();
+    const user = userEvent.setup();
+    montarAdmin();
+
+    const form = await abrir(user);
+    await user.selectOptions(form.getByRole("combobox", { name: "Rol" }), "ORGANIZER");
+    await user.click(form.getByRole("button", { name: "Guardar" }));
+    expect(screen.getByRole("alertdialog")).toHaveTextContent("¿Cambiar el rol de Beto?");
+    await user.click(confirmacion().getByRole("button", { name: "Volver" }));
+    expect(cuerpos).toHaveLength(0);
+
+    await user.click(form.getByRole("button", { name: "Guardar" }));
+    await user.click(confirmacion().getByRole("button", { name: "Cambiar rol" }));
+
+    expect(await screen.findByText("Guardaste los cambios de Beto")).toBeInTheDocument();
+    expect(cuerpos).toEqual([{ role: "ORGANIZER" }]);
+  });
+
+  test("desactivar pide confirmación con su texto y manda is_active false", async () => {
+    entrarComo(admin);
+    servirUsuarios();
+    const cuerpos = servirPatch();
+    const user = userEvent.setup();
+    montarAdmin();
+
+    const form = await abrir(user);
+    await user.selectOptions(form.getByRole("combobox", { name: "Estado" }), "false");
+    await user.click(form.getByRole("button", { name: "Guardar" }));
+    const dialogo = screen.getByRole("alertdialog");
+    expect(dialogo).toHaveTextContent("¿Desactivar a Beto?");
+    expect(dialogo).toHaveTextContent("No va a poder iniciar sesión.");
+    await user.click(within(dialogo).getByRole("button", { name: "Volver" }));
+    expect(cuerpos).toHaveLength(0);
+
+    await user.click(form.getByRole("button", { name: "Guardar" }));
+    await user.click(confirmacion().getByRole("button", { name: "Sí, desactivar" }));
+
+    expect(await screen.findByText("Guardaste los cambios de Beto")).toBeInTheDocument();
+    expect(cuerpos).toEqual([{ is_active: false }]);
+  });
+
+  test("reactivar confirma con el botón primario, no con el rojo", async () => {
+    entrarComo(admin);
+    servirUsuarios([adminFila, fila({ is_active: false })]);
+    const cuerpos = servirPatch();
+    const user = userEvent.setup();
+    montarAdmin();
+
+    const form = await abrir(user);
+    await user.selectOptions(form.getByRole("combobox", { name: "Estado" }), "true");
+    await user.click(form.getByRole("button", { name: "Guardar" }));
+    const reactivar = confirmacion().getByRole("button", { name: "Reactivar" });
+    expect(reactivar).toHaveClass("bg-primario");
+    expect(reactivar).not.toHaveClass("bg-error");
+
+    await user.click(reactivar);
+    await screen.findByText("Guardaste los cambios de Beto");
+    expect(cuerpos).toEqual([{ is_active: true }]);
+  });
+
+  test("un 409 last-admin muestra su title en el formulario, no como aviso", async () => {
+    entrarComo(admin);
+    servirUsuarios();
+    servirPatch("last-admin");
+    const user = userEvent.setup();
+    montarAdmin();
+
+    const form = await abrir(user);
+    await user.selectOptions(form.getByRole("combobox", { name: "Estado" }), "false");
+    await user.click(form.getByRole("button", { name: "Guardar" }));
+    await user.click(confirmacion().getByRole("button", { name: "Sí, desactivar" }));
+
+    expect(await form.findByRole("alert")).toHaveTextContent(TITULOS["last-admin"]);
+    expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
   });
 
   test("el vacío ofrece Quitar filtros, que limpia búsqueda, rol y estado y vuelve a la página 1", async () => {
