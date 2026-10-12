@@ -81,6 +81,14 @@ class RepositorioEventosFalso:
         activas = [i for i in self.inscripciones.values() if i.status == EstadoInscripcion.ACTIVE]
         return {id_: sum(1 for i in activas if i.event_id == id_) for id_ in ids_evento}
 
+    def inscrito(self, id_usuario: UUID, id_evento: UUID) -> bool:
+        return any(
+            i.user_id == id_usuario
+            and i.event_id == id_evento
+            and i.status == EstadoInscripcion.ACTIVE
+            for i in self.inscripciones.values()
+        )
+
     def sesiones_de(self, id_evento: UUID) -> list[Sesion]:
         propias = [s for s in self.sesiones.values() if s.event_id == id_evento]
         return sorted(propias, key=lambda s: s.start_at)

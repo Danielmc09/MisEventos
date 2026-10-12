@@ -89,6 +89,11 @@ class EventoSalida(BaseModel):
         return self.end_at < datetime.now(UTC)
 
 
+class EventoDetalle(EventoSalida):
+    # Si el usuario tiene una inscripción activa. Para un anónimo, false.
+    is_registered: bool = False
+
+
 class Cuando(StrEnum):
     UPCOMING = "upcoming"  # los que no terminaron: end_at >= ahora
     PAST = "past"

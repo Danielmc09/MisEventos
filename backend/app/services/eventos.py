@@ -2,6 +2,7 @@
 
 Lanza excepciones de dominio; no sabe nada de HTTP."""
 
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Protocol
 from uuid import UUID
@@ -26,6 +27,7 @@ class Eventos(Protocol):
     def por_id_para_escribir(self, id_evento: UUID) -> Event | None: ...
     def sesiones_de(self, id_evento: UUID) -> list[Sesion]: ...
     def inscritos(self, ids_evento: list[UUID]) -> dict[UUID, int]: ...
+    def inscrito(self, id_usuario: UUID, id_evento: UUID) -> bool: ...
     def guardar(self, evento: Event) -> Event: ...
     def eliminar(self, evento: Event) -> None: ...
     def buscar(
@@ -37,6 +39,19 @@ class Eventos(Protocol):
         offset: int,
         limite: int,
     ) -> tuple[list[Event], int]: ...
+
+
+@dataclass(frozen=True)
+class ConInscritos:
+    """Un evento con sus inscripciones activas y, en el detalle, si quien pregunta es una."""
+
+    evento: Event
+    inscritos: int
+    inscrito: bool = False
+
+
+def _con_inscritos(repo: Eventos, evento: Event) -> ConInscritos:
+    return ConInscritos(evento, repo.inscritos([evento.id])[evento.id])
 
 
 def puede_ver(usuario: User | None, evento: Event) -> bool:
@@ -52,16 +67,19 @@ def puede_ver(usuario: User | None, evento: Event) -> bool:
 
 def listar(
     repo: Eventos, usuario: User | None, filtros: FiltrosEventos, offset: int, limite: int
-) -> tuple[list[Event], int]:
+) -> tuple[list[ConInscritos], int]:
     """Una página de lo que el usuario puede ver, con el total. Es la misma regla de `puede_ver`,
-    pero la aplica la base: pedir `status=DRAFT` no muestra borradores que no le tocan."""
+    pero la aplica la base: pedir `status=DRAFT` no muestra borradores que no le tocan. Los
+    inscritos de toda la página salen de una sola consulta, no de una por evento."""
     ver_todo = usuario is not None and tiene_permiso(usuario, Permiso.EVENTO_GESTIONAR_TODOS)
     borradores_de = None
     if usuario is not None and not ver_todo and tiene_permiso(usuario, Permiso.EVENTO_CREAR):
         borradores_de = usuario.id
-    return repo.buscar(
+    eventos, total = repo.buscar(
         filtros, ver_todo=ver_todo, borradores_de=borradores_de, offset=offset, limite=limite
     )
+    inscritos = repo.inscritos([e.id for e in eventos])
+    return [ConInscritos(e, inscritos[e.id]) for e in eventos], total
 
 
 def obtener(repo: Eventos, usuario: User | None, id_evento: UUID) -> Event:
@@ -72,10 +90,11 @@ def obtener(repo: Eventos, usuario: User | None, id_evento: UUID) -> Event:
     return evento
 
 
-def detalle(repo: Eventos, usuario: User | None, id_evento: UUID) -> tuple[Event, int]:
-    """El evento, con sus inscripciones activas."""
+def detalle(repo: Eventos, usuario: User | None, id_evento: UUID) -> ConInscritos:
+    """El evento, con sus inscripciones activas y si el usuario tiene una. Anónimo: no."""
     evento = obtener(repo, usuario, id_evento)
-    return evento, repo.inscritos([evento.id])[evento.id]
+    inscrito = usuario is not None and repo.inscrito(usuario.id, evento.id)
+    return ConInscritos(evento, repo.inscritos([evento.id])[evento.id], inscrito)
 
 
 def crear(repo: Eventos, usuario: User, datos: EventoEntrada) -> Event:
@@ -116,11 +135,12 @@ def _cambiar_estado(
     return repo.guardar(evento)
 
 
-def publicar(repo: Eventos, usuario: User, id_evento: UUID) -> Event:
+def publicar(repo: Eventos, usuario: User, id_evento: UUID) -> ConInscritos:
     evento = para_escribir(repo, usuario, id_evento)
     if ya_empezo(evento):
         raise TransicionInvalida("No se publica un evento que ya empezó")
-    return _cambiar_estado(repo, evento, {EstadoEvento.DRAFT}, EstadoEvento.PUBLISHED)
+    evento = _cambiar_estado(repo, evento, {EstadoEvento.DRAFT}, EstadoEvento.PUBLISHED)
+    return _con_inscritos(repo, evento)
 
 
 def _con_inscripciones(detalle: str) -> Conflict:
@@ -129,21 +149,24 @@ def _con_inscripciones(detalle: str) -> Conflict:
     )
 
 
-def despublicar(repo: Eventos, usuario: User, id_evento: UUID) -> Event:
+def despublicar(repo: Eventos, usuario: User, id_evento: UUID) -> ConInscritos:
     """Un evento con inscripciones activas no vuelve a borrador: dejaría de verlo quien se
     inscribió. El bloqueo de la fila hace que nadie se inscriba mientras tanto."""
     evento = para_escribir(repo, usuario, id_evento)
     if repo.inscritos([evento.id])[evento.id]:
         raise _con_inscripciones("Un evento con inscripciones activas no se despublica.")
-    return _cambiar_estado(repo, evento, {EstadoEvento.PUBLISHED}, EstadoEvento.DRAFT)
+    return ConInscritos(
+        _cambiar_estado(repo, evento, {EstadoEvento.PUBLISHED}, EstadoEvento.DRAFT), 0
+    )
 
 
-def cancelar(repo: Eventos, usuario: User, id_evento: UUID) -> Event:
+def cancelar(repo: Eventos, usuario: User, id_evento: UUID) -> ConInscritos:
     evento = para_escribir(repo, usuario, id_evento)
     if finalizado(evento):
         raise TransicionInvalida("No se cancela un evento que ya terminó")
     desde = {EstadoEvento.DRAFT, EstadoEvento.PUBLISHED}
-    return _cambiar_estado(repo, evento, desde, EstadoEvento.CANCELLED)
+    # Las inscripciones no cambian: quedan activas y el estado del evento ya dice que se canceló.
+    return _con_inscritos(repo, _cambiar_estado(repo, evento, desde, EstadoEvento.CANCELLED))
 
 
 def _exigir_sesiones_adentro(repo: Eventos, evento: Event, inicio: datetime, fin: datetime) -> None:
@@ -163,7 +186,7 @@ def _exigir_sesiones_adentro(repo: Eventos, evento: Event, inicio: datetime, fin
         )
 
 
-def editar(repo: Eventos, usuario: User, id_evento: UUID, datos: EventoEdicion) -> Event:
+def editar(repo: Eventos, usuario: User, id_evento: UUID, datos: EventoEdicion) -> ConInscritos:
     evento = para_escribir(repo, usuario, id_evento)
     if evento.status == EstadoEvento.CANCELLED or finalizado(evento):
         raise Conflict(titulo="Un evento cancelado o finalizado no se edita")
@@ -179,17 +202,16 @@ def editar(repo: Eventos, usuario: User, id_evento: UUID, datos: EventoEdicion) 
             cambios.get("start_at", evento.start_at),
             cambios.get("end_at", evento.end_at),
         )
-    if "capacity" in cambios:
-        activas = repo.inscritos([evento.id])[evento.id]
-        if cambios["capacity"] < activas:
-            raise Conflict(
-                f"El evento ya tiene {activas} inscripciones activas.",
-                tipo="capacity-below-registrations",
-                titulo="La capacidad no puede quedar por debajo de los inscritos",
-            )
+    activas = repo.inscritos([evento.id])[evento.id]
+    if "capacity" in cambios and cambios["capacity"] < activas:
+        raise Conflict(
+            f"El evento ya tiene {activas} inscripciones activas.",
+            tipo="capacity-below-registrations",
+            titulo="La capacidad no puede quedar por debajo de los inscritos",
+        )
     for campo, valor in cambios.items():
         setattr(evento, campo, valor)
-    return repo.guardar(evento)
+    return ConInscritos(repo.guardar(evento), activas)
 
 
 def eliminar(repo: Eventos, usuario: User, id_evento: UUID) -> None:
