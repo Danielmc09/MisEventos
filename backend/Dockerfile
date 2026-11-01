@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 
 # ── builder: solo las dependencias de producción, en un venv ─────────────────
-FROM python:3.12-slim AS builder
+FROM python:3.15-slim AS builder
 
 ENV PIP_NO_CACHE_DIR=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1 \
@@ -17,7 +17,7 @@ RUN poetry install --only main --no-root
 
 
 # ── runtime: el venv, la app y las migraciones, sin root ─────────────────────
-FROM python:3.12-slim AS runtime
+FROM python:3.15-slim AS runtime
 
 ENV PATH="/app/.venv/bin:$PATH" \
     PYTHONDONTWRITEBYTECODE=1 \
